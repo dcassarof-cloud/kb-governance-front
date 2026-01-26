@@ -1,0 +1,236 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Consisa Brand Colors */
+    --consisa-blue: 216 100% 39%;
+    --consisa-red: 357 97% 67%;
+    
+    /* Core Colors */
+    --background: 218 25% 97%;
+    --foreground: 220 14% 17%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 220 14% 17%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 14% 17%;
+    
+    --primary: 216 100% 39%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 14% 17%;
+    
+    --muted: 218 20% 94%;
+    --muted-foreground: 220 10% 46%;
+    
+    --accent: 357 97% 67%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 216 100% 39%;
+    
+    --radius: 0.75rem;
+    
+    /* Sidebar */
+    --sidebar-background: 216 100% 39%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 216 100% 39%;
+    --sidebar-accent: 216 100% 45%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 216 80% 50%;
+    --sidebar-ring: 0 0% 100%;
+    
+    /* Chart colors */
+    --chart-1: 216 100% 39%;
+    --chart-2: 357 97% 67%;
+    --chart-3: 142 76% 36%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 270 60% 60%;
+  }
+
+  .dark {
+    --background: 220 14% 10%;
+    --foreground: 0 0% 95%;
+    
+    --card: 220 14% 14%;
+    --card-foreground: 0 0% 95%;
+    
+    --popover: 220 14% 14%;
+    --popover-foreground: 0 0% 95%;
+    
+    --primary: 216 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 220 14% 20%;
+    --secondary-foreground: 0 0% 95%;
+    
+    --muted: 220 14% 20%;
+    --muted-foreground: 220 10% 60%;
+    
+    --accent: 357 97% 67%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --border: 220 14% 25%;
+    --input: 220 14% 25%;
+    --ring: 216 100% 55%;
+    
+    --sidebar-background: 220 14% 10%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 216 100% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 18%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 220 14% 25%;
+    --sidebar-ring: 216 100% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+    @apply font-bold tracking-tight;
+  }
+
+  h1 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h2 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  h3 {
+    @apply text-xl md:text-2xl;
+  }
+}
+
+@layer components {
+  .card-metric {
+    @apply bg-card rounded-xl border border-border p-6 shadow-sm transition-all hover:shadow-md;
+  }
+
+  .status-ok {
+    @apply bg-success/10 text-success border-success/20;
+  }
+
+  .status-warning {
+    @apply bg-warning/10 text-warning border-warning/20;
+  }
+
+  .status-error {
+    @apply bg-destructive/10 text-destructive border-destructive/20;
+  }
+
+  .status-info {
+    @apply bg-primary/10 text-primary border-primary/20;
+  }
+
+  .table-container {
+    @apply bg-card rounded-xl border border-border overflow-hidden;
+  }
+
+  .page-header {
+    @apply mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent;
+  }
+
+  .sidebar-item-active {
+    @apply bg-white/15 text-sidebar-foreground font-semibold;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
