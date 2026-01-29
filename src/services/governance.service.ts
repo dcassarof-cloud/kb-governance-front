@@ -4,7 +4,16 @@
 
 import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
-import { GovernanceIssue, DuplicateGroup, IssueType, IssueSeverity, IssueStatus, PaginatedResponse } from '@/types';
+import {
+  GovernanceIssue,
+  DuplicateGroup,
+  IssueType,
+  IssueSeverity,
+  IssueStatus,
+  PaginatedResponse,
+  GovernanceSummary,
+  GovernanceManual,
+} from '@/types';
 import { mockIssues, mockDuplicates } from '@/data/mock-data';
 
 export interface IssuesFilter {
@@ -14,6 +23,17 @@ export interface IssuesFilter {
   severity?: IssueSeverity;
   status?: IssueStatus;
   systemCode?: string;
+}
+
+export interface GovernanceManualFilters {
+  page?: number;
+  size?: number;
+  systemCode?: string;
+  status?: string;
+  risk?: string;
+  priority?: string;
+  responsible?: string;
+  issueType?: string;
 }
 
 // Helper: Normaliza resposta paginada (suporta items, content, data, ou array direto)
@@ -77,6 +97,112 @@ function normalizeArrayResponse<T>(response: unknown): T[] {
 }
 
 class GovernanceService {
+  async getSummary(): Promise<GovernanceSummary> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return {
+        openIssues: 0,
+        criticalManuals: 0,
+        slaBreached: 0,
+        aiReadyPercentage: 0,
+      };
+    }
+
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_SUMMARY);
+    const data = response as Record<string, unknown> | null;
+
+    return {
+      openIssues: (data?.openIssues as number) ?? (data?.issuesOpen as number) ?? 0,
+      criticalManuals: (data?.criticalManuals as number) ?? (data?.manualsCritical as number) ?? 0,
+      slaBreached: (data?.slaBreached as number) ?? (data?.slaOverdue as number) ?? 0,
+      aiReadyPercentage: (data?.aiReadyPercentage as number) ?? (data?.aiReadyPercent as number) ?? 0,
+    };
+  }
+
+  async getManuals(filter: GovernanceManualFilters = {}): Promise<PaginatedResponse<GovernanceManual>> {
+    const {
+      page = 1,
+      size = config.defaultPageSize,
+      systemCode,
+      status,
+      risk,
+      priority,
+      responsible,
+      issueType,
+    } = filter;
+
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      return {
+        data: [],
+        total: 0,
+        page,
+        size,
+        totalPages: 0,
+      };
+    }
+
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_MANUALS, {
+      params: { page, size, systemCode, status, risk, priority, responsible, issueType },
+    });
+
+    return normalizePaginatedResponse<GovernanceManual>(response, page, size);
+  }
+
+  async assignManual(id: string, responsible: string): Promise<void> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(id), { responsible });
+  }
+
+  async reviewManual(id: string): Promise<void> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_REVIEW(id));
+  }
+
+  async moveManual(id: string): Promise<void> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MOVE(id));
+  }
+
+  async mergeManual(id: string): Promise<void> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MERGE(id));
+  }
+
+  async resolveManual(id: string): Promise<void> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_RESOLVE(id));
+  }
+
+  async ignoreManual(id: string): Promise<void> {
+    if (config.useMockData) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      return;
+    }
+
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id));
+  }
+
   async getIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssue>> {
     const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode } = filter;
 

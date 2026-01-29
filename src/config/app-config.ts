@@ -54,9 +54,17 @@ export const API_ENDPOINTS = {
   ARTICLE_BY_ID: (id: string | number) => `/articles/${id}`,
 
   // Governance
+  GOVERNANCE_SUMMARY: '/governance/summary',
+  GOVERNANCE_MANUALS: '/governance/manuals',
   GOVERNANCE_ISSUES: '/governance/issues',
   GOVERNANCE_DUPLICATES: '/governance/duplicates',
   GOVERNANCE_ISSUE_BY_ID: (id: string | number) => `/governance/issues/${id}`,
+  GOVERNANCE_MANUAL_ASSIGN: (id: string | number) => `/governance/manuals/${id}/assign`,
+  GOVERNANCE_MANUAL_REVIEW: (id: string | number) => `/governance/manuals/${id}/review`,
+  GOVERNANCE_MANUAL_MOVE: (id: string | number) => `/governance/manuals/${id}/move`,
+  GOVERNANCE_MANUAL_MERGE: (id: string | number) => `/governance/manuals/${id}/merge`,
+  GOVERNANCE_MANUAL_RESOLVE: (id: string | number) => `/governance/manuals/${id}/resolve`,
+  GOVERNANCE_MANUAL_IGNORE: (id: string | number) => `/governance/manuals/${id}/ignore`,
 
   // Systems
   SYSTEMS: '/systems',
