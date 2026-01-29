@@ -62,6 +62,27 @@ export interface GovernanceIssue {
   details: string;
 }
 
+export interface GovernanceSummary {
+  openIssues: number;
+  criticalManuals: number;
+  slaBreached: number;
+  aiReadyPercentage: number;
+}
+
+export interface GovernanceManual {
+  id: string;
+  title: string;
+  system: string;
+  systemCode?: string;
+  movideskLink: string;
+  issueTypes: string[];
+  status: string;
+  risk: string;
+  priority: string;
+  responsible: string;
+  dueDate: string | null;
+}
+
 export interface DuplicateGroup {
   hash: string;
   count: number;
