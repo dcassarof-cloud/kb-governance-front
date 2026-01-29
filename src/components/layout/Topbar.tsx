@@ -23,12 +23,6 @@ export function Topbar() {
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
       {/* Title */}
       <div className="flex items-center gap-4">
-        <Link
-          to="/dashboard"
-          className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground"
-        >
-          KB Governance
-
         <Link to="/dashboard" className="flex items-center gap-3">
           <img
             src="/consisa-logo.png"
