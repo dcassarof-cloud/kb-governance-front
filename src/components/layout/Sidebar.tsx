@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/auth.service';
+import { ConsisaLogo } from '@/components/brand/ConsisaLogo';
 
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -53,6 +54,11 @@ export function Sidebar() {
             collapsed ? 'justify-center' : 'animate-slide-in-left'
           )}
           aria-label="Consisa Sistemas - KB Governance"
+
+          title={collapsed ? 'Consisa Sistemas' : undefined}
+        >
+          <ConsisaLogo size={30} showText={!collapsed} />
+
         >
           <img
             src={collapsed ? '/consisa-symbol.png' : '/consisa-logo.png'}
