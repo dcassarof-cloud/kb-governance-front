@@ -28,6 +28,16 @@ export function Topbar() {
           className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground"
         >
           KB Governance
+
+        <Link to="/dashboard" className="flex items-center gap-3">
+          <img
+            src="/consisa-logo.png"
+            alt="Consisa Sistemas"
+            className="h-8 w-auto"
+          />
+          <span className="hidden lg:block text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+            KB Governance
+          </span>
         </Link>
       </div>
 
