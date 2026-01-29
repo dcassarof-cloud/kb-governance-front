@@ -35,10 +35,12 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl font-bold text-primary-foreground">KB</span>
-            </div>
-            <h1 className="text-2xl font-bold">Consisa KB Governance</h1>
+            <img
+              src="/consisa-logo.png"
+              alt="Consisa Sistemas"
+              className="h-12 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold">KB Governance</h1>
             <p className="text-muted-foreground mt-2">Faça login para continuar</p>
           </div>
 

@@ -1,4 +1,5 @@
 import { Bell, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,11 +21,14 @@ export function Topbar() {
 
   return (
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-      {/* Logo and Title */}
+      {/* Title */}
       <div className="flex items-center gap-4">
-        <h1 className="text-lg font-bold text-foreground hidden sm:block">
-          Consisa <span className="text-primary">KB Governance</span>
-        </h1>
+        <Link
+          to="/dashboard"
+          className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground"
+        >
+          KB Governance
+        </Link>
       </div>
 
       {/* Actions */}

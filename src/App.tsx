@@ -13,31 +13,34 @@ import SystemsPage from "./pages/Systems";
 import SyncPage from "./pages/Sync";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { ThemeProvider } from "./context/ThemeContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/articles" element={<ArticlesPage />} />
-          <Route path="/governance" element={<GovernancePage />} />
-          <Route path="/governanca" element={<GovernancePage />} />
-          <Route path="/duplicates" element={<DuplicatesPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/systems" element={<SystemsPage />} />
-          <Route path="/sync" element={<SyncPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/articles" element={<ArticlesPage />} />
+            <Route path="/governance" element={<GovernancePage />} />
+            <Route path="/governanca" element={<GovernancePage />} />
+            <Route path="/duplicates" element={<DuplicatesPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/systems" element={<SystemsPage />} />
+            <Route path="/sync" element={<SyncPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

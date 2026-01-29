@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/auth.service';
+import { ConsisaLogo } from '@/components/brand/ConsisaLogo';
 
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,16 +47,17 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
-        {!collapsed && (
-          <div className="flex items-center gap-2 animate-slide-in-left">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-primary font-bold text-sm">KB</span>
-            </div>
-            <span className="font-bold text-sidebar-foreground text-sm">
-              KB Governance
-            </span>
-          </div>
-        )}
+        <NavLink
+          to="/dashboard"
+          className={cn(
+            'flex flex-1 items-center gap-3 min-w-0 transition-all',
+            collapsed ? 'justify-center' : 'animate-slide-in-left'
+          )}
+          aria-label="Consisa Sistemas - KB Governance"
+          title={collapsed ? 'Consisa Sistemas' : undefined}
+        >
+          <ConsisaLogo size={30} showText={!collapsed} />
+        </NavLink>
         <Button
           variant="ghost"
           size="icon"
