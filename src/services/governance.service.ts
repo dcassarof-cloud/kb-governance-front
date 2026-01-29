@@ -4,6 +4,7 @@
 
 import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
+
 import {
   GovernanceIssue,
   DuplicateGroup,
@@ -14,6 +15,7 @@ import {
   GovernanceSummary,
   GovernanceManual,
 } from '@/types';
+
 import { mockIssues, mockDuplicates } from '@/data/mock-data';
 
 export interface IssuesFilter {
@@ -25,18 +27,21 @@ export interface IssuesFilter {
   systemCode?: string;
 }
 
+/**
+ * ✅ Filtros alinhados com o endpoint atual do backend:
+ * GET /api/v1/governance/manuals?page=1&size=10&system=&status=&q=
+ */
 export interface GovernanceManualFilters {
   page?: number;
   size?: number;
-  systemCode?: string;
+  system?: string;
   status?: string;
-  risk?: string;
-  priority?: string;
-  responsible?: string;
-  issueType?: string;
+  q?: string;
 }
 
-// Helper: Normaliza resposta paginada (suporta items, content, data, ou array direto)
+/**
+ * Helper: Normaliza resposta paginada (suporta items, content, data, ou array direto)
+ */
 function normalizePaginatedResponse<T>(response: unknown, page: number, size: number): PaginatedResponse<T> {
   // Se é um array direto
   if (Array.isArray(response)) {
@@ -59,10 +64,10 @@ function normalizePaginatedResponse<T>(response: unknown, page: number, size: nu
 
     return {
       data: dataArray as T[],
-      total: (obj.total as number) ?? (obj.totalElements as number) ?? dataArray.length,
-      page: (obj.page as number) ?? page,
-      size: (obj.size as number) ?? size,
-      totalPages: (obj.totalPages as number) ?? (Math.ceil(dataArray.length / size) || 1),
+      total: (obj.total as number) ?? (obj.totalElements as number) ?? (obj.totalItems as number) ?? dataArray.length,
+      page: (obj.page as number) ?? (obj.pageNumber as number) ?? page,
+      size: (obj.size as number) ?? (obj.pageSize as number) ?? size,
+      totalPages: (obj.totalPages as number) ?? (obj.pages as number) ?? (Math.ceil(dataArray.length / size) || 1),
     };
   }
 
@@ -76,30 +81,25 @@ function normalizePaginatedResponse<T>(response: unknown, page: number, size: nu
   };
 }
 
-// Helper: Normaliza resposta de array (suporta items, content, data, ou array direto)
+/**
+ * Helper: Normaliza resposta de array (suporta items, content, data, ou array direto)
+ */
 function normalizeArrayResponse<T>(response: unknown): T[] {
-  // Se é um array direto
-  if (Array.isArray(response)) {
-    return response;
-  }
+  if (Array.isArray(response)) return response;
 
-  // Se é um objeto, tenta extrair array de diferentes campos
   if (response && typeof response === 'object') {
     const obj = response as Record<string, unknown>;
     const items = obj.data || obj.items || obj.content || [];
-    if (Array.isArray(items)) {
-      return items as T[];
-    }
+    if (Array.isArray(items)) return items as T[];
   }
 
-  // Fallback: retorna array vazio
   return [];
 }
 
 class GovernanceService {
   async getSummary(): Promise<GovernanceSummary> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return {
         openIssues: 0,
         criticalManuals: 0,
@@ -119,20 +119,15 @@ class GovernanceService {
     };
   }
 
-  async getManuals(filter: GovernanceManualFilters = {}): Promise<PaginatedResponse<GovernanceManual>> {
-    const {
-      page = 1,
-      size = config.defaultPageSize,
-      systemCode,
-      status,
-      risk,
-      priority,
-      responsible,
-      issueType,
-    } = filter;
+  /**
+   * Lista manuais/artigos para a tela de governança.
+   * Backend esperado: GET /api/v1/governance/manuals
+   */
+  async listManuals(filter: GovernanceManualFilters = {}): Promise<PaginatedResponse<GovernanceManual>> {
+    const { page = 1, size = config.defaultPageSize, system, status, q } = filter;
 
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       return {
         data: [],
         total: 0,
@@ -143,7 +138,7 @@ class GovernanceService {
     }
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_MANUALS, {
-      params: { page, size, systemCode, status, risk, priority, responsible, issueType },
+      params: { page, size, system, status, q },
     });
 
     return normalizePaginatedResponse<GovernanceManual>(response, page, size);
@@ -151,55 +146,49 @@ class GovernanceService {
 
   async assignManual(id: string, responsible: string): Promise<void> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return;
     }
-
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(id), { responsible });
   }
 
   async reviewManual(id: string): Promise<void> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return;
     }
-
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_REVIEW(id));
   }
 
   async moveManual(id: string): Promise<void> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return;
     }
-
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MOVE(id));
   }
 
   async mergeManual(id: string): Promise<void> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return;
     }
-
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MERGE(id));
   }
 
   async resolveManual(id: string): Promise<void> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return;
     }
-
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_RESOLVE(id));
   }
 
   async ignoreManual(id: string): Promise<void> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       return;
     }
-
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id));
   }
 
@@ -207,14 +196,14 @@ class GovernanceService {
     const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode } = filter;
 
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 400));
 
       let filtered = Array.isArray(mockIssues) ? [...mockIssues] : [];
 
-      if (type) filtered = filtered.filter(i => i?.type === type);
-      if (severity) filtered = filtered.filter(i => i?.severity === severity);
-      if (status) filtered = filtered.filter(i => i?.status === status);
-      if (systemCode) filtered = filtered.filter(i => i?.systemCode === systemCode);
+      if (type) filtered = filtered.filter((i) => i?.type === type);
+      if (severity) filtered = filtered.filter((i) => i?.severity === severity);
+      if (status) filtered = filtered.filter((i) => i?.status === status);
+      if (systemCode) filtered = filtered.filter((i) => i?.systemCode === systemCode);
 
       const total = filtered.length;
       const start = (page - 1) * size;
@@ -229,7 +218,6 @@ class GovernanceService {
       };
     }
 
-    // Chamada à API real com normalização de resposta
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
       params: { page, size, type, severity, status, systemCode },
     });
@@ -239,20 +227,19 @@ class GovernanceService {
 
   async getDuplicates(): Promise<DuplicateGroup[]> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       return Array.isArray(mockDuplicates) ? mockDuplicates : [];
     }
 
-    // Chamada à API real com normalização de resposta
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_DUPLICATES);
     return normalizeArrayResponse<DuplicateGroup>(response);
   }
 
   async updateIssueStatus(id: string, status: IssueStatus): Promise<GovernanceIssue> {
     if (config.useMockData) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       const issues = Array.isArray(mockIssues) ? mockIssues : [];
-      const issue = issues.find(i => i?.id === id);
+      const issue = issues.find((i) => i?.id === id);
       if (issue) {
         issue.status = status;
         return issue;
@@ -260,7 +247,6 @@ class GovernanceService {
       throw new Error('Issue not found');
     }
 
-    // Chamada à API real
     return apiClient.put<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_BY_ID(id), { status });
   }
 }

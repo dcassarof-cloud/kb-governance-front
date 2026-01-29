@@ -62,7 +62,7 @@ class ApiClient {
     if (params) {
       const usp = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && v !== "") usp.append(k, String(v));
+        if (v !== undefined && v !== null) usp.append(k, String(v));
       });
 
       const qs = usp.toString();
