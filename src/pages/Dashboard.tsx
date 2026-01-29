@@ -89,6 +89,15 @@ export default function DashboardPage() {
   const issuesCount = data?.issuesCount ?? 0;
   const duplicatesCount = data?.duplicatesCount ?? 0;
 
+  // Validação de coerência: OK + Issues deve ser igual ou próximo ao Total
+  // (Duplicados são contados separadamente, podem sobrepor)
+  const sumOkAndIssues = okCount + issuesCount;
+  const isDataConsistent = totalArticles === 0 || Math.abs(sumOkAndIssues - totalArticles) <= 1;
+
+  // Calcula percentuais reais
+  const okPercent = totalArticles > 0 ? Math.round((okCount / totalArticles) * 100) : 0;
+  const issuesPercent = totalArticles > 0 ? Math.round((issuesCount / totalArticles) * 100) : 0;
+
   // Prepara dados para gráficos com guard clauses
   const pieData = Array.isArray(data?.byStatus)
     ? data.byStatus.map(s => ({
@@ -110,10 +119,30 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard title="Total de Manuais" value={totalArticles} icon={FileText} variant="primary" />
-        <MetricCard title="OK" value={okCount} icon={CheckCircle} variant="success" />
-        <MetricCard title="Issues" value={issuesCount} icon={AlertTriangle} variant="warning" />
+        <MetricCard
+          title="OK"
+          value={okCount}
+          icon={CheckCircle}
+          variant="success"
+          subtitle={totalArticles > 0 ? `${okPercent}% do total` : undefined}
+        />
+        <MetricCard
+          title="Com Issues"
+          value={issuesCount}
+          icon={AlertTriangle}
+          variant="warning"
+          subtitle={totalArticles > 0 ? `${issuesPercent}% do total` : undefined}
+        />
         <MetricCard title="Duplicados" value={duplicatesCount} icon={Copy} variant="error" />
       </div>
+
+      {/* Aviso de inconsistência de dados (debug) */}
+      {!isDataConsistent && totalArticles > 0 && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+          <strong>Aviso:</strong> OK ({okCount}) + Issues ({issuesCount}) = {sumOkAndIssues}, mas Total = {totalArticles}.
+          Verifique os dados do backend.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card-metric">
