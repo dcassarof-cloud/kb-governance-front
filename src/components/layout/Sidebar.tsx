@@ -54,25 +54,9 @@ export function Sidebar() {
             collapsed ? 'justify-center' : 'animate-slide-in-left'
           )}
           aria-label="Consisa Sistemas - KB Governance"
-
           title={collapsed ? 'Consisa Sistemas' : undefined}
         >
           <ConsisaLogo size={30} showText={!collapsed} />
-
-        >
-          <img
-            src={collapsed ? '/consisa-symbol.png' : '/consisa-logo.png'}
-            alt="Consisa Sistemas"
-            className={cn(
-              'shrink-0',
-              collapsed ? 'h-9 w-9' : 'h-9 w-auto'
-            )}
-          />
-          {!collapsed && (
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sidebar-foreground/80">
-              KB Governance
-            </span>
-          )}
         </NavLink>
         <Button
           variant="ghost"
