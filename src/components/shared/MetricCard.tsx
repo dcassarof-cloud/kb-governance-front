@@ -6,6 +6,7 @@ interface MetricCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
+  subtitle?: string;
   change?: {
     value: number;
     label: string;
@@ -35,6 +36,7 @@ export function MetricCard({
   title,
   value,
   icon: Icon,
+  subtitle,
   change,
   variant = 'default',
   className,
@@ -52,6 +54,9 @@ export function MetricCard({
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <p className="text-3xl font-bold tracking-tight">{value}</p>
+          {subtitle && (
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          )}
         </div>
         <div className={cn('p-3 rounded-xl', iconVariantStyles[variant])}>
           <Icon className="h-6 w-6" />
