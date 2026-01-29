@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/auth.service';
-import { ConsisaLogo } from '@/components/brand/ConsisaLogo';
+import { ConsisaBrand } from '@/components/brand/ConsisaBrand';
 
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -45,7 +45,7 @@ export function Sidebar() {
         collapsed ? 'w-16' : 'w-64'
       )}
     >
-      {/* Logo */}
+      {/* Brand */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
         <NavLink
           to="/dashboard"
@@ -56,42 +56,36 @@ export function Sidebar() {
           aria-label="Consisa Sistemas - KB Governance"
           title={collapsed ? 'Consisa Sistemas' : undefined}
         >
-          <ConsisaLogo size={30} showText={!collapsed} />
+          <ConsisaBrand collapsed={collapsed} />
         </NavLink>
+
         <Button
           variant="ghost"
           size="icon"
           className="text-sidebar-foreground hover:bg-sidebar-accent ml-auto"
           onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
         >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
-          const isActive = location.pathname === item.path || 
+          const isActive =
+            location.pathname === item.path ||
             (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
-          
+
           return (
             <NavLink
               key={item.path}
               to={item.path}
-              className={cn(
-                'sidebar-item',
-                isActive && 'sidebar-item-active'
-              )}
+              className={cn('sidebar-item', isActive && 'sidebar-item-active')}
               title={collapsed ? item.label : undefined}
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && (
-                <span className="truncate">{item.label}</span>
-              )}
+              {!collapsed && <span className="truncate">{item.label}</span>}
             </NavLink>
           );
         })}
@@ -101,9 +95,7 @@ export function Sidebar() {
       <div className="p-2 border-t border-sidebar-border">
         <button
           onClick={handleLogout}
-          className={cn(
-            'sidebar-item w-full text-sidebar-foreground/70 hover:text-sidebar-foreground'
-          )}
+          className={cn('sidebar-item w-full text-sidebar-foreground/70 hover:text-sidebar-foreground')}
           title={collapsed ? 'Sair' : undefined}
         >
           <LogOut className="h-5 w-5 shrink-0" />
