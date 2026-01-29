@@ -1,5 +1,5 @@
 import { Bell, User } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,6 +13,20 @@ import { authService } from '@/services/auth.service';
 
 export function Topbar() {
   const user = authService.getUser();
+  const location = useLocation();
+
+  const pageTitle = (() => {
+    const pathname = location.pathname;
+    if (pathname === '/dashboard') return 'Dashboard';
+    if (pathname.startsWith('/articles')) return 'Manuais';
+    if (pathname.startsWith('/governance')) return 'Governança';
+    if (pathname.startsWith('/duplicates')) return 'Duplicados';
+    if (pathname.startsWith('/reports')) return 'Relatórios';
+    if (pathname.startsWith('/systems')) return 'Sistemas';
+    if (pathname.startsWith('/sync')) return 'Sincronização';
+    if (pathname.startsWith('/settings')) return 'Configurações';
+    return 'Dashboard';
+  })();
 
   const handleLogout = async () => {
     await authService.logout();
@@ -22,23 +36,13 @@ export function Topbar() {
   return (
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
       {/* Title */}
-      <div className="flex items-center gap-4">
-        <Link
-          to="/dashboard"
-          className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground"
-        >
-          KB Governance
-
-        <Link to="/dashboard" className="flex items-center gap-3">
-          <img
-            src="/consisa-logo.png"
-            alt="Consisa Sistemas"
-            className="h-8 w-auto"
-          />
-          <span className="hidden lg:block text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground">
-            KB Governance
-          </span>
-        </Link>
+      <div className="flex min-w-0 flex-col">
+        <span className="text-xs text-muted-foreground">
+          Consisa / KB Governance
+        </span>
+        <span className="text-lg font-semibold text-foreground truncate">
+          {pageTitle}
+        </span>
       </div>
 
       {/* Actions */}

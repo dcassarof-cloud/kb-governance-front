@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/auth.service';
-import { ConsisaLogo } from '@/components/brand/ConsisaLogo';
+import { ConsisaBrand } from '@/components/brand/ConsisaBrand';
 
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -54,25 +54,9 @@ export function Sidebar() {
             collapsed ? 'justify-center' : 'animate-slide-in-left'
           )}
           aria-label="Consisa Sistemas - KB Governance"
-
           title={collapsed ? 'Consisa Sistemas' : undefined}
         >
-          <ConsisaLogo size={30} showText={!collapsed} />
-
-        >
-          <img
-            src={collapsed ? '/consisa-symbol.png' : '/consisa-logo.png'}
-            alt="Consisa Sistemas"
-            className={cn(
-              'shrink-0',
-              collapsed ? 'h-9 w-9' : 'h-9 w-auto'
-            )}
-          />
-          {!collapsed && (
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sidebar-foreground/80">
-              KB Governance
-            </span>
-          )}
+          <ConsisaBrand collapsed={collapsed} />
         </NavLink>
         <Button
           variant="ghost"
