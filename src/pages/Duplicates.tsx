@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Copy, AlertCircle, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { governanceService } from '@/services/governance.service';
+import { StatusBadge } from '@/components/shared/StatusBadge';
+import { Button } from '@/components/ui/button';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { duplicatesService } from '@/services/duplicates.service';
 import { DuplicateGroup } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
@@ -13,12 +17,14 @@ export default function DuplicatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [primarySelection, setPrimarySelection] = useState<Record<string, string>>({});
+  const [actionLoading, setActionLoading] = useState<{ hash: string; action: string } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await governanceService.getDuplicates();
+      const result = await duplicatesService.listGroups();
       // Normaliza resposta: garante que é sempre um array
       const normalized = Array.isArray(result) ? result : [];
       setData(normalized);
@@ -39,6 +45,48 @@ export default function DuplicatesPage() {
   const formatHash = (hash: string | undefined | null): string => {
     if (!hash || typeof hash !== 'string') return 'N/A';
     return hash.length > 12 ? `${hash.slice(0, 12)}...` : hash;
+  };
+
+  const handleAction = async (hash: string, action: string, handler: () => Promise<void>) => {
+    setActionLoading({ hash, action });
+    try {
+      await handler();
+      toast({ title: 'Ação concluída', description: 'Operação realizada com sucesso.' });
+      await fetchData();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao executar ação';
+      toast({ title: 'Erro', description: message, variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSetPrimary = async (group: DuplicateGroup) => {
+    const hash = group?.hash;
+    if (!hash) return;
+    const selected = primarySelection[hash];
+    if (!selected) {
+      toast({ title: 'Atenção', description: 'Selecione o artigo principal antes de salvar.' });
+      return;
+    }
+    await handleAction(hash, 'primary', () => duplicatesService.setPrimary(hash, selected));
+  };
+
+  const handleMerge = async (group: DuplicateGroup) => {
+    const hash = group?.hash;
+    if (!hash) return;
+    const selected = primarySelection[hash];
+    if (!selected) {
+      toast({ title: 'Atenção', description: 'Selecione o artigo principal antes de mesclar.' });
+      return;
+    }
+    await handleAction(hash, 'merge', () => duplicatesService.mergeRequest(hash, selected));
+  };
+
+  const handleIgnore = async (group: DuplicateGroup) => {
+    const hash = group?.hash;
+    if (!hash) return;
+    await handleAction(hash, 'ignore', () => duplicatesService.ignoreGroup(hash));
   };
 
   // Renderiza conteúdo baseado no estado
@@ -83,6 +131,10 @@ export default function DuplicatesPage() {
           const groupHash = group?.hash || `group-${index}`;
           const groupCount = group?.count ?? 0;
           const groupArticles = Array.isArray(group?.articles) ? group.articles : [];
+          const status = group?.status || 'PENDING';
+          const selected = primarySelection[groupHash] || '';
+          const isActionLoading = (action: string) =>
+            actionLoading?.hash === groupHash && actionLoading?.action === action;
 
           return (
             <div key={groupHash} className="card-metric">
@@ -100,23 +152,81 @@ export default function DuplicatesPage() {
                   <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                     Hash: {formatHash(group?.hash)}
                   </span>
+                  <StatusBadge status={status} />
                 </div>
               </button>
-              {expanded === groupHash && groupArticles.length > 0 && (
-                <div className="mt-4 pl-8 space-y-2 border-l-2 border-border">
-                  {groupArticles.map((article, articleIndex) => (
-                    <div
-                      key={article?.id || `article-${articleIndex}`}
-                      className="text-sm p-2 bg-muted/50 rounded"
+              {expanded === groupHash && (
+                <div className="mt-4 pl-8 space-y-4 border-l-2 border-border">
+                  {groupArticles.length > 0 ? (
+                    <RadioGroup
+                      value={selected}
+                      onValueChange={(value) =>
+                        setPrimarySelection((prev) => ({
+                          ...prev,
+                          [groupHash]: value,
+                        }))
+                      }
+                      className="space-y-3"
                     >
-                      {article?.title || 'Título não disponível'}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {expanded === groupHash && groupArticles.length === 0 && (
-                <div className="mt-4 pl-8 text-sm text-muted-foreground">
-                  Nenhum artigo encontrado neste grupo.
+                      {groupArticles.map((article, articleIndex) => {
+                        const articleId = article?.id || `article-${articleIndex}`;
+                        return (
+                          <div
+                            key={articleId}
+                            className="flex items-center gap-3 rounded border border-border bg-muted/40 p-3"
+                          >
+                            <RadioGroupItem value={articleId} id={`${groupHash}-${articleId}`} />
+                            <Label htmlFor={`${groupHash}-${articleId}`} className="text-sm">
+                              {article?.title || 'Título não disponível'}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </RadioGroup>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Nenhum artigo encontrado neste grupo.</div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleSetPrimary(group)}
+                      disabled={isActionLoading('primary')}
+                    >
+                      {isActionLoading('primary') ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Salvando...
+                        </span>
+                      ) : (
+                        'Definir principal'
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleMerge(group)}
+                      disabled={isActionLoading('merge')}
+                    >
+                      {isActionLoading('merge') ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Mesclando...
+                        </span>
+                      ) : (
+                        'Mesclar'
+                      )}
+                    </Button>
+                    <Button variant="ghost" onClick={() => handleIgnore(group)} disabled={isActionLoading('ignore')}>
+                      {isActionLoading('ignore') ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Ignorando...
+                        </span>
+                      ) : (
+                        'Ignorar'
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

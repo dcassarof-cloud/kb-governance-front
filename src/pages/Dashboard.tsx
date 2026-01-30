@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, AlertTriangle, Copy, CheckCircle, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle, TrendingUp, AlertCircle, RefreshCw, AlertOctagon } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { MetricCard } from '@/components/shared/MetricCard';
@@ -24,9 +24,9 @@ export default function DashboardPage() {
       // Normaliza resposta: garante estrutura esperada
       const normalized: DashboardSummary = {
         totalArticles: result?.totalArticles ?? 0,
-        okCount: result?.okCount ?? 0,
-        issuesCount: result?.issuesCount ?? 0,
-        duplicatesCount: result?.duplicatesCount ?? 0,
+        articlesOk: result?.articlesOk ?? 0,
+        articlesWithIssues: result?.articlesWithIssues ?? 0,
+        totalIssues: result?.totalIssues ?? 0,
         bySystem: Array.isArray(result?.bySystem) ? result.bySystem : [],
         byStatus: Array.isArray(result?.byStatus) ? result.byStatus : [],
       };
@@ -85,18 +85,13 @@ export default function DashboardPage() {
 
   // Dados seguros com fallbacks
   const totalArticles = data?.totalArticles ?? 0;
-  const okCount = data?.okCount ?? 0;
-  const issuesCount = data?.issuesCount ?? 0;
-  const duplicatesCount = data?.duplicatesCount ?? 0;
-
-  // Validação de coerência: OK + Issues deve ser igual ou próximo ao Total
-  // (Duplicados são contados separadamente, podem sobrepor)
-  const sumOkAndIssues = okCount + issuesCount;
-  const isDataConsistent = totalArticles === 0 || Math.abs(sumOkAndIssues - totalArticles) <= 1;
+  const okCount = data?.articlesOk ?? 0;
+  const articlesWithIssues = data?.articlesWithIssues ?? 0;
+  const totalIssues = data?.totalIssues ?? 0;
 
   // Calcula percentuais reais
   const okPercent = totalArticles > 0 ? Math.round((okCount / totalArticles) * 100) : 0;
-  const issuesPercent = totalArticles > 0 ? Math.round((issuesCount / totalArticles) * 100) : 0;
+  const issuesPercent = totalArticles > 0 ? Math.round((articlesWithIssues / totalArticles) * 100) : 0;
 
   // Prepara dados para gráficos com guard clauses
   const pieData = Array.isArray(data?.byStatus)
@@ -128,21 +123,13 @@ export default function DashboardPage() {
         />
         <MetricCard
           title="Com Issues"
-          value={issuesCount}
+          value={articlesWithIssues}
           icon={AlertTriangle}
           variant="warning"
           subtitle={totalArticles > 0 ? `${issuesPercent}% do total` : undefined}
         />
-        <MetricCard title="Duplicados" value={duplicatesCount} icon={Copy} variant="error" />
+        <MetricCard title="Total de Issues" value={totalIssues} icon={AlertOctagon} variant="error" />
       </div>
-
-      {/* Aviso de inconsistência de dados (debug) */}
-      {!isDataConsistent && totalArticles > 0 && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
-          <strong>Aviso:</strong> OK ({okCount}) + Issues ({issuesCount}) = {sumOkAndIssues}, mas Total = {totalArticles}.
-          Verifique os dados do backend.
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card-metric">

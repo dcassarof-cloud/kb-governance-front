@@ -4,9 +4,9 @@
 
 export interface DashboardSummary {
   totalArticles: number;
-  okCount: number;
-  issuesCount: number;
-  duplicatesCount: number;
+  articlesOk: number;
+  articlesWithIssues: number;
+  totalIssues: number;
   bySystem: SystemStats[];
   byStatus: StatusStats[];
 }
@@ -60,6 +60,9 @@ export interface GovernanceIssue {
   status: IssueStatus;
   createdAt: string;
   details: string;
+  responsible?: string | null;
+  dueDate?: string | null;
+  systemName?: string | null;
 }
 
 export interface GovernanceSummary {
@@ -87,6 +90,15 @@ export interface DuplicateGroup {
   hash: string;
   count: number;
   articles: KbArticle[];
+  status?: string;
+}
+
+export interface IssueHistoryEntry {
+  id: string;
+  status: IssueStatus | string;
+  changedAt: string;
+  changedBy?: string | null;
+  note?: string | null;
 }
 
 export interface SyncRun {
