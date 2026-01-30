@@ -22,9 +22,9 @@ export const mockUser: User = {
 
 export const mockDashboardSummary: DashboardSummary = {
   totalArticles: 1247,
-  okCount: 1089,
-  issuesCount: 126,
-  duplicatesCount: 32,
+  articlesOk: 1089,
+  articlesWithIssues: 126,
+  totalIssues: 154,
   bySystem: [
     { systemCode: 'SISCONT', systemName: 'Sistema Contábil', count: 412 },
     { systemCode: 'SISFIN', systemName: 'Sistema Financeiro', count: 289 },

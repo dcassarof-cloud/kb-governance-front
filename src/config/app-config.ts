@@ -59,12 +59,18 @@ export const API_ENDPOINTS = {
   GOVERNANCE_ISSUES: '/governance/issues',
   GOVERNANCE_DUPLICATES: '/governance/duplicates',
   GOVERNANCE_ISSUE_BY_ID: (id: string | number) => `/governance/issues/${id}`,
+  GOVERNANCE_ISSUE_ASSIGN: (id: string | number) => `/governance/issues/${id}/assign`,
+  GOVERNANCE_ISSUE_STATUS: (id: string | number) => `/governance/issues/${id}/status`,
+  GOVERNANCE_ISSUE_HISTORY: (id: string | number) => `/governance/issues/${id}/history`,
   GOVERNANCE_MANUAL_ASSIGN: (id: string | number) => `/governance/manuals/${id}/assign`,
   GOVERNANCE_MANUAL_REVIEW: (id: string | number) => `/governance/manuals/${id}/review`,
   GOVERNANCE_MANUAL_MOVE: (id: string | number) => `/governance/manuals/${id}/move`,
   GOVERNANCE_MANUAL_MERGE: (id: string | number) => `/governance/manuals/${id}/merge`,
   GOVERNANCE_MANUAL_RESOLVE: (id: string | number) => `/governance/manuals/${id}/resolve`,
   GOVERNANCE_MANUAL_IGNORE: (id: string | number) => `/governance/manuals/${id}/ignore`,
+  GOVERNANCE_DUPLICATES_PRIMARY: (hash: string | number) => `/governance/duplicates/${hash}/primary`,
+  GOVERNANCE_DUPLICATES_IGNORE: (hash: string | number) => `/governance/duplicates/${hash}/ignore`,
+  GOVERNANCE_DUPLICATES_MERGE: (hash: string | number) => `/governance/duplicates/${hash}/merge`,
 
   // Systems
   SYSTEMS: '/systems',

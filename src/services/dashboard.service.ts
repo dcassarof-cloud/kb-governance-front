@@ -5,15 +5,14 @@
 import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
 import { DashboardSummary } from '@/types';
-import { mockDashboardSummary } from '@/data/mock-data';
 
 // Helper: Normaliza resposta do dashboard com valores padrão
 function normalizeDashboardSummary(response: unknown): DashboardSummary {
   const defaultSummary: DashboardSummary = {
     totalArticles: 0,
-    okCount: 0,
-    issuesCount: 0,
-    duplicatesCount: 0,
+    articlesOk: 0,
+    articlesWithIssues: 0,
+    totalIssues: 0,
     bySystem: [],
     byStatus: [],
   };
@@ -26,9 +25,10 @@ function normalizeDashboardSummary(response: unknown): DashboardSummary {
 
   return {
     totalArticles: typeof obj.totalArticles === 'number' ? obj.totalArticles : 0,
-    okCount: typeof obj.okCount === 'number' ? obj.okCount : 0,
-    issuesCount: typeof obj.issuesCount === 'number' ? obj.issuesCount : 0,
-    duplicatesCount: typeof obj.duplicatesCount === 'number' ? obj.duplicatesCount : 0,
+    articlesOk: typeof obj.articlesOk === 'number' ? obj.articlesOk : (obj.okCount as number) ?? 0,
+    articlesWithIssues:
+      typeof obj.articlesWithIssues === 'number' ? obj.articlesWithIssues : (obj.issuesCount as number) ?? 0,
+    totalIssues: typeof obj.totalIssues === 'number' ? obj.totalIssues : (obj.issuesCount as number) ?? 0,
     bySystem: Array.isArray(obj.bySystem) ? obj.bySystem : [],
     byStatus: Array.isArray(obj.byStatus) ? obj.byStatus : [],
   };
@@ -36,12 +36,6 @@ function normalizeDashboardSummary(response: unknown): DashboardSummary {
 
 class DashboardService {
   async getSummary(): Promise<DashboardSummary> {
-    if (config.useMockData) {
-      // Simula delay de rede
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return normalizeDashboardSummary(mockDashboardSummary);
-    }
-
     if (config.debug) {
       console.log('[DashboardService] apiBaseUrl =', config.apiBaseUrl);
       console.log('[DashboardService] endpoint =', API_ENDPOINTS.DASHBOARD_SUMMARY);
