@@ -23,7 +23,7 @@ export interface IssuesFilter {
   severity?: IssueSeverity;
   status?: IssueStatus;
   systemCode?: string;
-  responsible?: string;
+  q?: string;
 }
 
 /**
@@ -101,10 +101,22 @@ class GovernanceService {
     const data = response as Record<string, unknown> | null;
 
     return {
-      openIssues: (data?.openIssues as number) ?? (data?.issuesOpen as number) ?? 0,
-      criticalManuals: (data?.criticalManuals as number) ?? (data?.manualsCritical as number) ?? 0,
-      slaBreached: (data?.slaBreached as number) ?? (data?.slaOverdue as number) ?? 0,
-      aiReadyPercentage: (data?.aiReadyPercentage as number) ?? (data?.aiReadyPercent as number) ?? 0,
+      totalIssues:
+        (data?.totalIssues as number) ??
+        (data?.issuesTotal as number) ??
+        (data?.total as number) ??
+        null,
+      unassignedIssues:
+        (data?.unassignedIssues as number) ??
+        (data?.issuesUnassigned as number) ??
+        (data?.withoutResponsible as number) ??
+        null,
+      openIssues: (data?.openIssues as number) ?? (data?.issuesOpen as number) ?? null,
+      resolvedLast7Days:
+        (data?.resolvedLast7Days as number) ??
+        (data?.issuesResolved7d as number) ??
+        (data?.resolvedLastWeek as number) ??
+        null,
     };
   }
 
@@ -147,10 +159,10 @@ class GovernanceService {
   }
 
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssue>> {
-    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, responsible } = filter;
+    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, q } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
-      params: { page, size, type, severity, status, systemCode, responsible },
+      params: { page, size, type, severity, status, systemCode, q },
     });
 
     return normalizePaginatedResponse<GovernanceIssue>(response, page, size);
@@ -161,7 +173,7 @@ class GovernanceService {
   }
 
   async changeStatus(id: string, status: IssueStatus): Promise<GovernanceIssue> {
-    return apiClient.put<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), { status });
+    return apiClient.patch<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), { status });
   }
 
   async getHistory(id: string): Promise<IssueHistoryEntry[]> {

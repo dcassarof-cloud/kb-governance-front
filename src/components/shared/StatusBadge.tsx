@@ -23,6 +23,7 @@ const statusMap: Record<string, { variant: BadgeVariant; label: string }> = {
   
   // Issue Status
   'OPEN': { variant: 'error', label: 'Aberto' },
+  'ASSIGNED': { variant: 'info', label: 'Atribuído' },
   'IN_PROGRESS': { variant: 'warning', label: 'Em Progresso' },
   'RESOLVED': { variant: 'ok', label: 'Resolvido' },
   'IGNORED': { variant: 'muted', label: 'Ignorado' },

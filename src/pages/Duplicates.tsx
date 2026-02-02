@@ -6,6 +6,7 @@ import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { duplicatesService } from '@/services/duplicates.service';
@@ -18,6 +19,7 @@ export default function DuplicatesPage() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [primarySelection, setPrimarySelection] = useState<Record<string, string>>({});
+  const [ignoreReasons, setIgnoreReasons] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState<{ hash: string; action: string } | null>(null);
 
   const fetchData = async () => {
@@ -80,13 +82,32 @@ export default function DuplicatesPage() {
       toast({ title: 'Atenção', description: 'Selecione o artigo principal antes de mesclar.' });
       return;
     }
-    await handleAction(hash, 'merge', () => duplicatesService.mergeRequest(hash, selected));
+    const mergeIds = (group.articles || []).map((article) => article.id).filter((id) => id !== selected);
+    if (mergeIds.length === 0) {
+      toast({ title: 'Atenção', description: 'Selecione pelo menos dois artigos para solicitar mesclagem.' });
+      return;
+    }
+    await handleAction(hash, 'merge', () => duplicatesService.mergeRequest(hash, selected, mergeIds));
   };
 
   const handleIgnore = async (group: DuplicateGroup) => {
     const hash = group?.hash;
     if (!hash) return;
-    await handleAction(hash, 'ignore', () => duplicatesService.ignoreGroup(hash));
+    const reason = ignoreReasons[hash]?.trim();
+    if (!reason) {
+      toast({ title: 'Atenção', description: 'Informe o motivo para ignorar o grupo.' });
+      return;
+    }
+    await handleAction(hash, 'ignore', () => duplicatesService.ignore(hash, reason));
+  };
+
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '-';
+    try {
+      return new Date(dateStr).toLocaleDateString('pt-BR');
+    } catch {
+      return '-';
+    }
   };
 
   // Renderiza conteúdo baseado no estado
@@ -133,8 +154,11 @@ export default function DuplicatesPage() {
           const groupArticles = Array.isArray(group?.articles) ? group.articles : [];
           const status = group?.status || 'PENDING';
           const selected = primarySelection[groupHash] || '';
+          const ignoreReason = ignoreReasons[groupHash] || '';
           const isActionLoading = (action: string) =>
             actionLoading?.hash === groupHash && actionLoading?.action === action;
+          const hasArticles = groupArticles.length > 0;
+          const hasPrimary = Boolean(selected);
 
           return (
             <div key={groupHash} className="card-metric">
@@ -173,25 +197,64 @@ export default function DuplicatesPage() {
                         return (
                           <div
                             key={articleId}
-                            className="flex items-center gap-3 rounded border border-border bg-muted/40 p-3"
+                            className="flex flex-col gap-2 rounded border border-border bg-muted/40 p-3"
                           >
-                            <RadioGroupItem value={articleId} id={`${groupHash}-${articleId}`} />
-                            <Label htmlFor={`${groupHash}-${articleId}`} className="text-sm">
-                              {article?.title || 'Título não disponível'}
-                            </Label>
+                            <div className="flex items-center gap-3">
+                              <RadioGroupItem value={articleId} id={`${groupHash}-${articleId}`} />
+                              <Label htmlFor={`${groupHash}-${articleId}`} className="text-sm font-medium">
+                                {article?.title || 'Título não disponível'}
+                              </Label>
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pl-7">
+                              <span>Sistema: {article?.systemCode || 'N/A'}</span>
+                              <span>Atualizado: {formatDate(article?.updatedAt)}</span>
+                              {article?.url ? (
+                                <a
+                                  href={article.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary hover:underline"
+                                >
+                                  Abrir artigo
+                                </a>
+                              ) : (
+                                <span>URL indisponível</span>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
                     </RadioGroup>
                   ) : (
-                    <div className="text-sm text-muted-foreground">Nenhum artigo encontrado neste grupo.</div>
+                    <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                      <span>Grupo sem artigos: verifique backend/índice content_hash.</span>
+                      <Button variant="outline" size="sm" onClick={fetchData} className="w-fit">
+                        Recarregar
+                      </Button>
+                    </div>
                   )}
+
+                  <div className="grid gap-2 max-w-md">
+                    <Label htmlFor={`${groupHash}-ignore-reason`}>Motivo para ignorar</Label>
+                    <Input
+                      id={`${groupHash}-ignore-reason`}
+                      placeholder="Ex: resolvido manualmente"
+                      value={ignoreReason}
+                      onChange={(event) =>
+                        setIgnoreReasons((prev) => ({
+                          ...prev,
+                          [groupHash]: event.target.value,
+                        }))
+                      }
+                      disabled={!hasArticles}
+                    />
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="secondary"
                       onClick={() => handleSetPrimary(group)}
-                      disabled={isActionLoading('primary')}
+                      disabled={!hasArticles || !hasPrimary || isActionLoading('primary')}
                     >
                       {isActionLoading('primary') ? (
                         <span className="inline-flex items-center gap-2">
@@ -205,7 +268,7 @@ export default function DuplicatesPage() {
                     <Button
                       variant="outline"
                       onClick={() => handleMerge(group)}
-                      disabled={isActionLoading('merge')}
+                      disabled={!hasArticles || !hasPrimary || isActionLoading('merge')}
                     >
                       {isActionLoading('merge') ? (
                         <span className="inline-flex items-center gap-2">
@@ -213,10 +276,14 @@ export default function DuplicatesPage() {
                           Mesclando...
                         </span>
                       ) : (
-                        'Mesclar'
+                        'Solicitar mesclagem'
                       )}
                     </Button>
-                    <Button variant="ghost" onClick={() => handleIgnore(group)} disabled={isActionLoading('ignore')}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => handleIgnore(group)}
+                      disabled={!hasArticles || isActionLoading('ignore')}
+                    >
                       {isActionLoading('ignore') ? (
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />

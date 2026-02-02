@@ -28,12 +28,12 @@ class DuplicatesService {
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_PRIMARY(hash), { articleId });
   }
 
-  async ignoreGroup(hash: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_IGNORE(hash));
+  async ignore(hash: string, reason: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_IGNORE(hash), { reason });
   }
 
-  async mergeRequest(hash: string, primaryArticleId: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_MERGE(hash), { primaryArticleId });
+  async mergeRequest(hash: string, primaryId: string, mergeIds: string[]): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_MERGE(hash), { primaryId, mergeIds });
   }
 }
 

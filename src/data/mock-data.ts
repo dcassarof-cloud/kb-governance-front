@@ -198,7 +198,7 @@ export const mockSystems: KbSystem[] = [
 export const mockIssues: GovernanceIssue[] = [
   {
     id: 'issue-001',
-    type: 'OUTDATED',
+    type: 'OUTDATED_CONTENT',
     severity: 'HIGH',
     articleId: '2',
     articleTitle: 'Integração bancária - Configuração inicial',
@@ -209,7 +209,7 @@ export const mockIssues: GovernanceIssue[] = [
   },
   {
     id: 'issue-002',
-    type: 'BROKEN_LINK',
+    type: 'INCONSISTENT_CONTENT',
     severity: 'CRITICAL',
     articleId: '4',
     articleTitle: 'Cadastro de bens patrimoniais',
@@ -220,7 +220,7 @@ export const mockIssues: GovernanceIssue[] = [
   },
   {
     id: 'issue-003',
-    type: 'MISSING_CONTENT',
+    type: 'INCOMPLETE_CONTENT',
     severity: 'MEDIUM',
     articleId: '7',
     articleTitle: 'Controle de férias e licenças',
@@ -231,7 +231,7 @@ export const mockIssues: GovernanceIssue[] = [
   },
   {
     id: 'issue-004',
-    type: 'DUPLICATE',
+    type: 'DUPLICATE_CONTENT',
     severity: 'LOW',
     articleId: '1',
     articleTitle: 'Como configurar o módulo de folha de pagamento',
@@ -242,7 +242,7 @@ export const mockIssues: GovernanceIssue[] = [
   },
   {
     id: 'issue-005',
-    type: 'FORMAT_ERROR',
+    type: 'INCONSISTENT_CONTENT',
     severity: 'LOW',
     articleId: '6',
     articleTitle: 'Geração de SPED Fiscal',
@@ -258,17 +258,47 @@ export const mockDuplicates: DuplicateGroup[] = [
     hash: 'dup-hash-001',
     count: 3,
     articles: [
-      { ...mockArticles[0], id: 'dup-1-1' },
-      { ...mockArticles[0], id: 'dup-1-2', title: 'Configuração inicial - Folha de Pagamento' },
-      { ...mockArticles[0], id: 'dup-1-3', title: 'Setup folha pagamento' },
+      {
+        id: 'dup-1-1',
+        title: mockArticles[0].title,
+        systemCode: mockArticles[0].systemCode,
+        url: mockArticles[0].manualLink,
+        updatedAt: mockArticles[0].updatedDate,
+      },
+      {
+        id: 'dup-1-2',
+        title: 'Configuração inicial - Folha de Pagamento',
+        systemCode: mockArticles[0].systemCode,
+        url: mockArticles[0].manualLink,
+        updatedAt: mockArticles[0].updatedDate,
+      },
+      {
+        id: 'dup-1-3',
+        title: 'Setup folha pagamento',
+        systemCode: mockArticles[0].systemCode,
+        url: mockArticles[0].manualLink,
+        updatedAt: mockArticles[0].updatedDate,
+      },
     ],
   },
   {
     hash: 'dup-hash-002',
     count: 2,
     articles: [
-      { ...mockArticles[2], id: 'dup-2-1' },
-      { ...mockArticles[2], id: 'dup-2-2', title: 'NFe - Lançamento manual' },
+      {
+        id: 'dup-2-1',
+        title: mockArticles[2].title,
+        systemCode: mockArticles[2].systemCode,
+        url: mockArticles[2].manualLink,
+        updatedAt: mockArticles[2].updatedDate,
+      },
+      {
+        id: 'dup-2-2',
+        title: 'NFe - Lançamento manual',
+        systemCode: mockArticles[2].systemCode,
+        url: mockArticles[2].manualLink,
+        updatedAt: mockArticles[2].updatedDate,
+      },
     ],
   },
 ];

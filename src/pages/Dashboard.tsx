@@ -21,12 +21,27 @@ export default function DashboardPage() {
     setError(null);
     try {
       const result = await dashboardService.getSummary();
+      const metrics = {
+        totalArticles: result?.totalArticles,
+        articlesOk: result?.articlesOk,
+        articlesWithIssues: result?.articlesWithIssues,
+        totalIssues: result?.totalIssues,
+      };
+      const invalidMetrics = Object.entries(metrics).filter(
+        ([, value]) => value === null || value === undefined || Number.isNaN(value)
+      );
+      if (invalidMetrics.length > 0) {
+        toast({
+          title: 'Aviso',
+          description: 'Algumas métricas vieram inválidas do backend e foram ajustadas para 0.',
+        });
+      }
       // Normaliza resposta: garante estrutura esperada
       const normalized: DashboardSummary = {
-        totalArticles: result?.totalArticles ?? 0,
-        articlesOk: result?.articlesOk ?? 0,
-        articlesWithIssues: result?.articlesWithIssues ?? 0,
-        totalIssues: result?.totalIssues ?? 0,
+        totalArticles: typeof result?.totalArticles === 'number' ? result.totalArticles : 0,
+        articlesOk: typeof result?.articlesOk === 'number' ? result.articlesOk : 0,
+        articlesWithIssues: typeof result?.articlesWithIssues === 'number' ? result.articlesWithIssues : 0,
+        totalIssues: typeof result?.totalIssues === 'number' ? result.totalIssues : 0,
         bySystem: Array.isArray(result?.bySystem) ? result.bySystem : [],
         byStatus: Array.isArray(result?.byStatus) ? result.byStatus : [],
       };
