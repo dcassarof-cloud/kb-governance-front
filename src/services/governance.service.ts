@@ -130,6 +130,14 @@ const normalizeResponsibleList = (response: unknown): GovernanceResponsible[] =>
     .filter((item): item is GovernanceResponsible => Boolean(item));
 
 class GovernanceService {
+  private formatDueDateForAssign(dueDate?: string): string | undefined {
+    if (!dueDate) return undefined;
+    if (config.governanceDueDateFormat === 'offset-datetime') {
+      return dueDate.includes('T') ? dueDate : `${dueDate}T00:00:00-03:00`;
+    }
+    return dueDate.includes('T') ? dueDate.split('T')[0] : dueDate;
+  }
+
   async getSummary(): Promise<GovernanceSummary> {
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_SUMMARY);
     const data = response as Record<string, unknown> | null;
@@ -207,9 +215,13 @@ class GovernanceService {
     responsible: string,
     options: { dueDate?: string; createTicket?: boolean } = {}
   ): Promise<GovernanceIssue> {
+    const { dueDate, ...restOptions } = options;
+    const formattedDueDate = this.formatDueDateForAssign(dueDate);
+
     return apiClient.post<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
       responsible,
-      ...options,
+      ...restOptions,
+      ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
     });
   }
 

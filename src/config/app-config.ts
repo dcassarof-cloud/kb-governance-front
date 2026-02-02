@@ -34,6 +34,13 @@ export const config = {
   // ✅ FIX: Debug mode para ver logs
   debug: true,
 
+  // Governance dates: backend format for dueDate payloads
+  // - local-date: YYYY-MM-DD
+  // - offset-datetime: YYYY-MM-DDT00:00:00-03:00
+  governanceDueDateFormat: (import.meta.env.VITE_GOVERNANCE_DUE_DATE_FORMAT || 'offset-datetime') as
+    | 'local-date'
+    | 'offset-datetime',
+
 } as const;
 
 // =====================================================
