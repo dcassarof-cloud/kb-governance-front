@@ -63,6 +63,8 @@ export interface GovernanceIssue {
   responsible?: string | null;
   dueDate?: string | null;
   systemName?: string | null;
+  message?: string | null;
+  title?: string | null;
 }
 
 export interface GovernanceSummary {
@@ -70,6 +72,28 @@ export interface GovernanceSummary {
   unassignedIssues?: number | null;
   openIssues?: number | null;
   resolvedLast7Days?: number | null;
+}
+
+export interface GovernanceResponsible {
+  id?: string;
+  name: string;
+  email?: string | null;
+  pendingIssues?: number | null;
+  openIssues?: number | null;
+  overdueIssues?: number | null;
+  avgSlaDays?: number | null;
+}
+
+export interface GovernanceSuggestedAssignee {
+  suggested: GovernanceResponsible | null;
+  alternatives: GovernanceResponsible[];
+}
+
+export interface GovernanceResponsiblesSummary {
+  totalResponsibles?: number | null;
+  totalOpenIssues?: number | null;
+  totalOverdue?: number | null;
+  responsibles: GovernanceResponsible[];
 }
 
 export interface GovernanceManual {

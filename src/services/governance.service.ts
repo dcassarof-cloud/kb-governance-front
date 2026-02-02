@@ -14,6 +14,9 @@ import {
   GovernanceSummary,
   GovernanceManual,
   IssueHistoryEntry,
+  GovernanceResponsible,
+  GovernanceSuggestedAssignee,
+  GovernanceResponsiblesSummary,
 } from '@/types';
 
 export interface IssuesFilter {
@@ -23,6 +26,7 @@ export interface IssuesFilter {
   severity?: IssueSeverity;
   status?: IssueStatus;
   systemCode?: string;
+  responsible?: string;
   q?: string;
 }
 
@@ -95,6 +99,36 @@ function normalizeArrayResponse<T>(response: unknown): T[] {
   return [];
 }
 
+const normalizeResponsible = (response: unknown): GovernanceResponsible | null => {
+  if (!response || typeof response !== 'object') return null;
+  const obj = response as Record<string, unknown>;
+  const name =
+    (obj.name as string) ||
+    (obj.responsible as string) ||
+    (obj.assignee as string) ||
+    (obj.user as string) ||
+    (obj.email as string) ||
+    '';
+  if (!name) return null;
+
+  const toNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+  return {
+    id: obj.id ? String(obj.id) : undefined,
+    name,
+    email: (obj.email as string) ?? (obj.userEmail as string) ?? null,
+    pendingIssues: toNumber(obj.pendingIssues ?? obj.pending ?? obj.openIssues ?? obj.issuesOpen),
+    openIssues: toNumber(obj.openIssues ?? obj.issuesOpen ?? obj.totalOpen),
+    overdueIssues: toNumber(obj.overdueIssues ?? obj.overdue ?? obj.overdueTotal),
+    avgSlaDays: toNumber(obj.avgSlaDays ?? obj.slaAvgDays ?? obj.avgSla ?? obj.slaDays),
+  };
+};
+
+const normalizeResponsibleList = (response: unknown): GovernanceResponsible[] =>
+  normalizeArrayResponse<unknown>(response)
+    .map((item) => normalizeResponsible(item))
+    .filter((item): item is GovernanceResponsible => Boolean(item));
+
 class GovernanceService {
   async getSummary(): Promise<GovernanceSummary> {
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_SUMMARY);
@@ -159,17 +193,24 @@ class GovernanceService {
   }
 
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssue>> {
-    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, q } = filter;
+    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, responsible, q } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
-      params: { page, size, type, severity, status, systemCode, q },
+      params: { page, size, type, severity, status, systemCode, responsible, q },
     });
 
     return normalizePaginatedResponse<GovernanceIssue>(response, page, size);
   }
 
-  async assignIssue(id: string, responsible: string): Promise<GovernanceIssue> {
-    return apiClient.post<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), { responsible });
+  async assignIssue(
+    id: string,
+    responsible: string,
+    options: { dueDate?: string; createTicket?: boolean } = {}
+  ): Promise<GovernanceIssue> {
+    return apiClient.post<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
+      responsible,
+      ...options,
+    });
   }
 
   async changeStatus(id: string, status: IssueStatus): Promise<GovernanceIssue> {
@@ -179,6 +220,48 @@ class GovernanceService {
   async getHistory(id: string): Promise<IssueHistoryEntry[]> {
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_HISTORY(id));
     return normalizeArrayResponse<IssueHistoryEntry>(response);
+  }
+
+  async getSuggestedAssignee(id: string): Promise<GovernanceSuggestedAssignee> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_SUGGESTED_ASSIGNEE(id));
+    if (Array.isArray(response)) {
+      return { suggested: normalizeResponsible(response[0]) ?? null, alternatives: normalizeResponsibleList(response) };
+    }
+
+    const data = response as Record<string, unknown> | null;
+    const suggested =
+      normalizeResponsible(data?.suggestedAssignee ?? data?.suggested ?? data?.assignee ?? data?.data ?? data) ?? null;
+    const alternatives = normalizeResponsibleList(data?.alternatives ?? data?.options ?? data?.others ?? []);
+
+    return { suggested, alternatives };
+  }
+
+  async getResponsiblesSummary(): Promise<GovernanceResponsiblesSummary> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUMMARY);
+    const data = response as Record<string, unknown> | null;
+    const responsibles = normalizeResponsibleList(
+      data?.responsibles ?? data?.data ?? data?.items ?? data?.content ?? response
+    );
+    const summaryData = (data?.summary as Record<string, unknown>) ?? data ?? {};
+
+    return {
+      totalResponsibles:
+        (summaryData.totalResponsibles as number) ??
+        (summaryData.responsiblesTotal as number) ??
+        responsibles.length ??
+        null,
+      totalOpenIssues:
+        (summaryData.totalOpenIssues as number) ??
+        (summaryData.openIssuesTotal as number) ??
+        (summaryData.issuesOpenTotal as number) ??
+        null,
+      totalOverdue:
+        (summaryData.totalOverdue as number) ??
+        (summaryData.overdueTotal as number) ??
+        (summaryData.overdueIssuesTotal as number) ??
+        null,
+      responsibles,
+    };
   }
 }
 

@@ -12,6 +12,7 @@ import ReportsPage from "./pages/Reports";
 import SystemsPage from "./pages/Systems";
 import SyncPage from "./pages/Sync";
 import SettingsPage from "./pages/Settings";
+import ResponsiblesPage from "./pages/Responsibles";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "./context/ThemeContext";
 
@@ -31,6 +32,8 @@ const App = () => (
             <Route path="/articles" element={<ArticlesPage />} />
             <Route path="/governance" element={<GovernancePage />} />
             <Route path="/governanca" element={<GovernancePage />} />
+            <Route path="/responsibles" element={<ResponsiblesPage />} />
+            <Route path="/responsaveis" element={<ResponsiblesPage />} />
             <Route path="/duplicates" element={<DuplicatesPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/systems" element={<SystemsPage />} />

@@ -8,6 +8,7 @@ import {
   History,
   Loader2,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -25,7 +26,16 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 
 import { governanceService, IssuesFilter } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
-import { GovernanceIssue, GovernanceSummary, IssueStatus, IssueType, KbSystem, PaginatedResponse } from '@/types';
+import {
+  GovernanceIssue,
+  GovernanceSummary,
+  IssueSeverity,
+  IssueStatus,
+  IssueType,
+  KbSystem,
+  PaginatedResponse,
+  GovernanceResponsible,
+} from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
 
@@ -37,8 +47,10 @@ const ISSUE_TYPE_LABELS: Record<string, string> = {
 };
 
 const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
+const ISSUE_SEVERITY_OPTIONS: IssueSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export default function GovernancePage() {
+  const [searchParams] = useSearchParams();
   const [summary, setSummary] = useState<GovernanceSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -58,12 +70,19 @@ export default function GovernancePage() {
     systemCode: '',
     status: undefined,
     type: undefined,
+    severity: undefined,
+    responsible: '',
     q: '',
   });
 
   const [assignTarget, setAssignTarget] = useState<GovernanceIssue | null>(null);
   const [assignValue, setAssignValue] = useState('');
+  const [assignDueDate, setAssignDueDate] = useState('');
   const [actionLoading, setActionLoading] = useState<{ id: string; action: string } | null>(null);
+  const [suggestedLoading, setSuggestedLoading] = useState(false);
+  const [suggestedError, setSuggestedError] = useState<string | null>(null);
+  const [suggestedAssignee, setSuggestedAssignee] = useState<GovernanceResponsible | null>(null);
+  const [suggestedAlternatives, setSuggestedAlternatives] = useState<GovernanceResponsible[]>([]);
 
   const [historyTarget, setHistoryTarget] = useState<GovernanceIssue | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -99,8 +118,10 @@ export default function GovernancePage() {
         page: currentPage,
         size,
         systemCode: currentFilters.systemCode || undefined,
-        status: currentFilters.status,
-        type: currentFilters.type,
+        status: currentFilters.status || undefined,
+        type: currentFilters.type || undefined,
+        severity: currentFilters.severity || undefined,
+        responsible: currentFilters.responsible?.trim() || undefined,
         q: currentFilters.q?.trim() || undefined,
       });
 
@@ -140,6 +161,18 @@ export default function GovernancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const responsible = searchParams.get('responsible');
+    const assignTo = searchParams.get('assignTo');
+    if (responsible) {
+      setFilters((prev) => ({ ...prev, responsible }));
+      setPage(1);
+    }
+    if (assignTo) {
+      setAssignValue(assignTo);
+    }
+  }, [searchParams]);
+
   // ✅ debounce para busca/filtros e paginação
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -149,6 +182,20 @@ export default function GovernancePage() {
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, page]);
+
+  useEffect(() => {
+    if (!assignTarget) {
+      setSuggestedAssignee(null);
+      setSuggestedAlternatives([]);
+      setSuggestedError(null);
+      setSuggestedLoading(false);
+      setAssignDueDate('');
+      return;
+    }
+    const assignTo = searchParams.get('assignTo');
+    setAssignValue(assignTo ?? assignTarget.responsible ?? '');
+    fetchSuggestedAssignee(assignTarget);
+  }, [assignTarget, searchParams]);
 
   const uniqueOptions = (values: Array<string | null | undefined>) =>
     Array.from(new Set(values.filter((value): value is string => Boolean(value && value.trim()))));
@@ -167,8 +214,8 @@ export default function GovernancePage() {
   const statusOptions = useMemo(() => uniqueOptions(issues.map((issue) => issue?.status)), [issues]);
   const typeOptions = useMemo(() => uniqueOptions(issues.map((issue) => issue?.type)), [issues]);
   const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ISSUE_STATUS_OPTIONS;
-  const resolvedTypeOptions =
-    typeOptions.length > 0 ? typeOptions : (Object.keys(ISSUE_TYPE_LABELS) as IssueType[]);
+  const resolvedTypeOptions = Object.keys(ISSUE_TYPE_LABELS) as IssueType[];
+  const resolvedSeverityOptions = ISSUE_SEVERITY_OPTIONS;
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '-';
@@ -189,12 +236,16 @@ export default function GovernancePage() {
     });
   };
 
-  const handleAssign = async (issue: GovernanceIssue, responsible: string) => {
+  const handleAssign = async (
+    issue: GovernanceIssue,
+    responsible: string,
+    options: { dueDate?: string; createTicket?: boolean } = {}
+  ) => {
     const previousResponsible = issue.responsible ?? null;
     updateIssueState(issue.id, { responsible });
     setActionLoading({ id: issue.id, action: 'assign' });
     try {
-      const updated = await governanceService.assignIssue(issue.id, responsible);
+      const updated = await governanceService.assignIssue(issue.id, responsible, options);
       updateIssueState(issue.id, { responsible: updated?.responsible ?? responsible });
       toast({ title: 'Ação concluída', description: 'Responsável atribuído com sucesso.' });
       await fetchSummary();
@@ -205,6 +256,23 @@ export default function GovernancePage() {
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const fetchSuggestedAssignee = async (issue: GovernanceIssue) => {
+    setSuggestedLoading(true);
+    setSuggestedError(null);
+    setSuggestedAssignee(null);
+    setSuggestedAlternatives([]);
+    try {
+      const result = await governanceService.getSuggestedAssignee(issue.id);
+      setSuggestedAssignee(result?.suggested ?? null);
+      setSuggestedAlternatives(result?.alternatives ?? []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao carregar sugestão';
+      setSuggestedError(message);
+    } finally {
+      setSuggestedLoading(false);
     }
   };
 
@@ -275,6 +343,19 @@ export default function GovernancePage() {
     }));
   };
 
+  const formatInputDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const renderResponsibleLabel = (responsible: GovernanceResponsible | null) => {
+    if (!responsible) return '';
+    const pending = responsible.pendingIssues ?? responsible.openIssues;
+    return typeof pending === 'number' ? `${pending} pendências` : '';
+  };
+
   const totalPages = issuesData?.totalPages ?? 0;
   const isValidNumber = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value);
   // TODO: ampliar quando o backend expor novos indicadores
@@ -317,7 +398,7 @@ export default function GovernancePage() {
       <div className="card-metric mb-6">
         <h3 className="font-semibold mb-4">Filtros avançados</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label>Tipo</Label>
             <Select
@@ -332,6 +413,26 @@ export default function GovernancePage() {
                 {resolvedTypeOptions.map((type) => (
                   <SelectItem key={type} value={type}>
                     {ISSUE_TYPE_LABELS[type] || type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Severidade</Label>
+            <Select
+              value={filters.severity || 'ALL'}
+              onValueChange={(value) => handleFilterChange('severity', value === 'ALL' ? '' : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todas as severidades" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todas</SelectItem>
+                {resolvedSeverityOptions.map((severity) => (
+                  <SelectItem key={severity} value={severity}>
+                    {severity}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -381,9 +482,18 @@ export default function GovernancePage() {
           <div className="space-y-2">
             <Label>Busca</Label>
             <Input
-              placeholder="Buscar por manual, sistema ou ID"
+              placeholder="Buscar por mensagem ou título"
               value={filters.q || ''}
               onChange={(event) => handleFilterChange('q', event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Responsável</Label>
+            <Input
+              placeholder="Filtrar por responsável"
+              value={filters.responsible || ''}
+              onChange={(event) => handleFilterChange('responsible', event.target.value)}
             />
           </div>
         </div>
@@ -393,7 +503,14 @@ export default function GovernancePage() {
             variant="outline"
             onClick={() => {
               setPage(1);
-              setFilters({ systemCode: '', status: undefined, type: undefined, q: '' });
+              setFilters({
+                systemCode: '',
+                status: undefined,
+                type: undefined,
+                severity: undefined,
+                responsible: '',
+                q: '',
+              });
             }}
           >
             Limpar filtros
@@ -483,8 +600,9 @@ export default function GovernancePage() {
               <thead className="bg-muted/50">
                 <tr>
                   <th className="text-left p-4 font-semibold text-sm">Tipo</th>
+                  <th className="text-left p-4 font-semibold text-sm">Severidade</th>
                   <th className="text-left p-4 font-semibold text-sm">Sistema</th>
-                  <th className="text-left p-4 font-semibold text-sm">Manual</th>
+                  <th className="text-left p-4 font-semibold text-sm">Manual / Resumo</th>
                   <th className="text-left p-4 font-semibold text-sm">Status</th>
                   <th className="text-left p-4 font-semibold text-sm">Responsável</th>
                   <th className="text-left p-4 font-semibold text-sm">Prazo</th>
@@ -496,8 +614,10 @@ export default function GovernancePage() {
                 {issues.map((issue, index) => {
                   const issueId = issue?.id || `issue-${index}`;
                   const system = issue?.systemName || issue?.systemCode || '-';
-                  const manualTitle = issue?.articleTitle || 'Manual sem título';
+                  const manualTitle = issue?.articleTitle || issue?.title || 'Manual sem título';
+                  const manualDetails = issue?.message || issue?.details || '';
                   const status = issue?.status || 'OPEN';
+                  const severity = issue?.severity || 'LOW';
                   const responsible = issue?.responsible || '-';
                   const dueDate = formatDate(issue?.dueDate);
 
@@ -508,8 +628,16 @@ export default function GovernancePage() {
                       <td className="p-4">
                         <Badge variant="secondary">{ISSUE_TYPE_LABELS[issue?.type] || issue?.type || '-'}</Badge>
                       </td>
+                      <td className="p-4">
+                        <StatusBadge status={severity} />
+                      </td>
                       <td className="p-4 text-muted-foreground">{system}</td>
-                      <td className="p-4 font-medium">{manualTitle}</td>
+                      <td className="p-4">
+                        <div className="font-medium">{manualTitle}</div>
+                        {manualDetails && (
+                          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{manualDetails}</div>
+                        )}
+                      </td>
                       <td className="p-4">
                         <Select
                           value={status}
@@ -586,6 +714,10 @@ export default function GovernancePage() {
           if (!open) {
             setAssignTarget(null);
             setAssignValue('');
+            setAssignDueDate('');
+            setSuggestedAssignee(null);
+            setSuggestedAlternatives([]);
+            setSuggestedError(null);
           }
         }}
       >
@@ -594,13 +726,116 @@ export default function GovernancePage() {
             <DialogTitle>Atribuir responsável</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Label>Responsável</Label>
-            <Input
-              placeholder="Informe o responsável"
-              value={assignValue}
-              onChange={(event) => setAssignValue(event.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">Sugestão automática</h4>
+                {suggestedLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+
+              {suggestedError ? (
+                <div className="text-sm text-destructive">{suggestedError}</div>
+              ) : suggestedLoading ? (
+                <div className="text-sm text-muted-foreground">Buscando responsável recomendado...</div>
+              ) : suggestedAssignee ? (
+                <Button
+                  className="w-full justify-between text-base"
+                  onClick={() => {
+                    if (!assignTarget || !suggestedAssignee) return;
+                    handleAssign(assignTarget, suggestedAssignee.name, {
+                      dueDate: assignDueDate || undefined,
+                    });
+                    setAssignTarget(null);
+                    setAssignValue('');
+                  }}
+                >
+                  <span>Atribuir para {suggestedAssignee.name}</span>
+                  {renderResponsibleLabel(suggestedAssignee) && (
+                    <span className="text-xs opacity-80">{renderResponsibleLabel(suggestedAssignee)}</span>
+                  )}
+                </Button>
+              ) : (
+                <div className="text-sm text-muted-foreground">Nenhuma sugestão encontrada.</div>
+              )}
+
+              {!suggestedLoading && suggestedAlternatives.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Alternativas</p>
+                  <div className="space-y-2">
+                    {suggestedAlternatives.slice(0, 3).map((option, index) => {
+                      const pending = option.pendingIssues ?? option.openIssues ?? null;
+                      return (
+                        <button
+                          key={`${option.name}-${index}`}
+                          type="button"
+                          onClick={() => setAssignValue(option.name)}
+                          className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{option.name}</span>
+                            {typeof pending === 'number' && (
+                              <span className="text-xs text-muted-foreground">{pending} pendências</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Responsável</Label>
+              <Input
+                placeholder="Informe o responsável"
+                value={assignValue}
+                onChange={(event) => setAssignValue(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Prazo</Label>
+              <Input
+                type="date"
+                value={assignDueDate}
+                onChange={(event) => setAssignDueDate(event.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAssignDueDate(formatInputDate(new Date()))}
+                >
+                  Hoje
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const date = new Date();
+                    date.setDate(date.getDate() + 3);
+                    setAssignDueDate(formatInputDate(date));
+                  }}
+                >
+                  +3 dias
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const date = new Date();
+                    date.setDate(date.getDate() + 7);
+                    setAssignDueDate(formatInputDate(date));
+                  }}
+                >
+                  +7 dias
+                </Button>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -609,6 +844,7 @@ export default function GovernancePage() {
               onClick={() => {
                 setAssignTarget(null);
                 setAssignValue('');
+                setAssignDueDate('');
               }}
             >
               Cancelar
@@ -622,7 +858,9 @@ export default function GovernancePage() {
                   toast({ title: 'Atenção', description: 'Informe o responsável para atribuição.' });
                   return;
                 }
-                handleAssign(assignTarget, trimmed);
+                handleAssign(assignTarget, trimmed, {
+                  dueDate: assignDueDate || undefined,
+                });
                 setAssignTarget(null);
                 setAssignValue('');
               }}
@@ -636,6 +874,27 @@ export default function GovernancePage() {
               ) : (
                 'Atribuir'
               )}
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!assignTarget) return;
+                const trimmed = assignValue.trim();
+                if (!trimmed) {
+                  toast({ title: 'Atenção', description: 'Informe o responsável para atribuição.' });
+                  return;
+                }
+                handleAssign(assignTarget, trimmed, {
+                  dueDate: assignDueDate || undefined,
+                  createTicket: true,
+                });
+                setAssignTarget(null);
+                setAssignValue('');
+              }}
+              disabled={Boolean(assignTarget && actionLoading?.action === 'assign')}
+            >
+              Atribuir + Criar ticket
             </Button>
           </DialogFooter>
         </DialogContent>
