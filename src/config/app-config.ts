@@ -62,6 +62,8 @@ export const API_ENDPOINTS = {
   GOVERNANCE_ISSUE_ASSIGN: (id: string | number) => `/governance/issues/${id}/assign`,
   GOVERNANCE_ISSUE_STATUS: (id: string | number) => `/governance/issues/${id}/status`,
   GOVERNANCE_ISSUE_HISTORY: (id: string | number) => `/governance/issues/${id}/history`,
+  GOVERNANCE_ISSUE_SUGGESTED_ASSIGNEE: (id: string | number) => `/governance/issues/${id}/suggested-assignee`,
+  GOVERNANCE_RESPONSIBLES_SUMMARY: '/governance/responsibles/summary',
   GOVERNANCE_MANUAL_ASSIGN: (id: string | number) => `/governance/manuals/${id}/assign`,
   GOVERNANCE_MANUAL_REVIEW: (id: string | number) => `/governance/manuals/${id}/review`,
   GOVERNANCE_MANUAL_MOVE: (id: string | number) => `/governance/manuals/${id}/move`,
