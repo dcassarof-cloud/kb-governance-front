@@ -192,6 +192,23 @@ class ApiClient {
     return this.handleResponse<T>(response);
   }
 
+  async patch<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    const url = this.buildUrl(endpoint, options?.params);
+
+    if (config.debug) {
+      console.log('[ApiClient] PATCH', url, body);
+    }
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: this.getHeaders(options?.headers),
+      body: body ? JSON.stringify(body) : undefined,
+      signal: options?.signal,
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
   async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
 

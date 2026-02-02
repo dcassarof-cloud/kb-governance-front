@@ -3,9 +3,7 @@ import {
   AlertTriangle,
   AlertCircle,
   RefreshCw,
-  Sparkles,
-  ShieldAlert,
-  Clock,
+  CheckCircle,
   UserPlus,
   History,
   Loader2,
@@ -32,14 +30,13 @@ import { toast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
 
 const ISSUE_TYPE_LABELS: Record<string, string> = {
-  MISSING_CONTENT: 'Conteúdo Ausente',
-  BROKEN_LINK: 'Link Quebrado',
-  OUTDATED: 'Desatualizado',
-  DUPLICATE: 'Duplicado',
-  FORMAT_ERROR: 'Erro de Formato',
+  INCOMPLETE_CONTENT: 'Conteúdo Incompleto',
+  DUPLICATE_CONTENT: 'Conteúdo Duplicado',
+  OUTDATED_CONTENT: 'Conteúdo Desatualizado',
+  INCONSISTENT_CONTENT: 'Conteúdo Inconsistente',
 };
 
-const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
+const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 
 export default function GovernancePage() {
   const [summary, setSummary] = useState<GovernanceSummary | null>(null);
@@ -61,7 +58,7 @@ export default function GovernancePage() {
     systemCode: '',
     status: undefined,
     type: undefined,
-    responsible: '',
+    q: '',
   });
 
   const [assignTarget, setAssignTarget] = useState<GovernanceIssue | null>(null);
@@ -79,10 +76,10 @@ export default function GovernancePage() {
     try {
       const result = await governanceService.getSummary();
       setSummary({
-        openIssues: result?.openIssues ?? 0,
-        criticalManuals: result?.criticalManuals ?? 0,
-        slaBreached: result?.slaBreached ?? 0,
-        aiReadyPercentage: result?.aiReadyPercentage ?? 0,
+        totalIssues: result?.totalIssues ?? null,
+        unassignedIssues: result?.unassignedIssues ?? null,
+        openIssues: result?.openIssues ?? null,
+        resolvedLast7Days: result?.resolvedLast7Days ?? null,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar indicadores';
@@ -104,7 +101,7 @@ export default function GovernancePage() {
         systemCode: currentFilters.systemCode || undefined,
         status: currentFilters.status,
         type: currentFilters.type,
-        responsible: currentFilters.responsible?.trim() || undefined,
+        q: currentFilters.q?.trim() || undefined,
       });
 
       const normalized: PaginatedResponse<GovernanceIssue> = {
@@ -182,21 +179,6 @@ export default function GovernancePage() {
     }
   };
 
-  const handleAction = async (issueId: string, action: string, handler: () => Promise<void>) => {
-    setActionLoading({ id: issueId, action });
-    try {
-      await handler();
-      toast({ title: 'Ação concluída', description: 'Operação realizada com sucesso.' });
-      await fetchSummary();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao executar ação';
-      console.error('Erro ao executar ação de governança:', err);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const updateIssueState = (issueId: string, updates: Partial<GovernanceIssue>) => {
     setIssuesData((prev) => {
       if (!prev) return prev;
@@ -207,34 +189,56 @@ export default function GovernancePage() {
     });
   };
 
-  const handleAssign = async (issueId: string, responsible: string) => {
-    await handleAction(issueId, 'assign', async () => {
-      const updated = await governanceService.assignIssue(issueId, responsible);
-      updateIssueState(issueId, {
-        responsible: updated?.responsible ?? responsible,
-      });
-    });
+  const handleAssign = async (issue: GovernanceIssue, responsible: string) => {
+    const previousResponsible = issue.responsible ?? null;
+    updateIssueState(issue.id, { responsible });
+    setActionLoading({ id: issue.id, action: 'assign' });
+    try {
+      const updated = await governanceService.assignIssue(issue.id, responsible);
+      updateIssueState(issue.id, { responsible: updated?.responsible ?? responsible });
+      toast({ title: 'Ação concluída', description: 'Responsável atribuído com sucesso.' });
+      await fetchSummary();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atribuir responsável';
+      console.error('Erro ao atribuir responsável:', err);
+      updateIssueState(issue.id, { responsible: previousResponsible });
+      toast({ title: 'Erro', description: message, variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleStatusChange = async (issueId: string, status: IssueStatus) => {
-    await handleAction(issueId, 'status', async () => {
-      const updated = await governanceService.changeStatus(issueId, status);
+  const handleStatusChange = async (issue: GovernanceIssue, status: IssueStatus) => {
+    const previousStatus = issue.status;
+    updateIssueState(issue.id, { status });
+    setActionLoading({ id: issue.id, action: 'status' });
+    try {
+      const updated = await governanceService.changeStatus(issue.id, status);
       const nextStatus = updated?.status ?? status;
       setIssuesData((prev) => {
         if (!prev) return prev;
-        const nextData = prev.data.map((issue) =>
-          issue.id === issueId ? { ...issue, status: nextStatus } : issue
+        const nextData = prev.data.map((item) =>
+          item.id === issue.id ? { ...item, status: nextStatus } : item
         );
         if (filters.status && filters.status !== nextStatus) {
           return {
             ...prev,
-            data: nextData.filter((issue) => issue.id !== issueId),
+            data: nextData.filter((item) => item.id !== issue.id),
             total: Math.max(prev.total - 1, 0),
           };
         }
         return { ...prev, data: nextData };
       });
-    });
+      toast({ title: 'Ação concluída', description: 'Status atualizado com sucesso.' });
+      await fetchSummary();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar status';
+      console.error('Erro ao atualizar status:', err);
+      updateIssueState(issue.id, { status: previousStatus });
+      toast({ title: 'Erro', description: message, variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const openHistory = async (issue: GovernanceIssue) => {
@@ -272,6 +276,38 @@ export default function GovernancePage() {
   };
 
   const totalPages = issuesData?.totalPages ?? 0;
+  const isValidNumber = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value);
+  // TODO: ampliar quando o backend expor novos indicadores
+  const summaryMetrics = [
+    {
+      key: 'totalIssues',
+      title: 'Total de issues',
+      value: summary?.totalIssues,
+      icon: AlertTriangle,
+      variant: 'primary' as const,
+    },
+    {
+      key: 'unassignedIssues',
+      title: 'Sem responsável',
+      value: summary?.unassignedIssues,
+      icon: UserPlus,
+      variant: 'warning' as const,
+    },
+    {
+      key: 'openIssues',
+      title: 'Abertas',
+      value: summary?.openIssues,
+      icon: AlertCircle,
+      variant: 'warning' as const,
+    },
+    {
+      key: 'resolvedLast7Days',
+      title: 'Resolvidas (7d)',
+      value: summary?.resolvedLast7Days,
+      icon: CheckCircle,
+      variant: 'success' as const,
+    },
+  ].filter((metric) => isValidNumber(metric.value));
 
   return (
     <MainLayout>
@@ -343,11 +379,11 @@ export default function GovernancePage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Responsável</Label>
+            <Label>Busca</Label>
             <Input
-              placeholder="Nome do responsável"
-              value={filters.responsible || ''}
-              onChange={(event) => handleFilterChange('responsible', event.target.value)}
+              placeholder="Buscar por manual, sistema ou ID"
+              value={filters.q || ''}
+              onChange={(event) => handleFilterChange('q', event.target.value)}
             />
           </div>
         </div>
@@ -357,7 +393,7 @@ export default function GovernancePage() {
             variant="outline"
             onClick={() => {
               setPage(1);
-              setFilters({ systemCode: '', status: undefined, type: undefined, responsible: '' });
+              setFilters({ systemCode: '', status: undefined, type: undefined, q: '' });
             }}
           >
             Limpar filtros
@@ -390,21 +426,27 @@ export default function GovernancePage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <MetricCard title="Issues abertas" value={summary?.openIssues ?? 0} icon={AlertTriangle} variant="warning" />
-          <MetricCard
-            title="Manuais críticos"
-            value={summary?.criticalManuals ?? 0}
-            icon={ShieldAlert}
-            variant="error"
-          />
-          <MetricCard title="SLA vencido" value={summary?.slaBreached ?? 0} icon={Clock} variant="warning" />
-          <MetricCard
-            title="% IA-ready"
-            value={`${summary?.aiReadyPercentage ?? 0}%`}
-            icon={Sparkles}
-            variant="success"
-          />
+        <div className="mb-6">
+          {summaryMetrics.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {summaryMetrics.map((metric) => (
+                <MetricCard
+                  key={metric.key}
+                  title={metric.title}
+                  value={metric.value as number}
+                  icon={metric.icon}
+                  variant={metric.variant}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="card-metric">
+              <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
+                <AlertCircle className="h-10 w-10 mb-2" />
+                <p className="text-sm">Indicadores indisponíveis no momento.</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -446,7 +488,7 @@ export default function GovernancePage() {
                   <th className="text-left p-4 font-semibold text-sm">Status</th>
                   <th className="text-left p-4 font-semibold text-sm">Responsável</th>
                   <th className="text-left p-4 font-semibold text-sm">Prazo</th>
-                  <th className="text-left p-4 font-semibold text-sm">Ações</th>
+                  <th className="text-left p-4 font-semibold text-sm">Ações rápidas</th>
                 </tr>
               </thead>
 
@@ -471,7 +513,7 @@ export default function GovernancePage() {
                       <td className="p-4">
                         <Select
                           value={status}
-                          onValueChange={(value) => handleStatusChange(issueId, value as IssueStatus)}
+                          onValueChange={(value) => handleStatusChange(issue, value as IssueStatus)}
                           disabled={isActionLoading('status')}
                         >
                           <SelectTrigger className="min-w-[160px]">
@@ -580,7 +622,7 @@ export default function GovernancePage() {
                   toast({ title: 'Atenção', description: 'Informe o responsável para atribuição.' });
                   return;
                 }
-                handleAssign(assignTarget.id, trimmed);
+                handleAssign(assignTarget, trimmed);
                 setAssignTarget(null);
                 setAssignValue('');
               }}

@@ -66,10 +66,10 @@ export interface GovernanceIssue {
 }
 
 export interface GovernanceSummary {
-  openIssues: number;
-  criticalManuals: number;
-  slaBreached: number;
-  aiReadyPercentage: number;
+  totalIssues?: number | null;
+  unassignedIssues?: number | null;
+  openIssues?: number | null;
+  resolvedLast7Days?: number | null;
 }
 
 export interface GovernanceManual {
@@ -89,8 +89,16 @@ export interface GovernanceManual {
 export interface DuplicateGroup {
   hash: string;
   count: number;
-  articles: KbArticle[];
+  articles: DuplicateArticle[];
   status?: string;
+}
+
+export interface DuplicateArticle {
+  id: string;
+  title: string;
+  systemCode: string;
+  url: string;
+  updatedAt: string;
 }
 
 export interface IssueHistoryEntry {
@@ -129,9 +137,9 @@ export interface SyncConfig {
 // Enums
 export type GovernanceStatus = 'OK' | 'WARNING' | 'ERROR' | 'PENDING';
 export type SyncStatus = 'SYNCED' | 'PENDING' | 'FAILED' | 'OUTDATED';
-export type IssueType = 'MISSING_CONTENT' | 'BROKEN_LINK' | 'OUTDATED' | 'DUPLICATE' | 'FORMAT_ERROR';
+export type IssueType = 'INCOMPLETE_CONTENT' | 'DUPLICATE_CONTENT' | 'OUTDATED_CONTENT' | 'INCONSISTENT_CONTENT';
 export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type IssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
+export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type SyncMode = 'FULL' | 'INCREMENTAL' | 'DELTA';
 
