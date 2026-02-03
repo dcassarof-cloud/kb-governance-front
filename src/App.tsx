@@ -7,9 +7,7 @@ import LoginPage from "./pages/Login";
 import DashboardPage from "./pages/Dashboard";
 import ArticlesPage from "./pages/Articles";
 import GovernancePage from "./pages/Governance";
-import DuplicatesPage from "./pages/Duplicates";
-import ReportsPage from "./pages/Reports";
-import SystemsPage from "./pages/Systems";
+import NeedsPage from "./pages/Needs";
 import SyncPage from "./pages/Sync";
 import SettingsPage from "./pages/Settings";
 import ResponsiblesPage from "./pages/Responsibles";
@@ -32,11 +30,10 @@ const App = () => (
             <Route path="/articles" element={<ArticlesPage />} />
             <Route path="/governance" element={<GovernancePage />} />
             <Route path="/governanca" element={<GovernancePage />} />
+            <Route path="/needs" element={<NeedsPage />} />
+            <Route path="/needs/:id" element={<NeedsPage />} />
             <Route path="/responsibles" element={<ResponsiblesPage />} />
             <Route path="/responsaveis" element={<ResponsiblesPage />} />
-            <Route path="/duplicates" element={<DuplicatesPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/systems" element={<SystemsPage />} />
             <Route path="/sync" element={<SyncPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
