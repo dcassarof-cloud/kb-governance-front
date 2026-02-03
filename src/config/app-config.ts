@@ -102,11 +102,3 @@ export const API_ENDPOINTS = {
   REPORTS_SYSTEMS: '/reports/systems',
 
 } as const;
-
-// ✅ Log de inicialização
-if (config.debug) {
-  console.log('🔧 [Config] Initialized with:');
-  console.log('  - API Base URL:', config.apiBaseUrl);
-  console.log('  - Use Mock Data:', config.useMockData);
-  console.log('  - Endpoints:', Object.keys(API_ENDPOINTS).length, 'registered');
-}

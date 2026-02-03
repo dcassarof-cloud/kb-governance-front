@@ -44,9 +44,6 @@ class ApiClient {
 
   constructor() {
     this.baseUrl = config.apiBaseUrl;
-    if (config.debug) {
-      console.log('[ApiClient] Initialized with baseUrl:', this.baseUrl);
-    }
   }
 
   private buildUrl(
@@ -104,13 +101,6 @@ class ApiClient {
       totalPages: backendResponse.totalPages,
     };
 
-    if (config.debug) {
-      console.log('[ApiClient] Adapted paginated response:', {
-        original: { items: backendResponse.items?.length, totalElements: backendResponse.totalElements },
-        adapted: { data: adapted.data?.length, total: adapted.total }
-      });
-    }
-
     return adapted;
   }
 
@@ -145,10 +135,6 @@ class ApiClient {
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
 
-    if (config.debug) {
-      console.log('[ApiClient] GET', url);
-    }
-
     const response = await fetch(url, {
       method: 'GET',
       headers: this.getHeaders(options?.headers),
@@ -160,10 +146,6 @@ class ApiClient {
 
   async post<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
-
-    if (config.debug) {
-      console.log('[ApiClient] POST', url, body);
-    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -178,10 +160,6 @@ class ApiClient {
   async put<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
 
-    if (config.debug) {
-      console.log('[ApiClient] PUT', url, body);
-    }
-
     const response = await fetch(url, {
       method: 'PUT',
       headers: this.getHeaders(options?.headers),
@@ -195,10 +173,6 @@ class ApiClient {
   async patch<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
 
-    if (config.debug) {
-      console.log('[ApiClient] PATCH', url, body);
-    }
-
     const response = await fetch(url, {
       method: 'PATCH',
       headers: this.getHeaders(options?.headers),
@@ -211,10 +185,6 @@ class ApiClient {
 
   async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
-
-    if (config.debug) {
-      console.log('[ApiClient] DELETE', url);
-    }
 
     const response = await fetch(url, {
       method: 'DELETE',
