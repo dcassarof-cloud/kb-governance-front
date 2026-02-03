@@ -7,6 +7,8 @@ import {
   UserPlus,
   History,
   Loader2,
+  Eye,
+  Ban,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -23,11 +25,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import { governanceService, IssuesFilter } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
+import { duplicatesService } from '@/services/duplicates.service';
 import {
   GovernanceIssue,
+  GovernanceIssueDetail,
   GovernanceSummary,
   IssueSeverity,
   IssueStatus,
@@ -35,18 +49,27 @@ import {
   KbSystem,
   PaginatedResponse,
   GovernanceResponsible,
+  DuplicateGroup,
 } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
 
-const ISSUE_TYPE_LABELS: Record<string, string> = {
-  INCOMPLETE_CONTENT: 'Conteúdo Incompleto',
+const ALLOWED_ISSUE_TYPES: IssueType[] = [
+  'REVIEW_REQUIRED',
+  'NOT_AI_READY',
+  'DUPLICATE_CONTENT',
+  'INCOMPLETE_CONTENT',
+];
+
+const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
+  REVIEW_REQUIRED: 'Revisão necessária',
+  NOT_AI_READY: 'Não pronto para IA',
   DUPLICATE_CONTENT: 'Conteúdo Duplicado',
-  OUTDATED_CONTENT: 'Conteúdo Desatualizado',
-  INCONSISTENT_CONTENT: 'Conteúdo Inconsistente',
+  INCOMPLETE_CONTENT: 'Conteúdo Incompleto',
 };
 
-const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
+const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED'];
+const ISSUE_STATUS_FILTER_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 const ISSUE_SEVERITY_OPTIONS: IssueSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export default function GovernancePage() {
@@ -88,6 +111,17 @@ export default function GovernancePage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyData, setHistoryData] = useState<string[]>([]);
+
+  const [detailTarget, setDetailTarget] = useState<GovernanceIssue | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<GovernanceIssueDetail | null>(null);
+  const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroup | null>(null);
+
+  const [ignoreTarget, setIgnoreTarget] = useState<GovernanceIssue | null>(null);
+  const [ignoreReason, setIgnoreReason] = useState('');
+
+  const [statusConfirm, setStatusConfirm] = useState<{ issue: GovernanceIssue; status: IssueStatus } | null>(null);
 
   const fetchSummary = async () => {
     setSummaryLoading(true);
@@ -200,7 +234,7 @@ export default function GovernancePage() {
   const uniqueOptions = (values: Array<string | null | undefined>) =>
     Array.from(new Set(values.filter((value): value is string => Boolean(value && value.trim()))));
 
-  const issues = issuesData?.data ?? [];
+  const issues = (issuesData?.data ?? []).filter((issue) => ALLOWED_ISSUE_TYPES.includes(issue?.type));
 
   const systemOptions = useMemo(() => {
     // se vier do endpoint de sistemas, melhor
@@ -213,14 +247,23 @@ export default function GovernancePage() {
 
   const statusOptions = useMemo(() => uniqueOptions(issues.map((issue) => issue?.status)), [issues]);
   const typeOptions = useMemo(() => uniqueOptions(issues.map((issue) => issue?.type)), [issues]);
-  const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ISSUE_STATUS_OPTIONS;
-  const resolvedTypeOptions = Object.keys(ISSUE_TYPE_LABELS) as IssueType[];
+  const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ISSUE_STATUS_FILTER_OPTIONS;
+  const resolvedTypeOptions = ALLOWED_ISSUE_TYPES;
   const resolvedSeverityOptions = ISSUE_SEVERITY_OPTIONS;
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '-';
     try {
       return new Date(dateStr).toLocaleDateString('pt-BR');
+    } catch {
+      return '-';
+    }
+  };
+
+  const formatDateTime = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '-';
+    try {
+      return new Date(dateStr).toLocaleString('pt-BR');
     } catch {
       return '-';
     }
@@ -306,6 +349,68 @@ export default function GovernancePage() {
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleIgnore = async (issue: GovernanceIssue, reason: string) => {
+    const previousStatus = issue.status;
+    updateIssueState(issue.id, { status: 'IGNORED' });
+    setActionLoading({ id: issue.id, action: 'ignore' });
+    try {
+      const updated = await governanceService.ignoreIssue(issue.id, reason);
+      updateIssueState(issue.id, { status: updated?.status ?? 'IGNORED' });
+      toast({ title: 'Issue ignorada', description: 'Motivo registrado com sucesso.' });
+      await fetchSummary();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao ignorar issue';
+      console.error('Erro ao ignorar issue:', err);
+      updateIssueState(issue.id, { status: previousStatus });
+      toast({ title: 'Erro', description: message, variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const loadDuplicateGroup = async (issue: GovernanceIssue, detail?: GovernanceIssueDetail | null) => {
+    const localGroup = detail?.duplicateGroup ?? null;
+    if (localGroup?.articles?.length) {
+      setDuplicateGroup(localGroup);
+      return;
+    }
+
+    const hash = detail?.duplicateHash ?? issue?.duplicateHash ?? null;
+    if (!hash) {
+      setDuplicateGroup(null);
+      return;
+    }
+
+    try {
+      const groups = await duplicatesService.listGroups();
+      const match = groups.find((group) => group.hash === hash) ?? null;
+      setDuplicateGroup(match);
+    } catch {
+      setDuplicateGroup(null);
+    }
+  };
+
+  const openDetail = async (issue: GovernanceIssue) => {
+    setDetailTarget(issue);
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetailData(null);
+    setDuplicateGroup(null);
+    try {
+      const detail = await governanceService.getIssueDetails(issue.id);
+      setDetailData(detail);
+      if (issue.type === 'DUPLICATE_CONTENT') {
+        await loadDuplicateGroup(issue, detail);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao carregar detalhes';
+      setDetailError(message);
+      toast({ title: 'Erro', description: message, variant: 'destructive' });
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -572,7 +677,7 @@ export default function GovernancePage() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">Lista de issues</h3>
           <span className="text-sm text-muted-foreground">
-            {issuesData?.total ?? 0} issue{(issuesData?.total ?? 0) !== 1 ? 's' : ''}
+            {issues.length} issue{issues.length !== 1 ? 's' : ''}
           </span>
         </div>
 
@@ -641,7 +746,11 @@ export default function GovernancePage() {
                       <td className="p-4">
                         <Select
                           value={status}
-                          onValueChange={(value) => handleStatusChange(issue, value as IssueStatus)}
+                          onValueChange={(value) => {
+                            const nextStatus = value as IssueStatus;
+                            if (nextStatus === status) return;
+                            setStatusConfirm({ issue, status: nextStatus });
+                          }}
                           disabled={isActionLoading('status')}
                         >
                           <SelectTrigger className="min-w-[160px]">
@@ -668,9 +777,27 @@ export default function GovernancePage() {
                             Atribuir
                           </Button>
 
+                          <Button variant="ghost" size="sm" onClick={() => openDetail(issue)}>
+                            <Eye className="h-4 w-4 mr-1" />
+                            Detalhes
+                          </Button>
+
                           <Button variant="ghost" size="sm" onClick={() => openHistory(issue)}>
                             <History className="h-4 w-4 mr-1" />
                             Histórico
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIgnoreTarget(issue);
+                              setIgnoreReason('');
+                            }}
+                            disabled={isActionLoading('ignore')}
+                          >
+                            <Ban className="h-4 w-4 mr-1" />
+                            Ignorar
                           </Button>
                         </div>
                       </td>
@@ -706,6 +833,233 @@ export default function GovernancePage() {
           </div>
         </div>
       )}
+
+      {/* ------------------ DIALOG DETALHES ------------------ */}
+      <Dialog
+        open={Boolean(detailTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailTarget(null);
+            setDetailData(null);
+            setDetailError(null);
+            setDuplicateGroup(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da issue</DialogTitle>
+          </DialogHeader>
+
+          {detailLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando detalhes...
+            </div>
+          ) : detailError ? (
+            <div className="text-sm text-destructive">{detailError}</div>
+          ) : (
+            (() => {
+              const issue = detailData ?? detailTarget;
+              if (!issue) return null;
+              const group = duplicateGroup ?? detailData?.duplicateGroup ?? null;
+              const articles = group?.articles ?? [];
+              return (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Tipo</p>
+                      <p className="font-medium">{ISSUE_TYPE_LABELS[issue.type] || issue.type}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Status</p>
+                      <StatusBadge status={issue.status || 'OPEN'} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Sistema</p>
+                      <p className="font-medium">{issue.systemName || issue.systemCode || '-'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Manual</p>
+                      <p className="font-medium">{issue.articleTitle || issue.title || 'Manual sem título'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Criada em</p>
+                      <p className="font-medium">{formatDateTime(issue.createdAt)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Responsável</p>
+                      <p className="font-medium">{issue.responsible || 'Não atribuído'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Prazo</p>
+                      <p className="font-medium">{formatDate(issue.dueDate)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Severidade</p>
+                      <StatusBadge status={issue.severity || 'LOW'} />
+                    </div>
+                  </div>
+
+                  {(issue.message || issue.details) && (
+                    <div className="rounded-md border border-border bg-muted/30 p-4 text-sm">
+                      <p className="text-muted-foreground mb-1">Resumo</p>
+                      <p className="font-medium">{issue.message || issue.details}</p>
+                    </div>
+                  )}
+
+                  {issue.type === 'DUPLICATE_CONTENT' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold">Grupo de artigos duplicados</h4>
+                        {group?.hash && (
+                          <span className="text-xs text-muted-foreground">Hash: {group.hash}</span>
+                        )}
+                      </div>
+                      {articles.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">
+                          Nenhum artigo duplicado retornado pelo backend.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {articles.map((article, idx) => (
+                            <div
+                              key={`${article.id}-${idx}`}
+                              className="rounded-md border border-border bg-muted/40 p-3 text-sm"
+                            >
+                              <p className="font-medium">{article.title || 'Sem título'}</p>
+                              <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                <span>Sistema: {article.systemCode || 'N/A'}</span>
+                                <span>Atualizado: {formatDate(article.updatedAt)}</span>
+                                {article.url ? (
+                                  <a
+                                    href={article.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary hover:underline"
+                                  >
+                                    Abrir artigo
+                                  </a>
+                                ) : (
+                                  <span>URL indisponível</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailTarget(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------ DIALOG IGNORAR ------------------ */}
+      <Dialog
+        open={Boolean(ignoreTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIgnoreTarget(null);
+            setIgnoreReason('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ignorar issue</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label>Motivo obrigatório</Label>
+            <Input
+              placeholder="Descreva o motivo para ignorar"
+              value={ignoreReason}
+              onChange={(event) => setIgnoreReason(event.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIgnoreTarget(null);
+                setIgnoreReason('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!ignoreTarget) return;
+                const reason = ignoreReason.trim();
+                if (!reason) {
+                  toast({ title: 'Atenção', description: 'Informe o motivo para ignorar a issue.' });
+                  return;
+                }
+                handleIgnore(ignoreTarget, reason);
+                setIgnoreTarget(null);
+                setIgnoreReason('');
+              }}
+              disabled={Boolean(ignoreTarget && actionLoading?.action === 'ignore')}
+            >
+              {actionLoading?.action === 'ignore' ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Salvando...
+                </span>
+              ) : (
+                'Confirmar ignorar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------ CONFIRMA STATUS ------------------ */}
+      <AlertDialog
+        open={Boolean(statusConfirm)}
+        onOpenChange={(open) => {
+          if (!open) setStatusConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar alteração de status</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a alterar o status da issue para {statusConfirm?.status}. Confirme para continuar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!statusConfirm) return;
+                handleStatusChange(statusConfirm.issue, statusConfirm.status);
+                setStatusConfirm(null);
+              }}
+              disabled={
+                Boolean(
+                  statusConfirm &&
+                    actionLoading?.action === 'status' &&
+                    actionLoading?.id === statusConfirm.issue.id
+                )
+              }
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ------------------ DIALOG ATRIBUIR ------------------ */}
       <Dialog

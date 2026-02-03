@@ -81,6 +81,12 @@ export const API_ENDPOINTS = {
   GOVERNANCE_DUPLICATES_IGNORE: (hash: string | number) => `/governance/duplicates/${hash}/ignore`,
   GOVERNANCE_DUPLICATES_MERGE: (hash: string | number) => `/governance/duplicates/${hash}/merge`,
 
+  // Needs
+  NEEDS: '/needs',
+  NEEDS_BY_ID: (id: string | number) => `/needs/${id}`,
+  NEEDS_CREATE_TASK: (id: string | number) => `/needs/${id}/tasks`,
+  NEEDS_CREATE_MASTER_TICKET: (id: string | number) => `/needs/${id}/master-ticket`,
+
   // Systems
   SYSTEMS: '/systems',
   SYSTEM_BY_ID: (id: string | number) => `/systems/${id}`,

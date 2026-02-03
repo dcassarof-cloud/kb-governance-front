@@ -20,10 +20,8 @@ export function Topbar() {
     if (pathname === '/dashboard') return 'Dashboard';
     if (pathname.startsWith('/articles')) return 'Manuais';
     if (pathname.startsWith('/governance')) return 'Governança';
+    if (pathname.startsWith('/needs')) return 'Needs';
     if (pathname.startsWith('/responsibles') || pathname.startsWith('/responsaveis')) return 'Responsáveis';
-    if (pathname.startsWith('/duplicates')) return 'Duplicados';
-    if (pathname.startsWith('/reports')) return 'Relatórios';
-    if (pathname.startsWith('/systems')) return 'Sistemas';
     if (pathname.startsWith('/sync')) return 'Sincronização';
     if (pathname.startsWith('/settings')) return 'Configurações';
     return 'Dashboard';

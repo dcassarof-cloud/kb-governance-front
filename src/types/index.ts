@@ -65,6 +65,7 @@ export interface GovernanceIssue {
   systemName?: string | null;
   message?: string | null;
   title?: string | null;
+  duplicateHash?: string | null;
 }
 
 export interface GovernanceSummary {
@@ -125,6 +126,12 @@ export interface DuplicateArticle {
   updatedAt: string;
 }
 
+export interface GovernanceIssueDetail extends GovernanceIssue {
+  duplicateGroup?: DuplicateGroup | null;
+  duplicates?: DuplicateArticle[];
+  reason?: string | null;
+}
+
 export interface IssueHistoryEntry {
   id: string;
   status: IssueStatus | string;
@@ -158,14 +165,46 @@ export interface SyncConfig {
   daysBack: number;
 }
 
+export interface NeedItem {
+  id: string;
+  systemCode?: string | null;
+  systemName?: string | null;
+  status?: NeedStatus | null;
+  severity?: IssueSeverity | null;
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  reason?: string | null;
+  quantity?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface NeedTicketExample {
+  id?: string | null;
+  title?: string | null;
+  systemCode?: string | null;
+  url?: string | null;
+  createdAt?: string | null;
+}
+
+export interface NeedDetail extends NeedItem {
+  examples?: NeedTicketExample[];
+  description?: string | null;
+}
+
 // Enums
 export type GovernanceStatus = 'OK' | 'WARNING' | 'ERROR' | 'PENDING';
 export type SyncStatus = 'SYNCED' | 'PENDING' | 'FAILED' | 'OUTDATED';
-export type IssueType = 'INCOMPLETE_CONTENT' | 'DUPLICATE_CONTENT' | 'OUTDATED_CONTENT' | 'INCONSISTENT_CONTENT';
+export type IssueType =
+  | 'REVIEW_REQUIRED'
+  | 'NOT_AI_READY'
+  | 'DUPLICATE_CONTENT'
+  | 'INCOMPLETE_CONTENT';
 export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type SyncMode = 'FULL' | 'INCREMENTAL' | 'DELTA';
+export type NeedStatus = string;
 
 // Auth
 export interface User {

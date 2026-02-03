@@ -198,7 +198,7 @@ export const mockSystems: KbSystem[] = [
 export const mockIssues: GovernanceIssue[] = [
   {
     id: 'issue-001',
-    type: 'OUTDATED_CONTENT',
+    type: 'REVIEW_REQUIRED',
     severity: 'HIGH',
     articleId: '2',
     articleTitle: 'Integração bancária - Configuração inicial',
@@ -209,7 +209,7 @@ export const mockIssues: GovernanceIssue[] = [
   },
   {
     id: 'issue-002',
-    type: 'INCONSISTENT_CONTENT',
+    type: 'NOT_AI_READY',
     severity: 'CRITICAL',
     articleId: '4',
     articleTitle: 'Cadastro de bens patrimoniais',
@@ -242,7 +242,7 @@ export const mockIssues: GovernanceIssue[] = [
   },
   {
     id: 'issue-005',
-    type: 'INCONSISTENT_CONTENT',
+    type: 'REVIEW_REQUIRED',
     severity: 'LOW',
     articleId: '6',
     articleTitle: 'Geração de SPED Fiscal',

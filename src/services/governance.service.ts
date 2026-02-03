@@ -17,6 +17,9 @@ import {
   GovernanceResponsible,
   GovernanceSuggestedAssignee,
   GovernanceResponsiblesSummary,
+  DuplicateGroup,
+  DuplicateArticle,
+  GovernanceIssueDetail,
 } from '@/types';
 
 export interface IssuesFilter {
@@ -129,6 +132,93 @@ const normalizeResponsibleList = (response: unknown): GovernanceResponsible[] =>
     .map((item) => normalizeResponsible(item))
     .filter((item): item is GovernanceResponsible => Boolean(item));
 
+const normalizeDuplicateArticle = (raw: unknown): DuplicateArticle | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  return {
+    id: obj.id ? String(obj.id) : (obj.articleId as string) ?? (obj.manualId as string) ?? '',
+    title: (obj.title as string) ?? (obj.articleTitle as string) ?? (obj.name as string) ?? 'Sem título',
+    systemCode: (obj.systemCode as string) ?? (obj.system as string) ?? (obj.systemId as string) ?? 'N/A',
+    url: (obj.url as string) ?? (obj.link as string) ?? (obj.manualLink as string) ?? '',
+    updatedAt:
+      (obj.updatedAt as string) ??
+      (obj.updated_at as string) ??
+      (obj.lastUpdatedAt as string) ??
+      (obj.lastUpdated as string) ??
+      '',
+  };
+};
+
+const normalizeDuplicateGroup = (raw: unknown): DuplicateGroup | null => {
+  if (!raw) return null;
+  if (Array.isArray(raw)) {
+    const articles = raw
+      .map((item) => normalizeDuplicateArticle(item))
+      .filter((item): item is DuplicateArticle => Boolean(item && item.id));
+    if (articles.length === 0) return null;
+    return {
+      hash: '',
+      count: articles.length,
+      articles,
+    };
+  }
+
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const articlesRaw = obj.articles ?? obj.items ?? obj.content ?? obj.data ?? obj.duplicates ?? [];
+    const articles = Array.isArray(articlesRaw)
+      ? articlesRaw
+          .map((item) => normalizeDuplicateArticle(item))
+          .filter((item): item is DuplicateArticle => Boolean(item && item.id))
+      : [];
+
+    if (articles.length === 0) return null;
+
+    return {
+      hash: (obj.hash as string) ?? (obj.duplicateHash as string) ?? (obj.contentHash as string) ?? '',
+      count: (obj.count as number) ?? articles.length,
+      status: (obj.status as string) ?? undefined,
+      articles,
+    };
+  }
+
+  return null;
+};
+
+const normalizeIssueDetail = (response: unknown): GovernanceIssueDetail => {
+  if (!response || typeof response !== 'object') {
+    return {
+      id: '',
+      type: 'INCOMPLETE_CONTENT',
+      severity: 'LOW',
+      articleId: '',
+      articleTitle: '',
+      systemCode: '',
+      status: 'OPEN',
+      createdAt: '',
+      details: '',
+    };
+  }
+
+  const raw = response as Record<string, unknown>;
+  const issueData = (raw.issue as Record<string, unknown>) ?? (raw.data as Record<string, unknown>) ?? raw;
+
+  const duplicateGroup =
+    normalizeDuplicateGroup(issueData?.duplicateGroup ?? issueData?.duplicates ?? issueData?.duplicateArticles ?? null) ??
+    normalizeDuplicateGroup(raw?.duplicateGroup ?? raw?.duplicates ?? raw?.duplicateArticles ?? null);
+
+  return {
+    ...(issueData as GovernanceIssueDetail),
+    duplicateGroup,
+    duplicateHash:
+      (issueData.duplicateHash as string) ??
+      (issueData.contentHash as string) ??
+      (raw.duplicateHash as string) ??
+      (raw.contentHash as string) ??
+      null,
+  };
+};
+
 class GovernanceService {
   private formatDueDateForAssign(dueDate?: string): string | undefined {
     if (!dueDate) return undefined;
@@ -232,6 +322,18 @@ class GovernanceService {
   async getHistory(id: string): Promise<IssueHistoryEntry[]> {
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_HISTORY(id));
     return normalizeArrayResponse<IssueHistoryEntry>(response);
+  }
+
+  async getIssueDetails(id: string): Promise<GovernanceIssueDetail> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_BY_ID(id));
+    return normalizeIssueDetail(response);
+  }
+
+  async ignoreIssue(id: string, reason: string): Promise<GovernanceIssue> {
+    return apiClient.patch<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
+      status: 'IGNORED',
+      reason,
+    });
   }
 
   async getSuggestedAssignee(id: string): Promise<GovernanceSuggestedAssignee> {
