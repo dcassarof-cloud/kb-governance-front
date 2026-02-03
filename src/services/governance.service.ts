@@ -20,6 +20,10 @@ import {
   DuplicateGroup,
   DuplicateArticle,
   GovernanceIssueDetail,
+  GovernanceOverviewDto,
+  GovernanceTotalsDto,
+  GovernanceSystemHealthDto,
+  ResponsibleType,
 } from '@/types';
 
 export interface IssuesFilter {
@@ -31,6 +35,10 @@ export interface IssuesFilter {
   systemCode?: string;
   responsible?: string;
   q?: string;
+  overdue?: boolean;
+  unassigned?: boolean;
+  sortBy?: 'slaDueAt' | 'createdAt' | 'severity' | 'status';
+  sortOrder?: 'asc' | 'desc';
 }
 
 /**
@@ -253,6 +261,45 @@ class GovernanceService {
   }
 
   /**
+   * Busca overview de governança com totais e sistemas em risco
+   * Backend esperado: GET /api/v1/governance/overview
+   */
+  async getOverview(): Promise<GovernanceOverviewDto> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_OVERVIEW);
+    const data = response as Record<string, unknown> | null;
+
+    // Normaliza totais
+    const totalsRaw = (data?.totals as Record<string, unknown>) ?? data ?? {};
+    const totals: GovernanceTotalsDto = {
+      openIssues: (totalsRaw.openIssues as number) ?? (totalsRaw.open as number) ?? 0,
+      criticalIssues: (totalsRaw.criticalIssues as number) ?? (totalsRaw.critical as number) ?? 0,
+      unassignedIssues: (totalsRaw.unassignedIssues as number) ?? (totalsRaw.unassigned as number) ?? (totalsRaw.withoutResponsible as number) ?? 0,
+      overdueIssues: (totalsRaw.overdueIssues as number) ?? (totalsRaw.overdue as number) ?? 0,
+      resolvedLast7Days: (totalsRaw.resolvedLast7Days as number) ?? null,
+      inProgressIssues: (totalsRaw.inProgressIssues as number) ?? (totalsRaw.inProgress as number) ?? null,
+    };
+
+    // Normaliza sistemas em risco
+    const systemsRaw = (data?.systemsAtRisk ?? data?.systems ?? data?.systemHealth ?? []) as unknown[];
+    const systemsAtRisk: GovernanceSystemHealthDto[] = Array.isArray(systemsRaw)
+      ? systemsRaw.map((item) => {
+          const sys = item as Record<string, unknown>;
+          return {
+            systemCode: (sys.systemCode as string) ?? (sys.code as string) ?? '',
+            systemName: (sys.systemName as string) ?? (sys.name as string) ?? '',
+            healthScore: (sys.healthScore as number) ?? (sys.score as number) ?? 100,
+            openIssues: (sys.openIssues as number) ?? (sys.open as number) ?? 0,
+            criticalIssues: (sys.criticalIssues as number) ?? (sys.critical as number) ?? 0,
+            overdueIssues: (sys.overdueIssues as number) ?? (sys.overdue as number) ?? 0,
+            unassignedIssues: (sys.unassignedIssues as number) ?? (sys.unassigned as number) ?? 0,
+          };
+        })
+      : [];
+
+    return { totals, systemsAtRisk };
+  }
+
+  /**
    * Lista manuais/artigos para a tela de governança.
    * Backend esperado: GET /api/v1/governance/manuals
    */
@@ -291,10 +338,36 @@ class GovernanceService {
   }
 
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssue>> {
-    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, responsible, q } = filter;
+    const {
+      page = 1,
+      size = config.defaultPageSize,
+      type,
+      severity,
+      status,
+      systemCode,
+      responsible,
+      q,
+      overdue,
+      unassigned,
+      sortBy,
+      sortOrder,
+    } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
-      params: { page, size, type, severity, status, systemCode, responsible, q },
+      params: {
+        page,
+        size,
+        type,
+        severity,
+        status,
+        systemCode,
+        responsible,
+        q,
+        overdue,
+        unassigned,
+        sortBy,
+        sortOrder,
+      },
     });
 
     return normalizePaginatedResponse<GovernanceIssue>(response, page, size);
@@ -303,20 +376,25 @@ class GovernanceService {
   async assignIssue(
     id: string,
     responsible: string,
-    options: { dueDate?: string; createTicket?: boolean } = {}
+    options: { dueDate?: string; createTicket?: boolean; responsibleType?: ResponsibleType; responsibleId?: string } = {}
   ): Promise<GovernanceIssue> {
-    const { dueDate, ...restOptions } = options;
+    const { dueDate, responsibleType, responsibleId, ...restOptions } = options;
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
     return apiClient.post<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
       responsible,
+      responsibleType: responsibleType ?? 'USER',
+      responsibleId: responsibleId ?? responsible,
       ...restOptions,
       ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
     });
   }
 
-  async changeStatus(id: string, status: IssueStatus): Promise<GovernanceIssue> {
-    return apiClient.patch<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), { status });
+  async changeStatus(id: string, status: IssueStatus, reason?: string): Promise<GovernanceIssue> {
+    return apiClient.patch<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
+      status,
+      ...(reason ? { reason } : {}),
+    });
   }
 
   async getHistory(id: string): Promise<IssueHistoryEntry[]> {

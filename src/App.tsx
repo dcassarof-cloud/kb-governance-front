@@ -7,6 +7,7 @@ import LoginPage from "./pages/Login";
 import DashboardPage from "./pages/Dashboard";
 import ArticlesPage from "./pages/Articles";
 import GovernancePage from "./pages/Governance";
+import GovernanceIssueDetailPage from "./pages/GovernanceIssueDetail";
 import NeedsPage from "./pages/Needs";
 import SyncPage from "./pages/Sync";
 import SettingsPage from "./pages/Settings";
@@ -29,7 +30,9 @@ const App = () => (
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/articles" element={<ArticlesPage />} />
             <Route path="/governance" element={<GovernancePage />} />
+            <Route path="/governance/issues/:id" element={<GovernanceIssueDetailPage />} />
             <Route path="/governanca" element={<GovernancePage />} />
+            <Route path="/governanca/issues/:id" element={<GovernanceIssueDetailPage />} />
             <Route path="/needs" element={<NeedsPage />} />
             <Route path="/needs/:id" element={<NeedsPage />} />
             <Route path="/responsibles" element={<ResponsiblesPage />} />

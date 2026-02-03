@@ -62,6 +62,7 @@ export const API_ENDPOINTS = {
 
   // Governance
   GOVERNANCE_SUMMARY: '/governance/summary',
+  GOVERNANCE_OVERVIEW: '/governance/overview',
   GOVERNANCE_MANUALS: '/governance/manuals',
   GOVERNANCE_ISSUES: '/governance/issues',
   GOVERNANCE_DUPLICATES: '/governance/duplicates',

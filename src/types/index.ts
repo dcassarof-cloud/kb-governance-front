@@ -61,11 +61,21 @@ export interface GovernanceIssue {
   createdAt: string;
   details: string;
   responsible?: string | null;
+  responsibleId?: string | null;
+  responsibleType?: 'USER' | 'TEAM' | null;
   dueDate?: string | null;
+  slaDueAt?: string | null;
+  resolvedAt?: string | null;
+  ignoredAt?: string | null;
+  ignoredReason?: string | null;
   systemName?: string | null;
   message?: string | null;
   title?: string | null;
   duplicateHash?: string | null;
+  typeDisplayName?: string | null;
+  description?: string | null;
+  recommendation?: string | null;
+  manualLink?: string | null;
 }
 
 export interface GovernanceSummary {
@@ -132,12 +142,57 @@ export interface GovernanceIssueDetail extends GovernanceIssue {
   reason?: string | null;
 }
 
+// =====================================================
+// GOVERNANCE OVERVIEW DTOs (Sprint 5)
+// =====================================================
+
+export interface GovernanceTotalsDto {
+  openIssues: number;
+  criticalIssues: number;
+  unassignedIssues: number;
+  overdueIssues: number;
+  resolvedLast7Days?: number | null;
+  inProgressIssues?: number | null;
+}
+
+export interface GovernanceSystemHealthDto {
+  systemCode: string;
+  systemName: string;
+  healthScore: number;
+  openIssues: number;
+  criticalIssues: number;
+  overdueIssues: number;
+  unassignedIssues: number;
+}
+
+export interface GovernanceOverviewDto {
+  totals: GovernanceTotalsDto;
+  systemsAtRisk: GovernanceSystemHealthDto[];
+}
+
+export type ResponsibleType = 'USER' | 'TEAM';
+
+export interface AssignIssuePayload {
+  responsibleType: ResponsibleType;
+  responsibleId: string;
+  dueDate?: string;
+}
+
+export interface ChangeStatusPayload {
+  status: IssueStatus;
+  reason?: string;
+}
+
 export interface IssueHistoryEntry {
   id: string;
-  status: IssueStatus | string;
+  action: string;
+  status?: IssueStatus | string;
   changedAt: string;
   changedBy?: string | null;
+  actor?: string | null;
   note?: string | null;
+  oldValue?: string | null;
+  newValue?: string | null;
 }
 
 export interface SyncRun {
