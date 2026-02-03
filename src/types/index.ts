@@ -50,7 +50,26 @@ export interface KbSystem {
   qualityScore: number;
 }
 
-export interface GovernanceIssue {
+export interface GovernanceOverviewDto {
+  openTotal?: number | null;
+  errorOpen?: number | null;
+  criticalOpen?: number | null;
+  unassignedOpen?: number | null;
+  overdueOpen?: number | null;
+  systems?: GovernanceOverviewSystemDto[];
+}
+
+export interface GovernanceOverviewSystemDto {
+  systemCode: string;
+  systemName?: string | null;
+  healthScore?: number | null;
+  openIssues?: number | null;
+  errorOpen?: number | null;
+  overdueOpen?: number | null;
+  unassignedOpen?: number | null;
+}
+
+export interface GovernanceIssueDto {
   id: string;
   type: IssueType;
   severity: IssueSeverity;
@@ -61,11 +80,31 @@ export interface GovernanceIssue {
   createdAt: string;
   details: string;
   responsible?: string | null;
+  responsibleId?: string | null;
+  responsibleType?: string | null;
+  responsibleName?: string | null;
   dueDate?: string | null;
+  slaDueAt?: string | null;
+  slaDays?: number | null;
   systemName?: string | null;
   message?: string | null;
   title?: string | null;
   duplicateHash?: string | null;
+  displayName?: string | null;
+  description?: string | null;
+  recommendation?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface GovernanceIssueHistoryDto {
+  id?: string;
+  changedAt: string;
+  field?: string | null;
+  oldValue?: string | null;
+  newValue?: string | null;
+  changedBy?: string | null;
+  note?: string | null;
+  status?: IssueStatus | string | null;
 }
 
 export interface GovernanceSummary {
@@ -126,11 +165,13 @@ export interface DuplicateArticle {
   updatedAt: string;
 }
 
-export interface GovernanceIssueDetail extends GovernanceIssue {
+export interface GovernanceIssueDetail extends GovernanceIssueDto {
   duplicateGroup?: DuplicateGroup | null;
   duplicates?: DuplicateArticle[];
   reason?: string | null;
 }
+
+export type GovernanceIssue = GovernanceIssueDto;
 
 export interface IssueHistoryEntry {
   id: string;

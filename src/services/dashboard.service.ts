@@ -36,11 +36,6 @@ function normalizeDashboardSummary(response: unknown): DashboardSummary {
 
 class DashboardService {
   async getSummary(): Promise<DashboardSummary> {
-    if (config.debug) {
-      console.log('[DashboardService] apiBaseUrl =', config.apiBaseUrl);
-      console.log('[DashboardService] endpoint =', API_ENDPOINTS.DASHBOARD_SUMMARY);
-    }
-
     // Chamada à API real com normalização de resposta
     const response = await apiClient.get<unknown>(API_ENDPOINTS.DASHBOARD_SUMMARY);
     return normalizeDashboardSummary(response);

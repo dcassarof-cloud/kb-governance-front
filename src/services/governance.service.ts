@@ -6,7 +6,7 @@ import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
 
 import {
-  GovernanceIssue,
+  GovernanceIssueDto,
   IssueType,
   IssueSeverity,
   IssueStatus,
@@ -20,6 +20,8 @@ import {
   DuplicateGroup,
   DuplicateArticle,
   GovernanceIssueDetail,
+  GovernanceOverviewDto,
+  GovernanceIssueHistoryDto,
 } from '@/types';
 
 export interface IssuesFilter {
@@ -31,6 +33,8 @@ export interface IssuesFilter {
   systemCode?: string;
   responsible?: string;
   q?: string;
+  overdue?: boolean;
+  unassigned?: boolean;
 }
 
 /**
@@ -219,6 +223,67 @@ const normalizeIssueDetail = (response: unknown): GovernanceIssueDetail => {
   };
 };
 
+const normalizeOverview = (response: unknown): GovernanceOverviewDto => {
+  if (!response || typeof response !== 'object') {
+    return {};
+  }
+
+  const raw = response as Record<string, unknown>;
+  const systemsRaw = (raw.systems as unknown) ?? (raw.bySystem as unknown) ?? (raw.systemStats as unknown) ?? [];
+  const systems = Array.isArray(systemsRaw)
+    ? systemsRaw.map((item) => {
+        const obj = item as Record<string, unknown>;
+        return {
+          systemCode: (obj.systemCode as string) ?? (obj.code as string) ?? '',
+          systemName: (obj.systemName as string) ?? (obj.name as string) ?? null,
+          healthScore: (obj.healthScore as number) ?? (obj.qualityScore as number) ?? null,
+          openIssues: (obj.openIssues as number) ?? (obj.openTotal as number) ?? null,
+          errorOpen: (obj.errorOpen as number) ?? (obj.criticalOpen as number) ?? null,
+          overdueOpen: (obj.overdueOpen as number) ?? (obj.overdueIssues as number) ?? null,
+          unassignedOpen:
+            (obj.unassignedOpen as number) ?? (obj.unassignedIssues as number) ?? (obj.withoutResponsible as number) ?? null,
+        };
+      })
+    : [];
+
+  return {
+    openTotal: (raw.openTotal as number) ?? (raw.openIssues as number) ?? (raw.totalOpen as number) ?? null,
+    errorOpen:
+      (raw.errorOpen as number) ?? (raw.criticalOpen as number) ?? (raw.errorIssues as number) ?? null,
+    criticalOpen: (raw.criticalOpen as number) ?? null,
+    unassignedOpen:
+      (raw.unassignedOpen as number) ?? (raw.unassignedIssues as number) ?? (raw.withoutResponsible as number) ?? null,
+    overdueOpen: (raw.overdueOpen as number) ?? (raw.overdueIssues as number) ?? (raw.lateOpen as number) ?? null,
+    systems: systems.filter((system) => Boolean(system.systemCode)),
+  };
+};
+
+const normalizeIssueHistory = (response: unknown): GovernanceIssueHistoryDto[] => {
+  const entries = normalizeArrayResponse<Record<string, unknown>>(response);
+  return entries.map((entry) => ({
+    id: entry.id ? String(entry.id) : undefined,
+    changedAt:
+      (entry.changedAt as string) ??
+      (entry.updatedAt as string) ??
+      (entry.createdAt as string) ??
+      '',
+    field: (entry.field as string) ?? (entry.attribute as string) ?? (entry.property as string) ?? null,
+    oldValue:
+      (entry.oldValue as string) ??
+      (entry.previousValue as string) ??
+      (entry.from as string) ??
+      null,
+    newValue:
+      (entry.newValue as string) ??
+      (entry.currentValue as string) ??
+      (entry.to as string) ??
+      null,
+    changedBy: (entry.changedBy as string) ?? (entry.user as string) ?? null,
+    note: (entry.note as string) ?? (entry.reason as string) ?? null,
+    status: (entry.status as IssueStatus) ?? (entry.toStatus as IssueStatus) ?? null,
+  }));
+};
+
 class GovernanceService {
   private formatDueDateForAssign(dueDate?: string): string | undefined {
     if (!dueDate) return undefined;
@@ -250,6 +315,17 @@ class GovernanceService {
         (data?.resolvedLastWeek as number) ??
         null,
     };
+  }
+
+  async getOverview(): Promise<GovernanceOverviewDto> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_SUMMARY);
+    const overview = normalizeOverview(response);
+
+    if (overview.errorOpen === null && overview.criticalOpen !== null) {
+      return { ...overview, errorOpen: overview.criticalOpen };
+    }
+
+    return overview;
   }
 
   /**
@@ -290,33 +366,38 @@ class GovernanceService {
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id));
   }
 
-  async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssue>> {
-    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, responsible, q } = filter;
+  async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssueDto>> {
+    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, responsible, q, overdue, unassigned } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
-      params: { page, size, type, severity, status, systemCode, responsible, q },
+      params: { page, size, type, severity, status, systemCode, responsible, q, overdue, unassigned },
     });
 
-    return normalizePaginatedResponse<GovernanceIssue>(response, page, size);
+    return normalizePaginatedResponse<GovernanceIssueDto>(response, page, size);
   }
 
   async assignIssue(
     id: string,
     responsible: string,
-    options: { dueDate?: string; createTicket?: boolean } = {}
-  ): Promise<GovernanceIssue> {
-    const { dueDate, ...restOptions } = options;
+    options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string } = {}
+  ): Promise<GovernanceIssueDto> {
+    const { dueDate, responsibleType, responsibleId, ...restOptions } = options;
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
-    return apiClient.post<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
+    return apiClient.post<GovernanceIssueDto>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
       responsible,
       ...restOptions,
+      ...(responsibleType ? { responsibleType } : {}),
+      ...(responsibleId ? { responsibleId } : {}),
       ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
     });
   }
 
-  async changeStatus(id: string, status: IssueStatus): Promise<GovernanceIssue> {
-    return apiClient.patch<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), { status });
+  async changeStatus(id: string, status: IssueStatus, ignoredReason?: string): Promise<GovernanceIssueDto> {
+    return apiClient.patch<GovernanceIssueDto>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
+      status,
+      ...(ignoredReason ? { reason: ignoredReason } : {}),
+    });
   }
 
   async getHistory(id: string): Promise<IssueHistoryEntry[]> {
@@ -324,13 +405,18 @@ class GovernanceService {
     return normalizeArrayResponse<IssueHistoryEntry>(response);
   }
 
-  async getIssueDetails(id: string): Promise<GovernanceIssueDetail> {
+  async getIssueHistory(id: string): Promise<GovernanceIssueHistoryDto[]> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_HISTORY(id));
+    return normalizeIssueHistory(response);
+  }
+
+  async getIssueById(id: string): Promise<GovernanceIssueDetail> {
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_BY_ID(id));
     return normalizeIssueDetail(response);
   }
 
-  async ignoreIssue(id: string, reason: string): Promise<GovernanceIssue> {
-    return apiClient.patch<GovernanceIssue>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
+  async ignoreIssue(id: string, reason: string): Promise<GovernanceIssueDto> {
+    return apiClient.patch<GovernanceIssueDto>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
       status: 'IGNORED',
       reason,
     });

@@ -3,14 +3,13 @@ import {
   AlertTriangle,
   AlertCircle,
   RefreshCw,
-  CheckCircle,
   UserPlus,
-  History,
   Loader2,
   Eye,
-  Ban,
+  ClipboardCheck,
+  CalendarClock,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -21,35 +20,23 @@ import { EmptyState } from '@/components/shared/EmptyState';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-
 import { governanceService, IssuesFilter } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
-import { duplicatesService } from '@/services/duplicates.service';
 import {
-  GovernanceIssue,
-  GovernanceIssueDetail,
-  GovernanceSummary,
+  GovernanceIssueDto,
+  GovernanceOverviewDto,
   IssueSeverity,
   IssueStatus,
   IssueType,
   KbSystem,
   PaginatedResponse,
   GovernanceResponsible,
-  DuplicateGroup,
+  GovernanceOverviewSystemDto,
 } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
@@ -68,17 +55,23 @@ const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   INCOMPLETE_CONTENT: 'Conteúdo Incompleto',
 };
 
-const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED'];
+const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 const ISSUE_STATUS_FILTER_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 const ISSUE_SEVERITY_OPTIONS: IssueSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
-export default function GovernancePage() {
-  const [searchParams] = useSearchParams();
-  const [summary, setSummary] = useState<GovernanceSummary | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
+type GovernanceFilters = IssuesFilter & {
+  overdue?: boolean;
+  unassigned?: boolean;
+};
 
-  const [issuesData, setIssuesData] = useState<PaginatedResponse<GovernanceIssue> | null>(null);
+export default function GovernancePage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [overview, setOverview] = useState<GovernanceOverviewDto | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+
+  const [issuesData, setIssuesData] = useState<PaginatedResponse<GovernanceIssueDto> | null>(null);
   const [issuesLoading, setIssuesLoading] = useState(true);
   const [issuesError, setIssuesError] = useState<string | null>(null);
 
@@ -89,17 +82,21 @@ export default function GovernancePage() {
   const [size] = useState(config.defaultPageSize);
 
   // ✅ filtros simples alinhados com backend atual
-  const [filters, setFilters] = useState<IssuesFilter>({
+  const [filters, setFilters] = useState<GovernanceFilters>({
     systemCode: '',
     status: undefined,
     type: undefined,
     severity: undefined,
     responsible: '',
     q: '',
+    overdue: false,
+    unassigned: false,
   });
 
-  const [assignTarget, setAssignTarget] = useState<GovernanceIssue | null>(null);
+  const [assignTarget, setAssignTarget] = useState<GovernanceIssueDto | null>(null);
   const [assignValue, setAssignValue] = useState('');
+  const [assignResponsibleType, setAssignResponsibleType] = useState('USER');
+  const [assignResponsibleId, setAssignResponsibleId] = useState('');
   const [assignDueDate, setAssignDueDate] = useState('');
   const [actionLoading, setActionLoading] = useState<{ id: string; action: string } | null>(null);
   const [suggestedLoading, setSuggestedLoading] = useState(false);
@@ -107,40 +104,22 @@ export default function GovernancePage() {
   const [suggestedAssignee, setSuggestedAssignee] = useState<GovernanceResponsible | null>(null);
   const [suggestedAlternatives, setSuggestedAlternatives] = useState<GovernanceResponsible[]>([]);
 
-  const [historyTarget, setHistoryTarget] = useState<GovernanceIssue | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [historyData, setHistoryData] = useState<string[]>([]);
+  const [statusTarget, setStatusTarget] = useState<GovernanceIssueDto | null>(null);
+  const [statusValue, setStatusValue] = useState<IssueStatus>('OPEN');
+  const [statusIgnoredReason, setStatusIgnoredReason] = useState('');
 
-  const [detailTarget, setDetailTarget] = useState<GovernanceIssue | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailData, setDetailData] = useState<GovernanceIssueDetail | null>(null);
-  const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroup | null>(null);
-
-  const [ignoreTarget, setIgnoreTarget] = useState<GovernanceIssue | null>(null);
-  const [ignoreReason, setIgnoreReason] = useState('');
-
-  const [statusConfirm, setStatusConfirm] = useState<{ issue: GovernanceIssue; status: IssueStatus } | null>(null);
-
-  const fetchSummary = async () => {
-    setSummaryLoading(true);
-    setSummaryError(null);
+  const fetchOverview = async () => {
+    setOverviewLoading(true);
+    setOverviewError(null);
     try {
-      const result = await governanceService.getSummary();
-      setSummary({
-        totalIssues: result?.totalIssues ?? null,
-        unassignedIssues: result?.unassignedIssues ?? null,
-        openIssues: result?.openIssues ?? null,
-        resolvedLast7Days: result?.resolvedLast7Days ?? null,
-      });
+      const result = await governanceService.getOverview();
+      setOverview(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar indicadores';
-      console.error('Erro ao carregar indicadores de governança:', err);
-      setSummaryError(message);
+      setOverviewError(message);
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
-      setSummaryLoading(false);
+      setOverviewLoading(false);
     }
   };
 
@@ -157,9 +136,11 @@ export default function GovernancePage() {
         severity: currentFilters.severity || undefined,
         responsible: currentFilters.responsible?.trim() || undefined,
         q: currentFilters.q?.trim() || undefined,
+        overdue: currentFilters.overdue || undefined,
+        unassigned: currentFilters.unassigned || undefined,
       });
 
-      const normalized: PaginatedResponse<GovernanceIssue> = {
+      const normalized: PaginatedResponse<GovernanceIssueDto> = {
         data: Array.isArray(result?.data) ? result.data : [],
         total: result?.total ?? 0,
         page: result?.page ?? currentPage,
@@ -170,7 +151,6 @@ export default function GovernancePage() {
       setIssuesData(normalized);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar issues';
-      console.error('Erro ao carregar issues de governança:', err);
       setIssuesError(message);
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
@@ -188,7 +168,7 @@ export default function GovernancePage() {
   };
 
   useEffect(() => {
-    fetchSummary();
+    fetchOverview();
     fetchSystems();
     // carrega primeira vez
     fetchIssues(filters, 1);
@@ -196,14 +176,33 @@ export default function GovernancePage() {
   }, []);
 
   useEffect(() => {
-    const responsible = searchParams.get('responsible');
-    const assignTo = searchParams.get('assignTo');
-    if (responsible) {
-      setFilters((prev) => ({ ...prev, responsible }));
-      setPage(1);
-    }
+    const responsible = searchParams.get('responsible') ?? '';
+    const assignTo = searchParams.get('assignTo') ?? '';
+    const systemCode = searchParams.get('system') ?? '';
+    const status = searchParams.get('status') ?? '';
+    const type = searchParams.get('type') ?? '';
+    const severity = searchParams.get('severity') ?? '';
+    const q = searchParams.get('q') ?? '';
+    const overdue = searchParams.get('overdue') === 'true';
+    const unassigned = searchParams.get('unassigned') === 'true';
+    const pageParam = Number(searchParams.get('page') ?? '1');
+
+    setFilters((prev) => ({
+      ...prev,
+      responsible,
+      systemCode,
+      status: status ? (status as IssueStatus) : undefined,
+      type: type ? (type as IssueType) : undefined,
+      severity: severity ? (severity as IssueSeverity) : undefined,
+      q,
+      overdue,
+      unassigned,
+    }));
+    setPage(Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1);
+
     if (assignTo) {
       setAssignValue(assignTo);
+      setAssignResponsibleId(assignTo);
     }
   }, [searchParams]);
 
@@ -218,23 +217,44 @@ export default function GovernancePage() {
   }, [filters, page]);
 
   useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.systemCode) params.set('system', filters.systemCode);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.type) params.set('type', filters.type);
+    if (filters.severity) params.set('severity', filters.severity);
+    if (filters.responsible) params.set('responsible', filters.responsible);
+    if (filters.q) params.set('q', filters.q);
+    if (filters.overdue) params.set('overdue', 'true');
+    if (filters.unassigned) params.set('unassigned', 'true');
+    if (page > 1) params.set('page', String(page));
+
+    if (params.toString() !== searchParams.toString()) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [filters, page, searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (!assignTarget) {
       setSuggestedAssignee(null);
       setSuggestedAlternatives([]);
       setSuggestedError(null);
       setSuggestedLoading(false);
       setAssignDueDate('');
+      setAssignResponsibleId('');
+      setAssignResponsibleType('USER');
       return;
     }
     const assignTo = searchParams.get('assignTo');
-    setAssignValue(assignTo ?? assignTarget.responsible ?? '');
+    const fallbackResponsible = assignTarget.responsibleName ?? assignTarget.responsible ?? '';
+    setAssignValue(assignTo ?? fallbackResponsible);
+    setAssignResponsibleId(assignTo ?? assignTarget.responsibleId ?? fallbackResponsible);
     fetchSuggestedAssignee(assignTarget);
   }, [assignTarget, searchParams]);
 
   const uniqueOptions = (values: Array<string | null | undefined>) =>
     Array.from(new Set(values.filter((value): value is string => Boolean(value && value.trim()))));
 
-  const issues = (issuesData?.data ?? []).filter((issue) => ALLOWED_ISSUE_TYPES.includes(issue?.type));
+  const issues = issuesData?.data ?? [];
 
   const systemOptions = useMemo(() => {
     // se vier do endpoint de sistemas, melhor
@@ -248,7 +268,7 @@ export default function GovernancePage() {
   const statusOptions = useMemo(() => uniqueOptions(issues.map((issue) => issue?.status)), [issues]);
   const typeOptions = useMemo(() => uniqueOptions(issues.map((issue) => issue?.type)), [issues]);
   const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ISSUE_STATUS_FILTER_OPTIONS;
-  const resolvedTypeOptions = ALLOWED_ISSUE_TYPES;
+  const resolvedTypeOptions = typeOptions.length > 0 ? typeOptions : ALLOWED_ISSUE_TYPES;
   const resolvedSeverityOptions = ISSUE_SEVERITY_OPTIONS;
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -260,16 +280,39 @@ export default function GovernancePage() {
     }
   };
 
-  const formatDateTime = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return '-';
-    try {
-      return new Date(dateStr).toLocaleString('pt-BR');
-    } catch {
-      return '-';
-    }
+  const getDueDateValue = (issue: GovernanceIssueDto) => issue.slaDueAt ?? issue.dueDate ?? null;
+
+  const startOfToday = () => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
   };
 
-  const updateIssueState = (issueId: string, updates: Partial<GovernanceIssue>) => {
+  const getSlaStatus = (issue: GovernanceIssueDto) => {
+    const dueDateValue = getDueDateValue(issue);
+    if (!dueDateValue) {
+      return { label: 'SEM SLA', variant: 'secondary' as const, className: 'bg-muted text-muted-foreground', priority: 3 };
+    }
+
+    const dueDate = new Date(dueDateValue);
+    if (Number.isNaN(dueDate.getTime())) {
+      return { label: 'SEM SLA', variant: 'secondary' as const, className: 'bg-muted text-muted-foreground', priority: 3 };
+    }
+
+    const today = startOfToday();
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+
+    if (due < today) {
+      return { label: 'VENCIDO', variant: 'destructive' as const, className: '', priority: 0 };
+    }
+    if (due.getTime() === today.getTime()) {
+      return { label: 'HOJE', variant: 'secondary' as const, className: 'bg-warning text-warning-foreground', priority: 1 };
+    }
+    return { label: 'EM DIA', variant: 'secondary' as const, className: 'bg-success text-success-foreground', priority: 2 };
+  };
+
+  const updateIssueState = (issueId: string, updates: Partial<GovernanceIssueDto>) => {
     setIssuesData((prev) => {
       if (!prev) return prev;
       return {
@@ -280,21 +323,25 @@ export default function GovernancePage() {
   };
 
   const handleAssign = async (
-    issue: GovernanceIssue,
+    issue: GovernanceIssueDto,
     responsible: string,
-    options: { dueDate?: string; createTicket?: boolean } = {}
+    options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string } = {}
   ) => {
     const previousResponsible = issue.responsible ?? null;
     updateIssueState(issue.id, { responsible });
     setActionLoading({ id: issue.id, action: 'assign' });
     try {
       const updated = await governanceService.assignIssue(issue.id, responsible, options);
-      updateIssueState(issue.id, { responsible: updated?.responsible ?? responsible });
+      updateIssueState(issue.id, {
+        responsible: updated?.responsible ?? responsible,
+        responsibleId: updated?.responsibleId ?? options.responsibleId ?? issue.responsibleId,
+        responsibleType: updated?.responsibleType ?? options.responsibleType ?? issue.responsibleType,
+        responsibleName: updated?.responsibleName ?? issue.responsibleName,
+      });
       toast({ title: 'Ação concluída', description: 'Responsável atribuído com sucesso.' });
-      await fetchSummary();
+      await fetchOverview();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao atribuir responsável';
-      console.error('Erro ao atribuir responsável:', err);
       updateIssueState(issue.id, { responsible: previousResponsible });
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
@@ -302,7 +349,7 @@ export default function GovernancePage() {
     }
   };
 
-  const fetchSuggestedAssignee = async (issue: GovernanceIssue) => {
+  const fetchSuggestedAssignee = async (issue: GovernanceIssueDto) => {
     setSuggestedLoading(true);
     setSuggestedError(null);
     setSuggestedAssignee(null);
@@ -319,12 +366,12 @@ export default function GovernancePage() {
     }
   };
 
-  const handleStatusChange = async (issue: GovernanceIssue, status: IssueStatus) => {
+  const handleStatusChange = async (issue: GovernanceIssueDto, status: IssueStatus, ignoredReason?: string) => {
     const previousStatus = issue.status;
     updateIssueState(issue.id, { status });
     setActionLoading({ id: issue.id, action: 'status' });
     try {
-      const updated = await governanceService.changeStatus(issue.id, status);
+      const updated = await governanceService.changeStatus(issue.id, status, ignoredReason);
       const nextStatus = updated?.status ?? status;
       setIssuesData((prev) => {
         if (!prev) return prev;
@@ -341,10 +388,9 @@ export default function GovernancePage() {
         return { ...prev, data: nextData };
       });
       toast({ title: 'Ação concluída', description: 'Status atualizado com sucesso.' });
-      await fetchSummary();
+      await fetchOverview();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao atualizar status';
-      console.error('Erro ao atualizar status:', err);
       updateIssueState(issue.id, { status: previousStatus });
       toast({ title: 'Erro', description: message, variant: 'destructive' });
     } finally {
@@ -352,95 +398,16 @@ export default function GovernancePage() {
     }
   };
 
-  const handleIgnore = async (issue: GovernanceIssue, reason: string) => {
-    const previousStatus = issue.status;
-    updateIssueState(issue.id, { status: 'IGNORED' });
-    setActionLoading({ id: issue.id, action: 'ignore' });
-    try {
-      const updated = await governanceService.ignoreIssue(issue.id, reason);
-      updateIssueState(issue.id, { status: updated?.status ?? 'IGNORED' });
-      toast({ title: 'Issue ignorada', description: 'Motivo registrado com sucesso.' });
-      await fetchSummary();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao ignorar issue';
-      console.error('Erro ao ignorar issue:', err);
-      updateIssueState(issue.id, { status: previousStatus });
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const loadDuplicateGroup = async (issue: GovernanceIssue, detail?: GovernanceIssueDetail | null) => {
-    const localGroup = detail?.duplicateGroup ?? null;
-    if (localGroup?.articles?.length) {
-      setDuplicateGroup(localGroup);
-      return;
-    }
-
-    const hash = detail?.duplicateHash ?? issue?.duplicateHash ?? null;
-    if (!hash) {
-      setDuplicateGroup(null);
-      return;
-    }
-
-    try {
-      const groups = await duplicatesService.listGroups();
-      const match = groups.find((group) => group.hash === hash) ?? null;
-      setDuplicateGroup(match);
-    } catch {
-      setDuplicateGroup(null);
-    }
-  };
-
-  const openDetail = async (issue: GovernanceIssue) => {
-    setDetailTarget(issue);
-    setDetailLoading(true);
-    setDetailError(null);
-    setDetailData(null);
-    setDuplicateGroup(null);
-    try {
-      const detail = await governanceService.getIssueDetails(issue.id);
-      setDetailData(detail);
-      if (issue.type === 'DUPLICATE_CONTENT') {
-        await loadDuplicateGroup(issue, detail);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar detalhes';
-      setDetailError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const openHistory = async (issue: GovernanceIssue) => {
-    setHistoryTarget(issue);
-    setHistoryLoading(true);
-    setHistoryError(null);
-    setHistoryData([]);
-    try {
-      const result = await governanceService.getHistory(issue.id);
-      const entries = Array.isArray(result) ? result : [];
-      const formatted = entries.map((entry) => {
-        const date = formatDate(entry?.changedAt);
-        const status = entry?.status ?? '-';
-        const by = entry?.changedBy ? ` • ${entry.changedBy}` : '';
-        const note = entry?.note ? ` — ${entry.note}` : '';
-        return `${date} • ${status}${by}${note}`;
-      });
-      setHistoryData(formatted);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar histórico';
-      setHistoryError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
-    } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  const handleFilterChange = (key: keyof IssuesFilter, value: string) => {
+  const handleFilterChange = (key: keyof GovernanceFilters, value: string) => {
     // sempre resetar pagina ao filtrar
+    setPage(1);
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleToggleChange = (key: 'overdue' | 'unassigned', value: boolean) => {
     setPage(1);
     setFilters((prev) => ({
       ...prev,
@@ -463,37 +430,129 @@ export default function GovernancePage() {
 
   const totalPages = issuesData?.totalPages ?? 0;
   const isValidNumber = (value: number | null | undefined) => typeof value === 'number' && Number.isFinite(value);
-  // TODO: ampliar quando o backend expor novos indicadores
+
   const summaryMetrics = [
     {
-      key: 'totalIssues',
-      title: 'Total de issues',
-      value: summary?.totalIssues,
-      icon: AlertTriangle,
-      variant: 'primary' as const,
-    },
-    {
-      key: 'unassignedIssues',
-      title: 'Sem responsável',
-      value: summary?.unassignedIssues,
-      icon: UserPlus,
-      variant: 'warning' as const,
-    },
-    {
-      key: 'openIssues',
+      key: 'openTotal',
       title: 'Abertas',
-      value: summary?.openIssues,
+      value: overview?.openTotal,
       icon: AlertCircle,
       variant: 'warning' as const,
     },
     {
-      key: 'resolvedLast7Days',
-      title: 'Resolvidas (7d)',
-      value: summary?.resolvedLast7Days,
-      icon: CheckCircle,
-      variant: 'success' as const,
+      key: 'errorOpen',
+      title: 'Erros/Críticas',
+      value: overview?.errorOpen ?? overview?.criticalOpen,
+      icon: AlertTriangle,
+      variant: 'error' as const,
+    },
+    {
+      key: 'unassignedOpen',
+      title: 'Sem responsável',
+      value: overview?.unassignedOpen,
+      icon: UserPlus,
+      variant: 'warning' as const,
+    },
+    {
+      key: 'overdueOpen',
+      title: 'Vencidas',
+      value: overview?.overdueOpen,
+      icon: CalendarClock,
+      variant: 'error' as const,
     },
   ].filter((metric) => isValidNumber(metric.value));
+
+  const severityRank: Record<IssueSeverity, number> = {
+    CRITICAL: 0,
+    HIGH: 1,
+    MEDIUM: 2,
+    LOW: 3,
+  };
+
+  const filteredIssues = useMemo(() => {
+    return issues.filter((issue) => {
+      if (filters.unassigned && issue.responsible) return false;
+      if (filters.overdue) {
+        const dueDateValue = getDueDateValue(issue);
+        if (!dueDateValue) return false;
+        const dueDate = new Date(dueDateValue);
+        if (Number.isNaN(dueDate.getTime())) return false;
+        const today = startOfToday();
+        dueDate.setHours(0, 0, 0, 0);
+        if (dueDate >= today) return false;
+      }
+      return true;
+    });
+  }, [filters.overdue, filters.unassigned, issues]);
+
+  const orderedIssues = useMemo(() => {
+    return [...filteredIssues].sort((a, b) => {
+      const slaA = getSlaStatus(a);
+      const slaB = getSlaStatus(b);
+      if (slaA.priority !== slaB.priority) {
+        return slaA.priority - slaB.priority;
+      }
+      const severityA = severityRank[a.severity] ?? 99;
+      const severityB = severityRank[b.severity] ?? 99;
+      if (severityA !== severityB) {
+        return severityA - severityB;
+      }
+      const dateA = getDueDateValue(a) ? new Date(getDueDateValue(a) as string).getTime() : Number.POSITIVE_INFINITY;
+      const dateB = getDueDateValue(b) ? new Date(getDueDateValue(b) as string).getTime() : Number.POSITIVE_INFINITY;
+      return dateA - dateB;
+    });
+  }, [filteredIssues]);
+
+  const systemRows = useMemo(() => {
+    if (overview?.systems && overview.systems.length > 0) {
+      return overview.systems;
+    }
+
+    const issueMap = new Map<string, GovernanceOverviewSystemDto>();
+    issues.forEach((issue) => {
+      const systemCode = issue.systemCode || 'N/A';
+      const existing = issueMap.get(systemCode) ?? {
+        systemCode,
+        systemName: issue.systemName ?? null,
+        openIssues: 0,
+        errorOpen: 0,
+        overdueOpen: 0,
+        unassignedOpen: 0,
+      };
+
+      existing.openIssues = (existing.openIssues ?? 0) + 1;
+      if (['HIGH', 'CRITICAL'].includes(issue.severity)) {
+        existing.errorOpen = (existing.errorOpen ?? 0) + 1;
+      }
+      if (!issue.responsible) {
+        existing.unassignedOpen = (existing.unassignedOpen ?? 0) + 1;
+      }
+      const dueDateValue = getDueDateValue(issue);
+      if (dueDateValue) {
+        const dueDate = new Date(dueDateValue);
+        if (!Number.isNaN(dueDate.getTime())) {
+          const today = startOfToday();
+          dueDate.setHours(0, 0, 0, 0);
+          if (dueDate < today) {
+            existing.overdueOpen = (existing.overdueOpen ?? 0) + 1;
+          }
+        }
+      }
+      issueMap.set(systemCode, existing);
+    });
+
+    const rows = Array.from(issueMap.values());
+    if (systems.length === 0) return rows;
+
+    return systems.map((system) => {
+      const mapped = issueMap.get(system.code) ?? { systemCode: system.code };
+      return {
+        ...mapped,
+        systemName: mapped.systemName ?? system.name,
+        healthScore: system.qualityScore ?? null,
+      };
+    });
+  }, [overview?.systems, issues, systems]);
 
   return (
     <MainLayout>
@@ -603,6 +662,29 @@ export default function GovernancePage() {
           </div>
         </div>
 
+        <div className="mt-4 flex flex-wrap gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="filter-overdue"
+              checked={Boolean(filters.overdue)}
+              onCheckedChange={(checked) => handleToggleChange('overdue', Boolean(checked))}
+            />
+            <Label htmlFor="filter-overdue" className="text-sm font-medium">
+              Só vencidas
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="filter-unassigned"
+              checked={Boolean(filters.unassigned)}
+              onCheckedChange={(checked) => handleToggleChange('unassigned', Boolean(checked))}
+            />
+            <Label htmlFor="filter-unassigned" className="text-sm font-medium">
+              Sem responsável
+            </Label>
+          </div>
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             variant="outline"
@@ -615,6 +697,8 @@ export default function GovernancePage() {
                 severity: undefined,
                 responsible: '',
                 q: '',
+                overdue: false,
+                unassigned: false,
               });
             }}
           >
@@ -629,19 +713,19 @@ export default function GovernancePage() {
       </div>
 
       {/* ------------------ SUMMARY ------------------ */}
-      {summaryLoading ? (
+      {overviewLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[1, 2, 3, 4].map((item) => (
             <LoadingSkeleton key={item} variant="card" />
           ))}
         </div>
-      ) : summaryError ? (
+      ) : overviewError ? (
         <div className="card-metric mb-6">
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <AlertCircle className="h-10 w-10 text-destructive mb-3" />
             <h3 className="font-semibold text-lg mb-2">Erro ao carregar indicadores</h3>
-            <p className="text-sm text-muted-foreground mb-4">{summaryError}</p>
-            <Button onClick={fetchSummary}>
+            <p className="text-sm text-muted-foreground mb-4">{overviewError}</p>
+            <Button onClick={fetchOverview}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Tentar novamente
             </Button>
@@ -672,12 +756,93 @@ export default function GovernancePage() {
         </div>
       )}
 
+      {/* ------------------ SISTEMAS ------------------ */}
+      <div className="card-metric mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold">Saúde por sistema</h3>
+            <p className="text-sm text-muted-foreground">Clique em um sistema para filtrar a fila.</p>
+          </div>
+        </div>
+
+        {overviewLoading ? (
+          <LoadingSkeleton variant="table" rows={4} />
+        ) : overviewError ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <h3 className="font-semibold text-lg mb-2">Erro ao carregar sistemas</h3>
+            <p className="text-sm text-muted-foreground mb-4">{overviewError}</p>
+            <Button onClick={fetchOverview}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Tentar novamente
+            </Button>
+          </div>
+        ) : systemRows.length === 0 ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Nenhum sistema encontrado"
+            description="Assim que houver dados por sistema, eles aparecem aqui."
+          />
+        ) : (
+          <div className="table-container overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-4 font-semibold text-sm">Sistema</th>
+                  <th className="text-left p-4 font-semibold text-sm">HealthScore</th>
+                  <th className="text-left p-4 font-semibold text-sm">Abertas</th>
+                  <th className="text-left p-4 font-semibold text-sm">Erros</th>
+                  <th className="text-left p-4 font-semibold text-sm">Vencidas</th>
+                  <th className="text-left p-4 font-semibold text-sm">Sem responsável</th>
+                </tr>
+              </thead>
+              <tbody>
+                {systemRows.map((system) => {
+                  const score = typeof system.healthScore === 'number' ? Math.round(system.healthScore) : null;
+                  return (
+                    <tr
+                      key={system.systemCode}
+                      className="border-t border-border hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => handleFilterChange('systemCode', system.systemCode)}
+                    >
+                      <td className="p-4 font-medium">
+                        <div>{system.systemName || system.systemCode}</div>
+                        <div className="text-xs text-muted-foreground">{system.systemCode}</div>
+                      </td>
+                      <td className="p-4">
+                        {score !== null ? (
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-24 rounded-full bg-muted">
+                              <div
+                                className="h-2 rounded-full bg-primary"
+                                style={{ width: `${Math.min(score, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm text-muted-foreground">{score}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-muted-foreground">{system.openIssues ?? 0}</td>
+                      <td className="p-4 text-muted-foreground">{system.errorOpen ?? 0}</td>
+                      <td className="p-4 text-muted-foreground">{system.overdueOpen ?? 0}</td>
+                      <td className="p-4 text-muted-foreground">{system.unassignedOpen ?? 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* ------------------ LISTA ------------------ */}
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">Lista de issues</h3>
           <span className="text-sm text-muted-foreground">
-            {issues.length} issue{issues.length !== 1 ? 's' : ''}
+            {orderedIssues.length} issue{orderedIssues.length !== 1 ? 's' : ''}
           </span>
         </div>
 
@@ -693,7 +858,7 @@ export default function GovernancePage() {
               Tentar novamente
             </Button>
           </div>
-        ) : issues.length === 0 ? (
+        ) : orderedIssues.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
             title="Nenhuma issue encontrada"
@@ -705,26 +870,25 @@ export default function GovernancePage() {
               <thead className="bg-muted/50">
                 <tr>
                   <th className="text-left p-4 font-semibold text-sm">Tipo</th>
-                  <th className="text-left p-4 font-semibold text-sm">Severidade</th>
+                  <th className="text-left p-4 font-semibold text-sm">SLA</th>
                   <th className="text-left p-4 font-semibold text-sm">Sistema</th>
                   <th className="text-left p-4 font-semibold text-sm">Manual / Resumo</th>
                   <th className="text-left p-4 font-semibold text-sm">Status</th>
                   <th className="text-left p-4 font-semibold text-sm">Responsável</th>
-                  <th className="text-left p-4 font-semibold text-sm">Prazo</th>
                   <th className="text-left p-4 font-semibold text-sm">Ações rápidas</th>
                 </tr>
               </thead>
 
               <tbody>
-                {issues.map((issue, index) => {
+                {orderedIssues.map((issue, index) => {
                   const issueId = issue?.id || `issue-${index}`;
                   const system = issue?.systemName || issue?.systemCode || '-';
                   const manualTitle = issue?.articleTitle || issue?.title || 'Manual sem título';
                   const manualDetails = issue?.message || issue?.details || '';
                   const status = issue?.status || 'OPEN';
-                  const severity = issue?.severity || 'LOW';
-                  const responsible = issue?.responsible || '-';
-                  const dueDate = formatDate(issue?.dueDate);
+                  const responsible = issue?.responsibleName || issue?.responsible || '-';
+                  const slaStatus = getSlaStatus(issue);
+                  const dueDate = formatDate(getDueDateValue(issue));
 
                   const isActionLoading = (action: string) => actionLoading?.id === issueId && actionLoading?.action === action;
 
@@ -734,7 +898,12 @@ export default function GovernancePage() {
                         <Badge variant="secondary">{ISSUE_TYPE_LABELS[issue?.type] || issue?.type || '-'}</Badge>
                       </td>
                       <td className="p-4">
-                        <StatusBadge status={severity} />
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={slaStatus.variant} className={slaStatus.className}>
+                            {slaStatus.label}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{dueDate}</span>
+                        </div>
                       </td>
                       <td className="p-4 text-muted-foreground">{system}</td>
                       <td className="p-4">
@@ -744,32 +913,9 @@ export default function GovernancePage() {
                         )}
                       </td>
                       <td className="p-4">
-                        <Select
-                          value={status}
-                          onValueChange={(value) => {
-                            const nextStatus = value as IssueStatus;
-                            if (nextStatus === status) return;
-                            setStatusConfirm({ issue, status: nextStatus });
-                          }}
-                          disabled={isActionLoading('status')}
-                        >
-                          <SelectTrigger className="min-w-[160px]">
-                            <SelectValue placeholder="Selecionar status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ISSUE_STATUS_OPTIONS.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="mt-2">
-                          <StatusBadge status={status} />
-                        </div>
+                        <StatusBadge status={status} />
                       </td>
                       <td className="p-4 text-sm text-muted-foreground">{responsible}</td>
-                      <td className="p-4 text-sm text-muted-foreground">{dueDate}</td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
                           <Button variant="outline" size="sm" onClick={() => setAssignTarget(issue)}>
@@ -777,27 +923,23 @@ export default function GovernancePage() {
                             Atribuir
                           </Button>
 
-                          <Button variant="ghost" size="sm" onClick={() => openDetail(issue)}>
-                            <Eye className="h-4 w-4 mr-1" />
-                            Detalhes
-                          </Button>
-
-                          <Button variant="ghost" size="sm" onClick={() => openHistory(issue)}>
-                            <History className="h-4 w-4 mr-1" />
-                            Histórico
-                          </Button>
-
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setIgnoreTarget(issue);
-                              setIgnoreReason('');
+                              setStatusTarget(issue);
+                              setStatusValue(issue.status || 'OPEN');
+                              setStatusIgnoredReason('');
                             }}
-                            disabled={isActionLoading('ignore')}
+                            disabled={isActionLoading('status')}
                           >
-                            <Ban className="h-4 w-4 mr-1" />
-                            Ignorar
+                            <ClipboardCheck className="h-4 w-4 mr-1" />
+                            Status
+                          </Button>
+
+                          <Button variant="ghost" size="sm" onClick={() => navigate(`/governance/issues/${issue.id}`)}>
+                            <Eye className="h-4 w-4 mr-1" />
+                            Detalhe
                           </Button>
                         </div>
                       </td>
@@ -834,232 +976,82 @@ export default function GovernancePage() {
         </div>
       )}
 
-      {/* ------------------ DIALOG DETALHES ------------------ */}
+      {/* ------------------ DIALOG STATUS ------------------ */}
       <Dialog
-        open={Boolean(detailTarget)}
+        open={Boolean(statusTarget)}
         onOpenChange={(open) => {
           if (!open) {
-            setDetailTarget(null);
-            setDetailData(null);
-            setDetailError(null);
-            setDuplicateGroup(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Detalhes da issue</DialogTitle>
-          </DialogHeader>
-
-          {detailLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Carregando detalhes...
-            </div>
-          ) : detailError ? (
-            <div className="text-sm text-destructive">{detailError}</div>
-          ) : (
-            (() => {
-              const issue = detailData ?? detailTarget;
-              if (!issue) return null;
-              const group = duplicateGroup ?? detailData?.duplicateGroup ?? null;
-              const articles = group?.articles ?? [];
-              return (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Tipo</p>
-                      <p className="font-medium">{ISSUE_TYPE_LABELS[issue.type] || issue.type}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Status</p>
-                      <StatusBadge status={issue.status || 'OPEN'} />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Sistema</p>
-                      <p className="font-medium">{issue.systemName || issue.systemCode || '-'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Manual</p>
-                      <p className="font-medium">{issue.articleTitle || issue.title || 'Manual sem título'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Criada em</p>
-                      <p className="font-medium">{formatDateTime(issue.createdAt)}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Responsável</p>
-                      <p className="font-medium">{issue.responsible || 'Não atribuído'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Prazo</p>
-                      <p className="font-medium">{formatDate(issue.dueDate)}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Severidade</p>
-                      <StatusBadge status={issue.severity || 'LOW'} />
-                    </div>
-                  </div>
-
-                  {(issue.message || issue.details) && (
-                    <div className="rounded-md border border-border bg-muted/30 p-4 text-sm">
-                      <p className="text-muted-foreground mb-1">Resumo</p>
-                      <p className="font-medium">{issue.message || issue.details}</p>
-                    </div>
-                  )}
-
-                  {issue.type === 'DUPLICATE_CONTENT' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold">Grupo de artigos duplicados</h4>
-                        {group?.hash && (
-                          <span className="text-xs text-muted-foreground">Hash: {group.hash}</span>
-                        )}
-                      </div>
-                      {articles.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">
-                          Nenhum artigo duplicado retornado pelo backend.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {articles.map((article, idx) => (
-                            <div
-                              key={`${article.id}-${idx}`}
-                              className="rounded-md border border-border bg-muted/40 p-3 text-sm"
-                            >
-                              <p className="font-medium">{article.title || 'Sem título'}</p>
-                              <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                <span>Sistema: {article.systemCode || 'N/A'}</span>
-                                <span>Atualizado: {formatDate(article.updatedAt)}</span>
-                                {article.url ? (
-                                  <a
-                                    href={article.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-primary hover:underline"
-                                  >
-                                    Abrir artigo
-                                  </a>
-                                ) : (
-                                  <span>URL indisponível</span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailTarget(null)}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ------------------ DIALOG IGNORAR ------------------ */}
-      <Dialog
-        open={Boolean(ignoreTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIgnoreTarget(null);
-            setIgnoreReason('');
+            setStatusTarget(null);
+            setStatusIgnoredReason('');
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ignorar issue</DialogTitle>
+            <DialogTitle>Atualizar status da issue</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-2">
-            <Label>Motivo obrigatório</Label>
-            <Input
-              placeholder="Descreva o motivo para ignorar"
-              value={ignoreReason}
-              onChange={(event) => setIgnoreReason(event.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={statusValue}
+                onValueChange={(value) => setStatusValue(value as IssueStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ISSUE_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {statusValue === 'IGNORED' && (
+              <div className="space-y-2">
+                <Label>Motivo obrigatório</Label>
+                <Input
+                  placeholder="Descreva o motivo para ignorar"
+                  value={statusIgnoredReason}
+                  onChange={(event) => setStatusIgnoredReason(event.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIgnoreTarget(null);
-                setIgnoreReason('');
-              }}
-            >
+            <Button variant="outline" onClick={() => setStatusTarget(null)}>
               Cancelar
             </Button>
             <Button
-              variant="destructive"
               onClick={() => {
-                if (!ignoreTarget) return;
-                const reason = ignoreReason.trim();
-                if (!reason) {
+                if (!statusTarget) return;
+                if (statusValue === 'IGNORED' && !statusIgnoredReason.trim()) {
                   toast({ title: 'Atenção', description: 'Informe o motivo para ignorar a issue.' });
                   return;
                 }
-                handleIgnore(ignoreTarget, reason);
-                setIgnoreTarget(null);
-                setIgnoreReason('');
+                handleStatusChange(statusTarget, statusValue, statusValue === 'IGNORED' ? statusIgnoredReason.trim() : undefined);
+                setStatusTarget(null);
+                setStatusIgnoredReason('');
               }}
-              disabled={Boolean(ignoreTarget && actionLoading?.action === 'ignore')}
+              disabled={Boolean(statusTarget && actionLoading?.action === 'status')}
             >
-              {actionLoading?.action === 'ignore' ? (
+              {actionLoading?.action === 'status' ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Salvando...
                 </span>
               ) : (
-                'Confirmar ignorar'
+                'Atualizar status'
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* ------------------ CONFIRMA STATUS ------------------ */}
-      <AlertDialog
-        open={Boolean(statusConfirm)}
-        onOpenChange={(open) => {
-          if (!open) setStatusConfirm(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar alteração de status</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você está prestes a alterar o status da issue para {statusConfirm?.status}. Confirme para continuar.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!statusConfirm) return;
-                handleStatusChange(statusConfirm.issue, statusConfirm.status);
-                setStatusConfirm(null);
-              }}
-              disabled={
-                Boolean(
-                  statusConfirm &&
-                    actionLoading?.action === 'status' &&
-                    actionLoading?.id === statusConfirm.issue.id
-                )
-              }
-            >
-              Confirmar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* ------------------ DIALOG ATRIBUIR ------------------ */}
       <Dialog
@@ -1069,6 +1061,8 @@ export default function GovernancePage() {
             setAssignTarget(null);
             setAssignValue('');
             setAssignDueDate('');
+            setAssignResponsibleId('');
+            setAssignResponsibleType('USER');
             setSuggestedAssignee(null);
             setSuggestedAlternatives([]);
             setSuggestedError(null);
@@ -1096,11 +1090,15 @@ export default function GovernancePage() {
                   className="w-full justify-between text-base"
                   onClick={() => {
                     if (!assignTarget || !suggestedAssignee) return;
+                    const responsibleId = suggestedAssignee.id ?? suggestedAssignee.name;
                     handleAssign(assignTarget, suggestedAssignee.name, {
                       dueDate: assignDueDate || undefined,
+                      responsibleType: assignResponsibleType,
+                      responsibleId,
                     });
                     setAssignTarget(null);
                     setAssignValue('');
+                    setAssignResponsibleId('');
                   }}
                 >
                   <span>Atribuir para {suggestedAssignee.name}</span>
@@ -1122,7 +1120,10 @@ export default function GovernancePage() {
                         <button
                           key={`${option.name}-${index}`}
                           type="button"
-                          onClick={() => setAssignValue(option.name)}
+                          onClick={() => {
+                            setAssignValue(option.name);
+                            setAssignResponsibleId(option.id ?? option.name);
+                          }}
                           className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition"
                         >
                           <div className="flex items-center justify-between">
@@ -1140,11 +1141,37 @@ export default function GovernancePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Responsável</Label>
+              <Label>Responsável (nome)</Label>
               <Input
-                placeholder="Informe o responsável"
+                placeholder="Informe o nome do responsável"
                 value={assignValue}
                 onChange={(event) => setAssignValue(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tipo de responsável</Label>
+              <Select
+                value={assignResponsibleType}
+                onValueChange={(value) => setAssignResponsibleType(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USER">Usuário</SelectItem>
+                  <SelectItem value="TEAM">Time</SelectItem>
+                  <SelectItem value="ROLE">Papel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Identificador do responsável</Label>
+              <Input
+                placeholder="Informe o ID ou e-mail do responsável"
+                value={assignResponsibleId}
+                onChange={(event) => setAssignResponsibleId(event.target.value)}
               />
             </div>
 
@@ -1199,6 +1226,8 @@ export default function GovernancePage() {
                 setAssignTarget(null);
                 setAssignValue('');
                 setAssignDueDate('');
+                setAssignResponsibleId('');
+                setAssignResponsibleType('USER');
               }}
             >
               Cancelar
@@ -1207,16 +1236,20 @@ export default function GovernancePage() {
             <Button
               onClick={() => {
                 if (!assignTarget) return;
-                const trimmed = assignValue.trim();
-                if (!trimmed) {
-                  toast({ title: 'Atenção', description: 'Informe o responsável para atribuição.' });
+                const trimmedId = assignResponsibleId.trim();
+                const trimmedName = assignValue.trim();
+                if (!trimmedId) {
+                  toast({ title: 'Atenção', description: 'Informe o identificador do responsável para atribuição.' });
                   return;
                 }
-                handleAssign(assignTarget, trimmed, {
+                handleAssign(assignTarget, trimmedName || trimmedId, {
                   dueDate: assignDueDate || undefined,
+                  responsibleType: assignResponsibleType,
+                  responsibleId: trimmedId,
                 });
                 setAssignTarget(null);
                 setAssignValue('');
+                setAssignResponsibleId('');
               }}
               disabled={Boolean(assignTarget && actionLoading?.action === 'assign')}
             >
@@ -1234,17 +1267,21 @@ export default function GovernancePage() {
               variant="secondary"
               onClick={() => {
                 if (!assignTarget) return;
-                const trimmed = assignValue.trim();
-                if (!trimmed) {
-                  toast({ title: 'Atenção', description: 'Informe o responsável para atribuição.' });
+                const trimmedId = assignResponsibleId.trim();
+                const trimmedName = assignValue.trim();
+                if (!trimmedId) {
+                  toast({ title: 'Atenção', description: 'Informe o identificador do responsável para atribuição.' });
                   return;
                 }
-                handleAssign(assignTarget, trimmed, {
+                handleAssign(assignTarget, trimmedName || trimmedId, {
                   dueDate: assignDueDate || undefined,
                   createTicket: true,
+                  responsibleType: assignResponsibleType,
+                  responsibleId: trimmedId,
                 });
                 setAssignTarget(null);
                 setAssignValue('');
+                setAssignResponsibleId('');
               }}
               disabled={Boolean(assignTarget && actionLoading?.action === 'assign')}
             >
@@ -1254,48 +1291,6 @@ export default function GovernancePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ------------------ DIALOG HISTÓRICO ------------------ */}
-      <Dialog
-        open={Boolean(historyTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setHistoryTarget(null);
-            setHistoryData([]);
-            setHistoryError(null);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Histórico da issue</DialogTitle>
-          </DialogHeader>
-
-          {historyLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Carregando histórico...
-            </div>
-          ) : historyError ? (
-            <div className="text-sm text-destructive">{historyError}</div>
-          ) : historyData.length === 0 ? (
-            <div className="text-sm text-muted-foreground">Nenhum histórico encontrado.</div>
-          ) : (
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              {historyData.map((entry, idx) => (
-                <li key={`${historyTarget?.id}-history-${idx}`} className="p-2 bg-muted/40 rounded">
-                  {entry}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setHistoryTarget(null)}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </MainLayout>
   );
 }
