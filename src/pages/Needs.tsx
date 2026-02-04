@@ -27,11 +27,8 @@ import {
 import { needsService, NeedsFilter } from '@/services/needs.service';
 import { systemsService } from '@/services/systems.service';
 import { toast } from '@/hooks/use-toast';
-import { config } from '@/config/app-config';
-import { IssueSeverity, KbSystem, NeedDetail, NeedItem, PaginatedResponse } from '@/types';
+import { KbSystem, NeedDetail, NeedItem, PaginatedResponse } from '@/types';
 import { governanceTexts } from '@/governanceTexts';
-
-const SEVERITY_OPTIONS: IssueSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export default function NeedsPage() {
   const { id } = useParams();
@@ -44,14 +41,11 @@ export default function NeedsPage() {
   const [filters, setFilters] = useState<NeedsFilter>({
     systemCode: '',
     status: '',
-    severity: undefined,
-    windowStart: '',
-    windowEnd: '',
+    start: '',
+    end: '',
   });
 
   const [page, setPage] = useState(1);
-  const [size] = useState(config.defaultPageSize);
-
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -74,13 +68,10 @@ export default function NeedsPage() {
     setNeedsError(null);
     try {
       const result = await needsService.listNeeds({
-        page: currentPage,
-        size,
         systemCode: currentFilters.systemCode || undefined,
         status: currentFilters.status || undefined,
-        severity: currentFilters.severity || undefined,
-        windowStart: currentFilters.windowStart || undefined,
-        windowEnd: currentFilters.windowEnd || undefined,
+        start: currentFilters.start || undefined,
+        end: currentFilters.end || undefined,
       });
 
       setNeedsData(result);
@@ -243,31 +234,11 @@ export default function NeedsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>{governanceTexts.needs.filters.severity}</Label>
-            <Select
-              value={filters.severity || 'ALL'}
-              onValueChange={(value) => handleFilterChange('severity', value === 'ALL' ? '' : value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={governanceTexts.needs.filters.severityPlaceholder} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">{governanceTexts.needs.filters.severityPlaceholder}</SelectItem>
-                {SEVERITY_OPTIONS.map((severity) => (
-                  <SelectItem key={severity} value={severity}>
-                    {governanceTexts.severity.labels[severity]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
             <Label>{governanceTexts.needs.filters.startDate}</Label>
             <Input
               type="date"
-              value={filters.windowStart || ''}
-              onChange={(event) => handleFilterChange('windowStart', event.target.value)}
+              value={filters.start || ''}
+              onChange={(event) => handleFilterChange('start', event.target.value)}
             />
           </div>
 
@@ -275,8 +246,8 @@ export default function NeedsPage() {
             <Label>{governanceTexts.needs.filters.endDate}</Label>
             <Input
               type="date"
-              value={filters.windowEnd || ''}
-              onChange={(event) => handleFilterChange('windowEnd', event.target.value)}
+              value={filters.end || ''}
+              onChange={(event) => handleFilterChange('end', event.target.value)}
             />
           </div>
         </div>
@@ -289,9 +260,8 @@ export default function NeedsPage() {
               setFilters({
                 systemCode: '',
                 status: '',
-                severity: undefined,
-                windowStart: '',
-                windowEnd: '',
+                start: '',
+                end: '',
               });
             }}
           >
@@ -367,9 +337,21 @@ export default function NeedsPage() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <Button variant="outline" size="sm" onClick={() => openDetail(needId)}>
-                          {governanceTexts.governance.list.actionDetail}
-                        </Button>
+                        <div className="flex flex-col items-start gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openDetail(needId)}>
+                            {governanceTexts.governance.list.actionDetail}
+                          </Button>
+                          {need.link && (
+                            <a
+                              href={need.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-primary hover:underline"
+                            >
+                              {governanceTexts.needs.list.linkLabel}
+                            </a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

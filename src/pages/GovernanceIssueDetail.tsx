@@ -79,11 +79,38 @@ const humanizeHistoryField = (field: string | null | undefined): string => {
   return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
+const parseHistoryJsonValue = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === 'string') return parsed;
+    if (Array.isArray(parsed)) return parsed.join(', ');
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      return (
+        (obj.name as string) ??
+        (obj.title as string) ??
+        (obj.label as string) ??
+        (obj.value as string) ??
+        JSON.stringify(obj)
+      );
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
 /**
  * Transforma valores técnicos em valores legíveis
  */
 const humanizeHistoryValue = (value: string | null | undefined, field?: string | null): string => {
   if (value === null || value === undefined || value === '') return '(vazio)';
+
+  const parsed = parseHistoryJsonValue(value);
+  if (parsed) return parsed;
 
   // Status
   if (governanceTexts.status.labels[value as IssueStatus]) {
@@ -307,7 +334,7 @@ export default function GovernanceIssueDetailPage() {
 
     setActionLoading(true);
     try {
-      const updated = await governanceService.assignIssue(issue.id, trimmedName || trimmedId, {
+      const updated = await governanceService.assignIssue(issue.id, {
         dueDate: assignDueDate || undefined,
         responsibleType: assignResponsibleType,
         responsibleId: trimmedId,
@@ -328,7 +355,10 @@ export default function GovernanceIssueDetailPage() {
       const newHistory = await governanceService.getIssueHistory(issue.id);
       setHistory(newHistory);
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.assignError;
+      const message =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || governanceTexts.governance.toasts.assignError;
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setActionLoading(false);
@@ -360,7 +390,10 @@ export default function GovernanceIssueDetailPage() {
       const newHistory = await governanceService.getIssueHistory(issue.id);
       setHistory(newHistory);
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.statusError;
+      const message =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || governanceTexts.governance.toasts.statusError;
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setActionLoading(false);
@@ -448,6 +481,8 @@ export default function GovernanceIssueDetailPage() {
   }, [history]);
 
   const severityOrder: Record<IssueSeverity, string> = governanceTexts.severity.shortLabels;
+  const metadataDescription = issue?.description || issue?.details || null;
+  const metadataRecommendation = issue?.recommendation || issue?.message || null;
 
   return (
     <MainLayout>
@@ -522,7 +557,7 @@ export default function GovernanceIssueDetailPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">{governanceTexts.issueDetail.typeLabel}</p>
                   <h3 className="text-xl font-semibold">
-                    {issue.displayName || ISSUE_TYPE_LABELS[issue.type] || issue.type}
+                    {issue.typeDisplayName || issue.displayName || ISSUE_TYPE_LABELS[issue.type] || issue.type}
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -590,20 +625,22 @@ export default function GovernanceIssueDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card-metric space-y-4">
-              <div>
-                <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.whatIsItTitle}</h4>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {issue.description || issue.details || governanceTexts.issueDetail.noDescription}
-                </p>
+            {(metadataDescription || metadataRecommendation) && (
+              <div className="card-metric space-y-4">
+                {metadataDescription && (
+                  <div>
+                    <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.whatIsItTitle}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{metadataDescription}</p>
+                  </div>
+                )}
+                {metadataRecommendation && (
+                  <div>
+                    <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.howToResolveTitle}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{metadataRecommendation}</p>
+                  </div>
+                )}
               </div>
-              <div>
-                <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.howToResolveTitle}</h4>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {issue.recommendation || issue.message || governanceTexts.issueDetail.noRecommendation}
-                </p>
-              </div>
-            </div>
+            )}
 
             <div className="card-metric space-y-4">
               <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.metadataTitle}</h4>
@@ -735,7 +772,6 @@ export default function GovernanceIssueDetailPage() {
                 <SelectContent>
                   <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
                   <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
-                  <SelectItem value="ROLE">{governanceTexts.governance.assignDialog.responsibleTypeOptions.ROLE}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

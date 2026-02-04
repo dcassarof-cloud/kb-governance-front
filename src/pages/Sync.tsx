@@ -40,7 +40,7 @@ export default function SyncPage() {
   const handleSync = async () => {
     try {
       toast({ title: governanceTexts.sync.runStartedTitle, description: governanceTexts.sync.runStartedDescription });
-      await syncService.triggerSync({ mode: 'INCREMENTAL', note: governanceTexts.sync.manualNote });
+      await syncService.triggerSync({ mode: 'INCREMENTAL' });
       toast({ title: governanceTexts.sync.runSuccessTitle, description: governanceTexts.sync.runSuccessDescription });
       // Recarrega a lista após sync
       fetchData();
@@ -113,10 +113,19 @@ export default function SyncPage() {
               const runId = run?.id || `run-${index}`;
               const startedAt = formatDateTime(run?.startedAt);
               const status = run?.status || 'RUNNING';
-              const modeLabel = run?.mode
-                ? governanceTexts.settings.modeOptions[run.mode as keyof typeof governanceTexts.settings.modeOptions] ?? governanceTexts.general.notAvailable
+              const normalizedMode = run?.mode === 'DELTA_WINDOW' ? 'DELTA' : run?.mode;
+              const modeLabel = normalizedMode
+                ? governanceTexts.settings.modeOptions[normalizedMode as keyof typeof governanceTexts.settings.modeOptions] ?? normalizedMode
                 : governanceTexts.general.notAvailable;
-              const articlesProcessed = run?.stats?.articlesProcessed ?? 0;
+              const stats = run?.stats;
+              const statsSummary = stats
+                ? [
+                    typeof stats.articlesProcessed === 'number' ? `Proc: ${stats.articlesProcessed}` : null,
+                    typeof stats.articlesCreated === 'number' ? `Criados: ${stats.articlesCreated}` : null,
+                    typeof stats.articlesUpdated === 'number' ? `Atualizados: ${stats.articlesUpdated}` : null,
+                    typeof stats.errors === 'number' ? `Erros: ${stats.errors}` : null,
+                  ].filter(Boolean).join(' • ')
+                : '';
               const note = run?.note || governanceTexts.sync.noteFallback;
 
               return (
@@ -124,7 +133,7 @@ export default function SyncPage() {
                   <td className="p-4 text-sm">{startedAt}</td>
                   <td className="p-4"><StatusBadge status={status} /></td>
                   <td className="p-4 text-sm">{modeLabel}</td>
-                  <td className="p-4 text-sm">{articlesProcessed}</td>
+                  <td className="p-4 text-sm">{statsSummary || governanceTexts.general.notAvailable}</td>
                   <td className="p-4 text-sm text-muted-foreground">{note}</td>
                 </tr>
               );

@@ -7,13 +7,10 @@ import { apiClient } from './api-client.service';
 import { IssueSeverity, NeedDetail, NeedItem, NeedTicketExample, PaginatedResponse } from '@/types';
 
 export interface NeedsFilter {
-  page?: number;
-  size?: number;
   systemCode?: string;
   status?: string;
-  severity?: IssueSeverity | '';
-  windowStart?: string;
-  windowEnd?: string;
+  start?: string;
+  end?: string;
 }
 
 function normalizePaginatedResponse<T>(response: unknown, page: number, size: number): PaginatedResponse<T> {
@@ -95,6 +92,11 @@ const normalizeNeed = (raw: unknown): NeedItem => {
       (windowObj?.end as string) ??
       (obj.endDate as string) ??
       null,
+    link:
+      (obj.link as string) ??
+      (obj.url as string) ??
+      (obj.ticketUrl as string) ??
+      null,
     reason:
       (obj.reason as string) ??
       (obj.generatedReason as string) ??
@@ -105,6 +107,22 @@ const normalizeNeed = (raw: unknown): NeedItem => {
     createdAt: (obj.createdAt as string) ?? (obj.created_at as string) ?? null,
     updatedAt: (obj.updatedAt as string) ?? (obj.updated_at as string) ?? null,
   };
+};
+
+export const normalizeNeeds = (response: unknown): NeedItem[] => {
+  if (Array.isArray(response)) {
+    return response.map((item) => normalizeNeed(item));
+  }
+
+  if (response && typeof response === 'object') {
+    const obj = response as Record<string, unknown>;
+    const items = obj.data || obj.items || obj.content || [];
+    if (Array.isArray(items)) {
+      return items.map((item) => normalizeNeed(item));
+    }
+  }
+
+  return [];
 };
 
 const normalizeNeedDetail = (raw: unknown): NeedDetail => {
@@ -129,33 +147,28 @@ const normalizeNeedDetail = (raw: unknown): NeedDetail => {
 
 class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
-    const {
-      page = 1,
-      size = config.defaultPageSize,
-      systemCode,
-      status,
-      severity,
-      windowStart,
-      windowEnd,
-    } = filter;
+    const { systemCode, status, start, end } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
-        page,
-        size,
         systemCode,
         status,
-        severity,
-        windowStart,
-        windowEnd,
+        start,
+        end,
       },
     });
 
-    const normalized = normalizePaginatedResponse<NeedItem>(response, page, size);
+    const normalizedItems = normalizeNeeds(response);
+    const resolvedSize = normalizedItems.length || config.defaultPageSize;
+    const normalized = normalizePaginatedResponse<NeedItem>(
+      { data: normalizedItems },
+      1,
+      resolvedSize,
+    );
 
     return {
       ...normalized,
-      data: normalized.data.map((item) => normalizeNeed(item)),
+      data: normalizedItems,
     };
   }
 

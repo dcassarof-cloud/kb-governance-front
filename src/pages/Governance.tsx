@@ -87,7 +87,8 @@ export default function GovernancePage() {
     status: undefined,
     type: undefined,
     severity: undefined,
-    responsible: '',
+    responsibleType: '',
+    responsibleId: '',
     q: '',
     overdue: false,
     unassigned: false,
@@ -134,7 +135,8 @@ export default function GovernancePage() {
         status: currentFilters.status || undefined,
         type: currentFilters.type || undefined,
         severity: currentFilters.severity || undefined,
-        responsible: currentFilters.responsible?.trim() || undefined,
+        responsibleType: currentFilters.responsibleType?.trim() || undefined,
+        responsibleId: currentFilters.responsibleId?.trim() || undefined,
         q: currentFilters.q?.trim() || undefined,
         overdue: currentFilters.overdue || undefined,
         unassigned: currentFilters.unassigned || undefined,
@@ -176,10 +178,11 @@ export default function GovernancePage() {
   }, []);
 
   useEffect(() => {
-    const responsible = searchParams.get('responsible') ?? '';
+    const responsibleId = searchParams.get('responsibleId') ?? searchParams.get('responsible') ?? '';
+    const responsibleType = searchParams.get('responsibleType') ?? '';
     const assignTo = searchParams.get('assignTo') ?? '';
     const assignIssueId = searchParams.get('assignIssueId') ?? '';
-    const systemCode = searchParams.get('system') ?? '';
+    const systemCode = searchParams.get('systemCode') ?? searchParams.get('system') ?? '';
     const status = searchParams.get('status') ?? '';
     const type = searchParams.get('type') ?? '';
     const severity = searchParams.get('severity') ?? '';
@@ -190,7 +193,8 @@ export default function GovernancePage() {
 
     setFilters((prev) => ({
       ...prev,
-      responsible,
+      responsibleId,
+      responsibleType,
       systemCode,
       status: status ? (status as IssueStatus) : undefined,
       type: type ? (type as IssueType) : undefined,
@@ -230,11 +234,12 @@ export default function GovernancePage() {
 
   useEffect(() => {
     const params = new URLSearchParams();
-    if (filters.systemCode) params.set('system', filters.systemCode);
+    if (filters.systemCode) params.set('systemCode', filters.systemCode);
     if (filters.status) params.set('status', filters.status);
     if (filters.type) params.set('type', filters.type);
     if (filters.severity) params.set('severity', filters.severity);
-    if (filters.responsible) params.set('responsible', filters.responsible);
+    if (filters.responsibleType) params.set('responsibleType', filters.responsibleType);
+    if (filters.responsibleId) params.set('responsibleId', filters.responsibleId);
     if (filters.q) params.set('q', filters.q);
     if (filters.overdue) params.set('overdue', 'true');
     if (filters.unassigned) params.set('unassigned', 'true');
@@ -391,24 +396,26 @@ export default function GovernancePage() {
 
   const handleAssign = async (
     issue: GovernanceIssueDto,
-    responsible: string,
-    options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string } = {}
+    options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string; responsibleName?: string } = {}
   ) => {
     const previousResponsible = issue.responsible ?? null;
-    updateIssueState(issue.id, { responsible });
+    updateIssueState(issue.id, { responsible: options.responsibleName ?? issue.responsible ?? null });
     setActionLoading({ id: issue.id, action: 'assign' });
     try {
-      const updated = await governanceService.assignIssue(issue.id, responsible, options);
+      const updated = await governanceService.assignIssue(issue.id, options);
       updateIssueState(issue.id, {
-        responsible: updated?.responsible ?? responsible,
+        responsible: updated?.responsible ?? options.responsibleName ?? issue.responsible ?? null,
         responsibleId: updated?.responsibleId ?? options.responsibleId ?? issue.responsibleId,
         responsibleType: updated?.responsibleType ?? options.responsibleType ?? issue.responsibleType,
-        responsibleName: updated?.responsibleName ?? issue.responsibleName,
+        responsibleName: updated?.responsibleName ?? options.responsibleName ?? issue.responsibleName,
       });
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
-      await fetchOverview();
+      await Promise.all([fetchOverview(), fetchIssues(filters, page)]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.assignError;
+      const message =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || governanceTexts.governance.toasts.assignError;
       updateIssueState(issue.id, { responsible: previousResponsible });
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -455,9 +462,12 @@ export default function GovernancePage() {
         return { ...prev, data: nextData };
       });
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.statusDialog.success });
-      await fetchOverview();
+      await Promise.all([fetchOverview(), fetchIssues(filters, page)]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.statusError;
+      const message =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || governanceTexts.governance.toasts.statusError;
       updateIssueState(issue.id, { status: previousStatus });
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -529,46 +539,7 @@ export default function GovernancePage() {
     },
   ].filter((metric) => isValidNumber(metric.value));
 
-  const severityRank: Record<IssueSeverity, number> = {
-    CRITICAL: 0,
-    HIGH: 1,
-    MEDIUM: 2,
-    LOW: 3,
-  };
-
-  const filteredIssues = useMemo(() => {
-    return issues.filter((issue) => {
-      if (filters.unassigned && issue.responsible) return false;
-      if (filters.overdue) {
-        const dueDateValue = getDueDateValue(issue);
-        if (!dueDateValue) return false;
-        const dueDate = new Date(dueDateValue);
-        if (Number.isNaN(dueDate.getTime())) return false;
-        const today = startOfToday();
-        dueDate.setHours(0, 0, 0, 0);
-        if (dueDate >= today) return false;
-      }
-      return true;
-    });
-  }, [filters.overdue, filters.unassigned, issues]);
-
-  const orderedIssues = useMemo(() => {
-    return [...filteredIssues].sort((a, b) => {
-      const slaA = getSlaStatus(a);
-      const slaB = getSlaStatus(b);
-      if (slaA.priority !== slaB.priority) {
-        return slaA.priority - slaB.priority;
-      }
-      const severityA = severityRank[a.severity] ?? 99;
-      const severityB = severityRank[b.severity] ?? 99;
-      if (severityA !== severityB) {
-        return severityA - severityB;
-      }
-      const dateA = getDueDateValue(a) ? new Date(getDueDateValue(a) as string).getTime() : Number.POSITIVE_INFINITY;
-      const dateB = getDueDateValue(b) ? new Date(getDueDateValue(b) as string).getTime() : Number.POSITIVE_INFINITY;
-      return dateA - dateB;
-    });
-  }, [filteredIssues]);
+  const visibleIssues = issues;
 
   const systemRows = useMemo(() => {
     if (overview?.systems && overview.systems.length > 0) {
@@ -755,9 +726,26 @@ export default function GovernancePage() {
             <Label>{governanceTexts.governance.filters.responsible}</Label>
             <Input
               placeholder={governanceTexts.governance.filters.responsiblePlaceholder}
-              value={filters.responsible || ''}
-              onChange={(event) => handleFilterChange('responsible', event.target.value)}
+              value={filters.responsibleId || ''}
+              onChange={(event) => handleFilterChange('responsibleId', event.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
+            <Select
+              value={filters.responsibleType || 'ALL'}
+              onValueChange={(value) => handleFilterChange('responsibleType', value === 'ALL' ? '' : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">{governanceTexts.general.all}</SelectItem>
+                <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+                <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -794,7 +782,8 @@ export default function GovernancePage() {
                 status: undefined,
                 type: undefined,
                 severity: undefined,
-                responsible: '',
+                responsibleType: '',
+                responsibleId: '',
                 q: '',
                 overdue: false,
                 unassigned: false,
@@ -941,7 +930,7 @@ export default function GovernancePage() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{governanceTexts.governance.list.title}</h3>
           <span className="text-sm text-muted-foreground">
-            {governanceTexts.governance.list.count(orderedIssues.length)}
+            {governanceTexts.governance.list.count(visibleIssues.length)}
           </span>
         </div>
 
@@ -957,7 +946,7 @@ export default function GovernancePage() {
               {governanceTexts.general.retry}
             </Button>
           </div>
-        ) : orderedIssues.length === 0 ? (
+        ) : visibleIssues.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
             title={governanceTexts.governance.list.emptyTitle}
@@ -977,7 +966,7 @@ export default function GovernancePage() {
               </thead>
 
               <tbody>
-                {orderedIssues.map((issue, index) => {
+                {visibleIssues.map((issue, index) => {
                   const issueId = issue?.id || `issue-${index}`;
                   const system = issue?.systemName || issue?.systemCode || governanceTexts.general.notAvailable;
                   const manualTitle = issue?.articleTitle || issue?.title || governanceTexts.general.notAvailable;
@@ -997,7 +986,13 @@ export default function GovernancePage() {
                     <tr key={issueId} className="border-t border-border hover:bg-muted/30 transition-colors">
                       <td className="p-4">
                         <div className="space-y-2">
-                          <Badge variant="secondary">{issue?.displayName || ISSUE_TYPE_LABELS[issue?.type] || issue?.type || governanceTexts.general.notAvailable}</Badge>
+                          <Badge variant="secondary">
+                            {issue?.typeDisplayName ||
+                              issue?.displayName ||
+                              ISSUE_TYPE_LABELS[issue?.type] ||
+                              issue?.type ||
+                              governanceTexts.general.notAvailable}
+                          </Badge>
                           <div className="text-sm text-muted-foreground">{system}</div>
                           <div className="font-medium">{manualTitle}</div>
                           {manualDetails && (
@@ -1230,10 +1225,11 @@ export default function GovernancePage() {
                   onClick={() => {
                     if (!assignTarget || !suggestedAssignee) return;
                     const responsibleId = suggestedAssignee.id ?? suggestedAssignee.name;
-                    handleAssign(assignTarget, suggestedAssignee.name, {
+                    handleAssign(assignTarget, {
                       dueDate: assignDueDate || undefined,
                       responsibleType: assignResponsibleType,
                       responsibleId,
+                      responsibleName: suggestedAssignee.name,
                     });
                     setAssignTarget(null);
                     setAssignValue('');
@@ -1302,7 +1298,6 @@ export default function GovernancePage() {
                 <SelectContent>
                   <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
                   <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
-                  <SelectItem value="ROLE">{governanceTexts.governance.assignDialog.responsibleTypeOptions.ROLE}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1386,10 +1381,11 @@ export default function GovernancePage() {
                   });
                   return;
                 }
-                handleAssign(assignTarget, trimmedName || trimmedId, {
+                handleAssign(assignTarget, {
                   dueDate: assignDueDate || undefined,
                   responsibleType: assignResponsibleType,
                   responsibleId: trimmedId,
+                  responsibleName: trimmedName || trimmedId,
                 });
                 setAssignTarget(null);
                 setAssignValue('');
@@ -1420,11 +1416,12 @@ export default function GovernancePage() {
                   });
                   return;
                 }
-                handleAssign(assignTarget, trimmedName || trimmedId, {
+                handleAssign(assignTarget, {
                   dueDate: assignDueDate || undefined,
                   createTicket: true,
                   responsibleType: assignResponsibleType,
                   responsibleId: trimmedId,
+                  responsibleName: trimmedName || trimmedId,
                 });
                 setAssignTarget(null);
                 setAssignValue('');
