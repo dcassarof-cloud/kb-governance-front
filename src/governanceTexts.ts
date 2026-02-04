@@ -173,7 +173,6 @@ export const governanceTexts = {
     saveSuccess: 'Configurações salvas!',
     modeOptions: {
       FULL: 'Completo',
-      INCREMENTAL: 'Incremental',
       DELTA: 'Delta',
     },
     appearance: {

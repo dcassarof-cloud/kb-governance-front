@@ -4,7 +4,8 @@
 
 import { config } from '@/config/app-config';
 import { authService } from './auth.service';
-import { ApiError } from '@/types';
+import { ApiError, PaginatedResponse } from '@/types';
+import { normalizePaginatedResponse } from '@/lib/api-normalizers';
 
 // Gera UUID v4 para correlation-id
 function generateCorrelationId(): string {
@@ -19,24 +20,6 @@ interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>;
   headers?: Record<string, string>;
   signal?: AbortSignal;
-}
-
-// ✅ FIX: Tipos do backend (formato diferente do frontend)
-interface BackendPaginatedResponse<T> {
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-  items: T[];
-}
-
-// Tipo do frontend
-interface FrontendPaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  size: number;
-  totalPages: number;
 }
 
 class ApiClient {
@@ -85,25 +68,6 @@ class ApiClient {
     return headers;
   }
 
-  // ✅ FIX: Adapter para converter formato backend → frontend
-  private adaptPaginatedResponse<T>(backendResponse: any): any {
-    // Se não tem "items", não é paginado - retorna como está
-    if (!backendResponse.items) {
-      return backendResponse;
-    }
-
-    // Converte formato backend para frontend
-    const adapted: FrontendPaginatedResponse<T> = {
-      data: backendResponse.items,           // items → data
-      total: backendResponse.totalElements,  // totalElements → total
-      page: backendResponse.page,
-      size: backendResponse.size,
-      totalPages: backendResponse.totalPages,
-    };
-
-    return adapted;
-  }
-
   private async handleResponse<T>(response: Response): Promise<T> {
     if (response.status === 401) {
       // Token inválido ou expirado - redireciona para login
@@ -126,10 +90,7 @@ class ApiClient {
       return {} as T;
     }
 
-    const json = JSON.parse(text);
-
-    // ✅ FIX: Adapta resposta paginada se necessário
-    return this.adaptPaginatedResponse<T>(json);
+    return JSON.parse(text);
   }
 
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
@@ -142,6 +103,25 @@ class ApiClient {
     });
 
     return this.handleResponse<T>(response);
+  }
+
+  /**
+   * GET paginado com normalização única de payload.
+   * Sempre retorna o formato interno do frontend.
+   */
+  async getPaginated<T>(
+    endpoint: string,
+    options?: RequestOptions & { page?: number; size?: number }
+  ): Promise<PaginatedResponse<T>> {
+    const fallbackPage =
+      options?.page ??
+      (typeof options?.params?.page === 'number' ? (options?.params?.page as number) : 1);
+    const fallbackSize =
+      options?.size ??
+      (typeof options?.params?.size === 'number' ? (options?.params?.size as number) : config.defaultPageSize);
+
+    const response = await this.get<unknown>(endpoint, options);
+    return normalizePaginatedResponse<T>(response, fallbackPage, fallbackSize);
   }
 
   async post<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {

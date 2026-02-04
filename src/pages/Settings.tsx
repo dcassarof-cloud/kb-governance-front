@@ -55,9 +55,8 @@ export default function SettingsPage() {
             <Select value={config?.mode} onValueChange={(v) => setConfig(c => c ? { ...c, mode: v as any } : c)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="FULL">{governanceTexts.settings.modeOptions.FULL}</SelectItem>
-                <SelectItem value="INCREMENTAL">{governanceTexts.settings.modeOptions.INCREMENTAL}</SelectItem>
-                <SelectItem value="DELTA">{governanceTexts.settings.modeOptions.DELTA}</SelectItem>
+              <SelectItem value="FULL">{governanceTexts.settings.modeOptions.FULL}</SelectItem>
+              <SelectItem value="DELTA">{governanceTexts.settings.modeOptions.DELTA}</SelectItem>
               </SelectContent>
             </Select>
           </div>

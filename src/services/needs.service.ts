@@ -13,40 +13,6 @@ export interface NeedsFilter {
   end?: string;
 }
 
-function normalizePaginatedResponse<T>(response: unknown, page: number, size: number): PaginatedResponse<T> {
-  if (Array.isArray(response)) {
-    return {
-      data: response,
-      total: response.length,
-      page,
-      size,
-      totalPages: Math.ceil(response.length / size) || 1,
-    };
-  }
-
-  if (response && typeof response === 'object') {
-    const obj = response as Record<string, unknown>;
-    const items = obj.data || obj.items || obj.content || [];
-    const dataArray = Array.isArray(items) ? items : [];
-
-    return {
-      data: dataArray as T[],
-      total: (obj.total as number) ?? (obj.totalElements as number) ?? (obj.totalItems as number) ?? dataArray.length,
-      page: (obj.page as number) ?? (obj.pageNumber as number) ?? page,
-      size: (obj.size as number) ?? (obj.pageSize as number) ?? size,
-      totalPages: (obj.totalPages as number) ?? (obj.pages as number) ?? (Math.ceil(dataArray.length / size) || 1),
-    };
-  }
-
-  return {
-    data: [],
-    total: 0,
-    page,
-    size,
-    totalPages: 0,
-  };
-}
-
 const toNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
@@ -109,22 +75,6 @@ const normalizeNeed = (raw: unknown): NeedItem => {
   };
 };
 
-export const normalizeNeeds = (response: unknown): NeedItem[] => {
-  if (Array.isArray(response)) {
-    return response.map((item) => normalizeNeed(item));
-  }
-
-  if (response && typeof response === 'object') {
-    const obj = response as Record<string, unknown>;
-    const items = obj.data || obj.items || obj.content || [];
-    if (Array.isArray(items)) {
-      return items.map((item) => normalizeNeed(item));
-    }
-  }
-
-  return [];
-};
-
 const normalizeNeedDetail = (raw: unknown): NeedDetail => {
   const base = normalizeNeed(raw);
   if (!raw || typeof raw !== 'object') {
@@ -149,26 +99,20 @@ class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
     const { systemCode, status, start, end } = filter;
 
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.NEEDS, {
+    const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
         systemCode,
         status,
         start,
         end,
       },
+      page: 1,
+      size: config.defaultPageSize,
     });
 
-    const normalizedItems = normalizeNeeds(response);
-    const resolvedSize = normalizedItems.length || config.defaultPageSize;
-    const normalized = normalizePaginatedResponse<NeedItem>(
-      { data: normalizedItems },
-      1,
-      resolvedSize,
-    );
-
     return {
-      ...normalized,
-      data: normalizedItems,
+      ...response,
+      data: response.data.map((item) => normalizeNeed(item)),
     };
   }
 
