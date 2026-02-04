@@ -4,6 +4,7 @@
 
 import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
+import { authService } from './auth.service';
 
 import {
   GovernanceIssueDto,
@@ -419,27 +420,33 @@ class GovernanceService {
   }
 
   async assignManual(id: string, responsible: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(id), { responsible });
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(id), { responsible, actor });
   }
 
   async reviewManual(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_REVIEW(id));
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_REVIEW(id), { actor });
   }
 
   async moveManual(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MOVE(id));
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MOVE(id), { actor });
   }
 
   async mergeManual(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MERGE(id));
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_MERGE(id), { actor });
   }
 
   async resolveManual(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_RESOLVE(id));
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_RESOLVE(id), { actor });
   }
 
   async ignoreManual(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id));
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id), { actor });
   }
 
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssueDto>> {
@@ -493,6 +500,7 @@ class GovernanceService {
       responsibleType: responsibleType ?? null,
       responsibleId: responsibleId ?? null,
       dueDate: formattedDueDate ?? null,
+      actor: authService.getActorIdentifier() ?? 'system',
     });
     return normalizeGovernanceIssue(response);
   }
@@ -501,6 +509,7 @@ class GovernanceService {
     const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
       status,
       ...(ignoredReason ? { ignoredReason } : {}),
+      actor: authService.getActorIdentifier() ?? 'system',
     });
     return normalizeGovernanceIssue(response);
   }

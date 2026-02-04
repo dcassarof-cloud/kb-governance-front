@@ -9,6 +9,9 @@ import { normalizePaginatedResponse } from '@/lib/api-normalizers';
 
 // Gera UUID v4 para correlation-id
 function generateCorrelationId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -20,6 +23,10 @@ interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+}
+
+interface InternalRequestOptions extends RequestOptions {
+  skipAuthRefresh?: boolean;
 }
 
 class ApiClient {
@@ -55,7 +62,7 @@ class ApiClient {
   private getHeaders(customHeaders?: Record<string, string>): HeadersInit {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-correlation-id': generateCorrelationId(),
+      'X-Correlation-Id': generateCorrelationId(),
       ...customHeaders,
     };
 
@@ -69,13 +76,6 @@ class ApiClient {
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
-    if (response.status === 401) {
-      // Token inválido ou expirado - redireciona para login
-      authService.clearToken();
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
-    }
-
     if (!response.ok) {
       const error: ApiError = await response.json().catch(() => ({
         code: 'UNKNOWN_ERROR',
@@ -93,16 +93,40 @@ class ApiClient {
     return JSON.parse(text);
   }
 
-  async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+  private shouldAttemptRefresh(endpoint: string): boolean {
+    return !endpoint.startsWith('/auth/login') && !endpoint.startsWith('/auth/refresh') && !endpoint.startsWith('/auth/logout');
+  }
+
+  private async request<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    endpoint: string,
+    body?: unknown,
+    options?: InternalRequestOptions
+  ): Promise<T> {
     const url = this.buildUrl(endpoint, options?.params);
 
     const response = await fetch(url, {
-      method: 'GET',
+      method,
       headers: this.getHeaders(options?.headers),
+      body: body ? JSON.stringify(body) : undefined,
       signal: options?.signal,
     });
 
+    if (response.status === 401 && !options?.skipAuthRefresh && this.shouldAttemptRefresh(endpoint)) {
+      const refreshed = await authService.refreshTokens();
+      if (refreshed) {
+        return this.request<T>(method, endpoint, body, { ...options, skipAuthRefresh: true });
+      }
+      authService.clearToken();
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+
     return this.handleResponse<T>(response);
+  }
+
+  async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('GET', endpoint, undefined, options);
   }
 
   /**
@@ -125,54 +149,19 @@ class ApiClient {
   }
 
   async post<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    const url = this.buildUrl(endpoint, options?.params);
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: this.getHeaders(options?.headers),
-      body: body ? JSON.stringify(body) : undefined,
-      signal: options?.signal,
-    });
-
-    return this.handleResponse<T>(response);
+    return this.request<T>('POST', endpoint, body, options);
   }
 
   async put<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    const url = this.buildUrl(endpoint, options?.params);
-
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: this.getHeaders(options?.headers),
-      body: body ? JSON.stringify(body) : undefined,
-      signal: options?.signal,
-    });
-
-    return this.handleResponse<T>(response);
+    return this.request<T>('PUT', endpoint, body, options);
   }
 
   async patch<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    const url = this.buildUrl(endpoint, options?.params);
-
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: this.getHeaders(options?.headers),
-      body: body ? JSON.stringify(body) : undefined,
-      signal: options?.signal,
-    });
-
-    return this.handleResponse<T>(response);
+    return this.request<T>('PATCH', endpoint, body, options);
   }
 
   async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
-    const url = this.buildUrl(endpoint, options?.params);
-
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: this.getHeaders(options?.headers),
-      signal: options?.signal,
-    });
-
-    return this.handleResponse<T>(response);
+    return this.request<T>('DELETE', endpoint, undefined, options);
   }
 }
 

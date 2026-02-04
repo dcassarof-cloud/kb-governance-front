@@ -14,8 +14,19 @@ import SettingsPage from "./pages/Settings";
 import ResponsiblesPage from "./pages/Responsibles";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "./context/ThemeContext";
+import { authService, hasRole } from "./services/auth.service";
 
 const queryClient = new QueryClient();
+
+const RequireRole = ({ roles, children }: { roles: string[]; children: JSX.Element }) => {
+  if (!authService.isAuthenticated()) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!hasRole(roles)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -36,8 +47,22 @@ const App = () => (
             <Route path="/needs/:id" element={<NeedsPage />} />
             <Route path="/responsibles" element={<ResponsiblesPage />} />
             <Route path="/responsaveis" element={<ResponsiblesPage />} />
-            <Route path="/sync" element={<SyncPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/sync"
+              element={
+                <RequireRole roles={['ADMIN', 'MANAGER']}>
+                  <SyncPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <RequireRole roles={['ADMIN']}>
+                  <SettingsPage />
+                </RequireRole>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

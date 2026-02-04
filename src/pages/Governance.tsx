@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { governanceService, IssuesFilter } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
+import { hasRole } from '@/services/auth.service';
 import {
   GovernanceIssueDto,
   GovernanceOverviewDto,
@@ -93,6 +94,9 @@ export default function GovernancePage() {
     overdue: false,
     unassigned: false,
   });
+
+  const canAssign = hasRole(['ADMIN', 'MANAGER']);
+  const canResolve = hasRole(['ADMIN', 'MANAGER']);
 
   const [assignTarget, setAssignTarget] = useState<GovernanceIssueDto | null>(null);
   const [assignValue, setAssignValue] = useState('');
@@ -205,12 +209,12 @@ export default function GovernancePage() {
     }));
     setPage(Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1);
 
-    if (assignTo) {
+    if (assignTo && canAssign) {
       setAssignValue(assignTo);
       setAssignResponsibleId(assignTo);
     }
 
-    if (assignIssueId) {
+    if (assignIssueId && canAssign) {
       governanceService
         .getIssueById(assignIssueId)
         .then((issue) => setAssignTarget(issue))
@@ -219,8 +223,10 @@ export default function GovernancePage() {
             err instanceof Error ? err.message : governanceTexts.governance.toasts.loadError;
           toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
         });
+    } else if (!canAssign) {
+      setAssignTarget(null);
     }
-  }, [searchParams]);
+  }, [searchParams, canAssign]);
 
   // ✅ debounce para busca/filtros e paginação
   useEffect(() => {
@@ -1019,18 +1025,20 @@ export default function GovernancePage() {
                         ) : (
                           <div className="flex flex-col gap-2">
                             <span className="text-sm font-medium text-warning">{governanceTexts.governance.filters.unassigned}</span>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAssignTarget(issue);
-                              }}
-                              className="w-fit"
-                            >
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              {governanceTexts.governance.list.actionAssign}
-                            </Button>
+                            {canAssign && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAssignTarget(issue);
+                                }}
+                                className="w-fit"
+                              >
+                                <UserPlus className="h-4 w-4 mr-1" />
+                                {governanceTexts.governance.list.actionAssign}
+                              </Button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1049,24 +1057,28 @@ export default function GovernancePage() {
                       </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" size="sm" onClick={() => setAssignTarget(issue)}>
-                            <UserPlus className="h-4 w-4 mr-1" />
-                            {governanceTexts.governance.list.actionAssign}
-                          </Button>
+                          {canAssign && (
+                            <Button variant="outline" size="sm" onClick={() => setAssignTarget(issue)}>
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              {governanceTexts.governance.list.actionAssign}
+                            </Button>
+                          )}
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setStatusTarget(issue);
-                              setStatusValue(issue.status || 'OPEN');
-                              setStatusIgnoredReason('');
-                            }}
-                            disabled={isActionLoading('status')}
-                          >
-                            <ClipboardCheck className="h-4 w-4 mr-1" />
-                            {governanceTexts.governance.list.actionStatus}
-                          </Button>
+                          {canResolve && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setStatusTarget(issue);
+                                setStatusValue(issue.status || 'OPEN');
+                                setStatusIgnoredReason('');
+                              }}
+                              disabled={isActionLoading('status')}
+                            >
+                              <ClipboardCheck className="h-4 w-4 mr-1" />
+                              {governanceTexts.governance.list.actionStatus}
+                            </Button>
+                          )}
 
                           <Button variant="ghost" size="sm" onClick={() => navigate(`/governance/issues/${issue.id}`)}>
                             <Eye className="h-4 w-4 mr-1" />
@@ -1108,101 +1120,104 @@ export default function GovernancePage() {
       )}
 
       {/* ------------------ DIALOG STATUS ------------------ */}
-      <Dialog
-        open={Boolean(statusTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setStatusTarget(null);
-            setStatusIgnoredReason('');
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
-          </DialogHeader>
+      {canResolve && (
+        <Dialog
+          open={Boolean(statusTarget)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStatusTarget(null);
+              setStatusIgnoredReason('');
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>{governanceTexts.governance.statusDialog.statusLabel}</Label>
-              <Select
-                value={statusValue}
-                onValueChange={(value) => setStatusValue(value as IssueStatus)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                  {ISSUE_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {governanceTexts.status.labels[option]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>{governanceTexts.governance.statusDialog.statusLabel}</Label>
+                <Select
+                  value={statusValue}
+                  onValueChange={(value) => setStatusValue(value as IssueStatus)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ISSUE_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {governanceTexts.status.labels[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {statusValue === 'IGNORED' && (
+                <div className="space-y-2">
+                  <Label>{governanceTexts.governance.statusDialog.ignoredReasonLabel}</Label>
+                  <Input
+                    placeholder={governanceTexts.governance.statusDialog.ignoredReasonPlaceholder}
+                    value={statusIgnoredReason}
+                    onChange={(event) => setStatusIgnoredReason(event.target.value)}
+                  />
+                </div>
+              )}
             </div>
 
-            {statusValue === 'IGNORED' && (
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.statusDialog.ignoredReasonLabel}</Label>
-                <Input
-                  placeholder={governanceTexts.governance.statusDialog.ignoredReasonPlaceholder}
-                  value={statusIgnoredReason}
-                  onChange={(event) => setStatusIgnoredReason(event.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusTarget(null)}>
-              {governanceTexts.governance.statusDialog.cancel}
-            </Button>
-            <Button
-              onClick={() => {
-                if (!statusTarget) return;
-                if (statusValue === 'IGNORED' && !statusIgnoredReason.trim()) {
-                  toast({
-                    title: governanceTexts.general.attentionTitle,
-                    description: governanceTexts.governance.statusDialog.ignoredReasonRequired,
-                  });
-                  return;
-                }
-                handleStatusChange(statusTarget, statusValue, statusValue === 'IGNORED' ? statusIgnoredReason.trim() : undefined);
-                setStatusTarget(null);
-                setStatusIgnoredReason('');
-              }}
-              disabled={Boolean(statusTarget && actionLoading?.action === 'status')}
-            >
-              {actionLoading?.action === 'status' ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {governanceTexts.governance.statusDialog.saving}
-                </span>
-              ) : (
-                governanceTexts.governance.statusDialog.save
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStatusTarget(null)}>
+                {governanceTexts.governance.statusDialog.cancel}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!statusTarget) return;
+                  if (statusValue === 'IGNORED' && !statusIgnoredReason.trim()) {
+                    toast({
+                      title: governanceTexts.general.attentionTitle,
+                      description: governanceTexts.governance.statusDialog.ignoredReasonRequired,
+                    });
+                    return;
+                  }
+                  handleStatusChange(statusTarget, statusValue, statusValue === 'IGNORED' ? statusIgnoredReason.trim() : undefined);
+                  setStatusTarget(null);
+                  setStatusIgnoredReason('');
+                }}
+                disabled={Boolean(statusTarget && actionLoading?.action === 'status')}
+              >
+                {actionLoading?.action === 'status' ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {governanceTexts.governance.statusDialog.saving}
+                  </span>
+                ) : (
+                  governanceTexts.governance.statusDialog.save
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* ------------------ DIALOG ATRIBUIR ------------------ */}
-      <Dialog
-        open={Boolean(assignTarget)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAssignTarget(null);
-            setAssignValue('');
-            setAssignDueDate('');
-            setAssignResponsibleId('');
-            setAssignResponsibleType('USER');
-            setSuggestedAssignee(null);
-            setSuggestedAlternatives([]);
-            setSuggestedError(null);
-          }
-        }}
-      >
+      {canAssign && (
+        <Dialog
+          open={Boolean(assignTarget)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAssignTarget(null);
+              setAssignValue('');
+              setAssignDueDate('');
+              setAssignResponsibleId('');
+              setAssignResponsibleType('USER');
+              setSuggestedAssignee(null);
+              setSuggestedAlternatives([]);
+              setSuggestedError(null);
+            }
+          }}
+        >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
@@ -1434,6 +1449,7 @@ export default function GovernancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
     </MainLayout>
   );

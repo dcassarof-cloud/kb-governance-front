@@ -25,6 +25,7 @@ export const config = {
 
   // Auth
   tokenKey: 'kb_governance_token',
+  refreshTokenKey: 'kb_governance_refresh_token',
   userKey: 'kb_governance_user',
 
   // Pagination defaults
@@ -50,6 +51,7 @@ export const config = {
 export const API_ENDPOINTS = {
   // Auth
   LOGIN: '/auth/login',
+  REFRESH: '/auth/refresh',
   LOGOUT: '/auth/logout',
   ME: '/auth/me',
 

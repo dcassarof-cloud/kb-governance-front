@@ -305,11 +305,12 @@ export interface User {
   avatar?: string;
 }
 
-export type UserRole = 'ADMIN' | 'OPERATOR' | 'VIEWER';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER';
 
 export interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
 }
 
