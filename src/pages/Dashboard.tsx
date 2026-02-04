@@ -1,21 +1,74 @@
-import { useEffect, useState } from 'react';
-import { FileText, AlertTriangle, CheckCircle, TrendingUp, AlertCircle, RefreshCw, AlertOctagon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  AlertOctagon,
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle,
+  RefreshCw,
+  TrendingUp,
+  UserX,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { MetricCard } from '@/components/shared/MetricCard';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
-import { dashboardService } from '@/services/dashboard.service';
-import { DashboardSummary } from '@/types';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { Badge } from '@/components/ui/badge';
+import { dashboardGovernanceService } from '@/services/dashboardGovernance.service';
+import { DashboardGovernanceDto, DashboardGovernanceTrend } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
 
-const COLORS = ['hsl(220, 14%, 70%)', 'hsl(220, 14%, 85%)'];
-const IMPACT_DEFAULT_COLOR = 'hsl(220, 14%, 80%)';
-const IMPACT_CRITICAL_COLOR = 'hsl(0, 84%, 60%)';
+const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
+
+const formatDate = (value?: string | null) => {
+  if (!value) return governanceTexts.general.notAvailable;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return governanceTexts.general.notAvailable;
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date);
+};
+
+const formatPercent = (value: number) => `${Math.round(value)}%`;
+
+const resolveIssueType = (type?: string | null) => {
+  if (!type) return governanceTexts.general.notAvailable;
+  return governanceTexts.issueTypes[type as keyof typeof governanceTexts.issueTypes] ?? type;
+};
+
+const getAgeDays = (createdAt?: string | null, ageDays?: number | null) => {
+  if (typeof ageDays === 'number') return ageDays;
+  if (!createdAt) return null;
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  const diff = Date.now() - created.getTime();
+  return Math.max(Math.floor(diff / (1000 * 60 * 60 * 24)), 0);
+};
+
+const getHealthTone = (score: number) => {
+  if (score >= 80) return 'success';
+  if (score >= 60) return 'warning';
+  return 'error';
+};
+
+const getTrendBadge = (trend: DashboardGovernanceTrend) => {
+  const isPositive = trend.direction === 'up';
+  const value = Math.abs(trend.delta);
+  const signal = isPositive ? '↑' : '↓';
+  return `${signal} ${value}${trend.key === 'sla' ? '' : '%'}`;
+};
+
+const resolveTrendTone = (trend: DashboardGovernanceTrend) => {
+  if (trend.key === 'resolvedIssues') {
+    return trend.direction === 'up' ? 'status-ok' : 'status-error';
+  }
+  return trend.direction === 'up' ? 'status-error' : 'status-ok';
+};
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardSummary | null>(null);
+  const navigate = useNavigate();
+  const [data, setData] = useState<DashboardGovernanceDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,32 +76,8 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await dashboardService.getSummary();
-      const metrics = {
-        totalArticles: result?.totalArticles,
-        articlesOk: result?.articlesOk,
-        articlesWithIssues: result?.articlesWithIssues,
-        totalIssues: result?.totalIssues,
-      };
-      const invalidMetrics = Object.entries(metrics).filter(
-        ([, value]) => value === null || value === undefined || Number.isNaN(value)
-      );
-      if (invalidMetrics.length > 0) {
-        toast({
-          title: governanceTexts.general.alertTitle,
-          description: governanceTexts.dashboard.errors.invalidMetrics,
-        });
-      }
-      // Normaliza resposta: garante estrutura esperada
-      const normalized: DashboardSummary = {
-        totalArticles: typeof result?.totalArticles === 'number' ? result.totalArticles : 0,
-        articlesOk: typeof result?.articlesOk === 'number' ? result.articlesOk : 0,
-        articlesWithIssues: typeof result?.articlesWithIssues === 'number' ? result.articlesWithIssues : 0,
-        totalIssues: typeof result?.totalIssues === 'number' ? result.totalIssues : 0,
-        bySystem: Array.isArray(result?.bySystem) ? result.bySystem : [],
-        byStatus: Array.isArray(result?.byStatus) ? result.byStatus : [],
-      };
-      setData(normalized);
+      const result = await dashboardGovernanceService.getDashboard();
+      setData(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : governanceTexts.dashboard.errors.loadDashboard;
       setError(message);
@@ -62,23 +91,45 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // Loading state
+  const summary = data?.summary;
+  const systemsAtRisk = useMemo(() => {
+    if (!data?.systemsAtRisk) return [];
+    return [...data.systemsAtRisk].sort((a, b) => a.healthScore - b.healthScore);
+  }, [data?.systemsAtRisk]);
+
+  const handleNavigate = (params: Record<string, string | boolean | undefined>) => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === '' || value === false) return;
+      searchParams.set(key, String(value));
+    });
+    const query = searchParams.toString();
+    navigate(`/governance${query ? `?${query}` : ''}`);
+  };
+
   if (loading) {
     return (
       <MainLayout>
         <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[1, 2, 3, 4].map((i) => <LoadingSkeleton key={i} variant="card" />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <LoadingSkeleton key={i} variant="card" />
+          ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <LoadingSkeleton variant="chart" />
-          <LoadingSkeleton variant="chart" />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <LoadingSkeleton key={i} variant="card" className="min-h-[260px]" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          {[1, 2].map((i) => (
+            <LoadingSkeleton key={i} variant="card" className="min-h-[260px]" />
+          ))}
         </div>
       </MainLayout>
     );
   }
 
-  // Error state
   if (error) {
     return (
       <MainLayout>
@@ -101,146 +152,285 @@ export default function DashboardPage() {
     );
   }
 
-  // Dados seguros com fallbacks
-  const totalArticles = data?.totalArticles ?? 0;
-  const okCount = data?.articlesOk ?? 0;
-  const articlesWithIssues = data?.articlesWithIssues ?? 0;
-  const totalIssues = data?.totalIssues ?? 0;
+  if (!summary) {
+    return (
+      <MainLayout>
+        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
+        <EmptyState
+          title={governanceTexts.dashboard.empty.title}
+          description={governanceTexts.dashboard.empty.description}
+        />
+      </MainLayout>
+    );
+  }
 
-  // Calcula percentuais reais
-  const okPercent = totalArticles > 0 ? Math.round((okCount / totalArticles) * 100) : 0;
-  const issuesPercent = totalArticles > 0 ? Math.round((articlesWithIssues / totalArticles) * 100) : 0;
-
-  // Prepara dados para gráficos com guard clauses
-  const mapImpactLabel = (label: unknown) => {
-    const normalizedLabel = typeof label === 'string' ? label : String(label ?? '');
-    if (normalizedLabel in governanceTexts.severity.labels) {
-      return governanceTexts.severity.labels[normalizedLabel as keyof typeof governanceTexts.severity.labels];
-    }
-    return normalizedLabel || governanceTexts.general.notAvailable;
-  };
-
-  const impactData = Array.isArray(data?.byStatus)
-    ? data.byStatus.map((s) => {
-        const rawLabel = s?.status ?? governanceTexts.general.notAvailable;
-        return {
-          name: mapImpactLabel(rawLabel),
-          value: s?.count ?? 0,
-          rawLabel,
-        };
-      })
-    : [];
-
-  const pendingPercentData = [
+  const summaryCards = [
     {
-      name: governanceTexts.dashboard.charts.pendingLegend.withPending,
-      value: articlesWithIssues,
+      key: 'openIssues',
+      title: governanceTexts.dashboard.cards.openIssues,
+      value: formatNumber(summary.openIssues),
+      icon: AlertTriangle,
+      tone: 'warning',
+      action: () => handleNavigate({ status: 'OPEN' }),
     },
     {
-      name: governanceTexts.dashboard.charts.pendingLegend.withoutPending,
-      value: Math.max(totalArticles - articlesWithIssues, 0),
+      key: 'errorIssues',
+      title: governanceTexts.dashboard.cards.errorIssues,
+      value: formatNumber(summary.errorIssues),
+      icon: AlertOctagon,
+      tone: 'error',
+      action: () => handleNavigate({ severity: 'CRITICAL' }),
+    },
+    {
+      key: 'overdueIssues',
+      title: governanceTexts.dashboard.cards.overdueIssues,
+      value: formatNumber(summary.overdueIssues),
+      icon: CalendarClock,
+      tone: 'error',
+      action: () => handleNavigate({ overdue: true }),
+    },
+    {
+      key: 'unassignedIssues',
+      title: governanceTexts.dashboard.cards.unassignedIssues,
+      value: formatNumber(summary.unassignedIssues),
+      icon: UserX,
+      tone: 'warning',
+      action: () => handleNavigate({ unassigned: true }),
+    },
+    {
+      key: 'slaCompliance',
+      title: governanceTexts.dashboard.cards.slaCompliance,
+      value: formatPercent(summary.slaCompliancePercent),
+      icon: CheckCircle,
+      tone: summary.slaCompliancePercent >= 95 ? 'success' : summary.slaCompliancePercent >= 85 ? 'warning' : 'error',
+      action: () => handleNavigate({ status: 'OPEN' }),
     },
   ];
-
-  const isCriticalImpact = (label: unknown) => {
-    const normalizedLabel = typeof label === 'string' ? label : String(label ?? '');
-    return normalizedLabel.toLowerCase().includes('crític') || normalizedLabel.toUpperCase() === 'CRITICAL';
-  };
 
   return (
     <MainLayout>
       <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <MetricCard
-          title={governanceTexts.dashboard.metrics.totalManuals}
-          value={totalArticles}
-          icon={FileText}
-          variant="primary"
-        />
-        <MetricCard
-          title={governanceTexts.dashboard.metrics.manualsOk}
-          value={okCount}
-          icon={CheckCircle}
-          variant="success"
-          subtitle={totalArticles > 0 ? governanceTexts.dashboard.metrics.percentOfTotal(okPercent) : undefined}
-        />
-        <MetricCard
-          title={governanceTexts.dashboard.metrics.manualsWithPending}
-          value={articlesWithIssues}
-          icon={AlertTriangle}
-          variant="warning"
-          subtitle={totalArticles > 0 ? governanceTexts.dashboard.metrics.percentWithPending(issuesPercent) : undefined}
-        />
-        <MetricCard
-          title={governanceTexts.dashboard.metrics.totalPending}
-          value={totalIssues}
-          icon={AlertOctagon}
-          variant="error"
-        />
-      </div>
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+        {summaryCards.map((card) => {
+          const Icon = card.icon;
+          const toneClasses = {
+            success: 'border-success/40 bg-success/5 text-success',
+            warning: 'border-warning/40 bg-warning/5 text-warning',
+            error: 'border-destructive/40 bg-destructive/5 text-destructive',
+          }[card.tone];
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={card.action}
+              className={`card-metric flex flex-col gap-4 text-left border-l-4 ${toneClasses}`}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                  <p className="text-3xl font-semibold text-foreground mt-2">{card.value}</p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-background/60 flex items-center justify-center">
+                  <Icon className="h-5 w-5" />
+                </div>
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">
+                {governanceTexts.dashboard.cards.cta}
+              </span>
+            </button>
+          );
+        })}
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section className="card-metric mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">{governanceTexts.dashboard.systems.title}</h3>
+            <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.systems.subtitle}</p>
+          </div>
+          <Badge variant="secondary">{governanceTexts.dashboard.systems.badge}</Badge>
+        </div>
+        {systemsAtRisk.length === 0 ? (
+          <EmptyState
+            title={governanceTexts.dashboard.systems.emptyTitle}
+            description={governanceTexts.dashboard.systems.emptyDescription}
+          />
+        ) : (
+          <div className="table-container">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.system}</th>
+                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.health}</th>
+                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.errors}</th>
+                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.overdue}</th>
+                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.unassigned}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {systemsAtRisk.map((system) => {
+                  const tone = getHealthTone(system.healthScore);
+                  const badgeVariant =
+                    tone === 'success' ? 'status-ok' : tone === 'warning' ? 'status-warning' : 'status-error';
+                  return (
+                    <tr
+                      key={system.systemCode}
+                      onClick={() => handleNavigate({ system: system.systemCode })}
+                      className="border-t border-border hover:bg-muted/40 cursor-pointer"
+                    >
+                      <td className="p-4 font-medium">{system.systemName}</td>
+                      <td className="p-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${badgeVariant}`}>
+                          {formatNumber(system.healthScore)}
+                        </span>
+                      </td>
+                      <td className="p-4 text-muted-foreground">{formatNumber(system.errorIssues)}</td>
+                      <td className="p-4 text-muted-foreground">{formatNumber(system.overdueIssues)}</td>
+                      <td className="p-4 text-muted-foreground">{formatNumber(system.unassignedIssues)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="card-metric">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" /> {governanceTexts.dashboard.charts.pendingPercentTitle}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-3">{governanceTexts.dashboard.charts.pendingPercentSubtitle}</p>
-          {totalArticles > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={pendingPercentData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={4}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">{governanceTexts.dashboard.attention.overdueTitle}</h3>
+              <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.attention.overdueSubtitle}</p>
+            </div>
+            <Badge variant="secondary">{governanceTexts.dashboard.attention.overdueBadge}</Badge>
+          </div>
+          {data.overdueToday.length === 0 ? (
+            <EmptyState
+              title={governanceTexts.dashboard.attention.emptyTitle}
+              description={governanceTexts.dashboard.attention.emptyOverdue}
+            />
+          ) : (
+            <ul className="space-y-3">
+              {data.overdueToday.slice(0, 5).map((issue) => (
+                <li key={issue.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/governance/issues/${issue.id}`)}
+                    className="w-full rounded-lg border border-border p-4 text-left hover:bg-muted/30"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm">
+                        {issue.systemName ?? issue.systemCode ?? governanceTexts.general.notAvailable}
+                      </span>
+                      <span className="text-xs text-destructive font-semibold">
+                        {governanceTexts.dashboard.attention.slaLabel} {formatDate(issue.slaDueAt)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2 flex flex-wrap gap-2">
+                      <span>{resolveIssueType(issue.type)}</span>
+                      <span>•</span>
+                      <span>{issue.title ?? governanceTexts.dashboard.attention.issueFallback}</span>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="card-metric">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">{governanceTexts.dashboard.attention.unassignedTitle}</h3>
+              <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.attention.unassignedSubtitle}</p>
+            </div>
+            <Badge variant="secondary">{governanceTexts.dashboard.attention.unassignedBadge}</Badge>
+          </div>
+          {data.unassigned.length === 0 ? (
+            <EmptyState
+              title={governanceTexts.dashboard.attention.emptyTitle}
+              description={governanceTexts.dashboard.attention.emptyUnassigned}
+            />
+          ) : (
+            <ul className="space-y-3">
+              {data.unassigned.slice(0, 5).map((issue) => {
+                const age = getAgeDays(issue.createdAt, issue.ageDays);
+                return (
+                  <li key={issue.id}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/governance?assignIssueId=${issue.id}&unassigned=true`)}
+                      className="w-full rounded-lg border border-border p-4 text-left hover:bg-muted/30"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">
+                          {issue.systemName ?? issue.systemCode ?? governanceTexts.general.notAvailable}
+                        </span>
+                        <span className="text-xs text-warning font-semibold">
+                          {age !== null
+                            ? governanceTexts.dashboard.attention.ageLabel(age)
+                            : governanceTexts.general.notAvailable}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-2 flex flex-wrap gap-2">
+                        <span>{resolveIssueType(issue.type)}</span>
+                        <span>•</span>
+                        <span>{issue.title ?? governanceTexts.dashboard.attention.issueFallback}</span>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section className="card-metric">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="h-5 w-5 text-primary" />
+          <div>
+            <h3 className="text-lg font-semibold">{governanceTexts.dashboard.trends.title}</h3>
+            <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.trends.subtitle}</p>
+          </div>
+        </div>
+        {data.trends.length === 0 ? (
+          <EmptyState
+            title={governanceTexts.dashboard.trends.emptyTitle}
+            description={governanceTexts.dashboard.trends.emptyDescription}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {data.trends.map((trend) => {
+              const badgeTone = resolveTrendTone(trend);
+              const action =
+                trend.key === 'resolvedIssues'
+                  ? () => handleNavigate({ status: 'RESOLVED' })
+                  : trend.key === 'sla'
+                    ? () => handleNavigate({ overdue: true })
+                    : () => handleNavigate({ status: 'OPEN' });
+              return (
+                <button
+                  key={`${trend.key}-${trend.label}`}
+                  type="button"
+                  onClick={action}
+                  className="rounded-lg border border-border p-4 text-left hover:bg-muted/30"
                 >
-                  {pendingPercentData.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-              {governanceTexts.dashboard.charts.noChartData}
-            </div>
-          )}
-        </div>
-
-        <div className="card-metric">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" /> {governanceTexts.dashboard.charts.impactDistributionTitle}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-3">{governanceTexts.dashboard.charts.impactDistributionSubtitle}</p>
-          {impactData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={impactData}>
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {impactData.map((item, index) => (
-                    <Cell
-                      key={`${item.name}-${index}`}
-                      fill={isCriticalImpact(item.rawLabel ?? item.name) ? IMPACT_CRITICAL_COLOR : IMPACT_DEFAULT_COLOR}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-              {governanceTexts.dashboard.charts.noChartData}
-            </div>
-          )}
-        </div>
-      </div>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${badgeTone}`}>
+                    {getTrendBadge(trend)}
+                  </span>
+                  <p className="mt-3 font-semibold text-sm">{trend.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {trend.context ? `${trend.context}` : governanceTexts.dashboard.trends.defaultContext}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </MainLayout>
   );
 }

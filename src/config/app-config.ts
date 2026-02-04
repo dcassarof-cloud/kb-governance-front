@@ -55,6 +55,7 @@ export const API_ENDPOINTS = {
 
   // Dashboard
   DASHBOARD_SUMMARY: '/dashboard/summary',
+  DASHBOARD_GOVERNANCE: '/dashboard/governance',
 
   // Articles
   ARTICLES: '/articles',
