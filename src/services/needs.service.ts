@@ -4,6 +4,7 @@
 
 import { API_ENDPOINTS, config } from '@/config/app-config';
 import { apiClient } from './api-client.service';
+import { authService } from './auth.service';
 import { IssueSeverity, NeedDetail, NeedItem, NeedTicketExample, PaginatedResponse } from '@/types';
 
 export interface NeedsFilter {
@@ -122,11 +123,13 @@ class NeedsService {
   }
 
   async createInternalTask(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id), {});
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id), { actor });
   }
 
   async createMasterTicket(id: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_MASTER_TICKET(id), {});
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_MASTER_TICKET(id), { actor });
   }
 }
 

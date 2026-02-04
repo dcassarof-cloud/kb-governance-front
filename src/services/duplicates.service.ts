@@ -26,21 +26,21 @@ class DuplicatesService {
   }
 
   async setPrimary(hash: string, articleId: string): Promise<void> {
-    const user = authService.getUser();
-    const actor = user?.email ?? user?.id ?? 'system';
+    const actor = authService.getActorIdentifier() ?? 'system';
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_PRIMARY(hash), {
       primaryArticleId: articleId,
       actor,
-      // TODO: substituir "system" por usuário real vindo do JWT no Sprint 2.
     });
   }
 
   async ignore(hash: string, reason: string): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_IGNORE(hash), { reason });
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_IGNORE(hash), { reason, actor });
   }
 
   async mergeRequest(hash: string, primaryId: string, mergeIds: string[]): Promise<void> {
-    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_MERGE(hash), { primaryId, mergeIds });
+    const actor = authService.getActorIdentifier() ?? 'system';
+    await apiClient.post(API_ENDPOINTS.GOVERNANCE_DUPLICATES_MERGE(hash), { primaryId, mergeIds, actor });
   }
 }
 

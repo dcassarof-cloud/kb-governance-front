@@ -14,7 +14,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { authService } from '@/services/auth.service';
+import { authService, hasRole } from '@/services/auth.service';
 import { ConsisaBrand } from '@/components/brand/ConsisaBrand';
 import { governanceTexts } from '@/governanceTexts';
 
@@ -24,8 +24,8 @@ const menuItems = [
   { path: '/governance', label: governanceTexts.navigation.routes.governance, icon: Shield },
   { path: '/needs', label: governanceTexts.navigation.routes.needs, icon: ClipboardList },
   { path: '/responsibles', label: governanceTexts.navigation.routes.responsibles, icon: Users },
-  { path: '/sync', label: governanceTexts.navigation.routes.sync, icon: RefreshCw },
-  { path: '/settings', label: governanceTexts.navigation.routes.settings, icon: Settings },
+  { path: '/sync', label: governanceTexts.navigation.routes.sync, icon: RefreshCw, roles: ['ADMIN', 'MANAGER'] },
+  { path: '/settings', label: governanceTexts.navigation.routes.settings, icon: Settings, roles: ['ADMIN'] },
 ];
 
 export function Sidebar() {
@@ -72,6 +72,9 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
+          if (item.roles && !hasRole(item.roles)) {
+            return null;
+          }
           const isActive =
             location.pathname === item.path ||
             (item.path !== '/dashboard' && location.pathname.startsWith(item.path));

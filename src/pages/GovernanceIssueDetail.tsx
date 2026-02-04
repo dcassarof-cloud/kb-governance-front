@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { governanceService } from '@/services/governance.service';
+import { hasRole } from '@/services/auth.service';
 import { duplicatesService } from '@/services/duplicates.service';
 import {
   GovernanceIssueDetail,
@@ -226,6 +227,9 @@ export default function GovernanceIssueDetailPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusValue, setStatusValue] = useState<IssueStatus>('OPEN');
   const [statusIgnoredReason, setStatusIgnoredReason] = useState('');
+
+  const canAssign = hasRole(['ADMIN', 'MANAGER']);
+  const canResolve = hasRole(['ADMIN', 'MANAGER']);
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return governanceTexts.general.notAvailable;
@@ -497,29 +501,33 @@ export default function GovernanceIssueDetailPage() {
             </Button>
             {issue && issue.status !== 'RESOLVED' && issue.status !== 'IGNORED' && (
               <>
-                <Button
-                  variant="default"
-                  onClick={() => {
-                    setAssignValue(issue.responsibleName || issue.responsible || '');
-                    setAssignResponsibleId(issue.responsibleId || '');
-                    setAssignResponsibleType(issue.responsibleType || 'USER');
-                    setAssignDialogOpen(true);
-                  }}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  {governanceTexts.governance.list.actionAssign}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setStatusValue(issue.status || 'OPEN');
-                    setStatusIgnoredReason('');
-                    setStatusDialogOpen(true);
-                  }}
-                >
-                  <ClipboardCheck className="h-4 w-4 mr-2" />
-                  {governanceTexts.governance.list.actionStatus}
-                </Button>
+                {canAssign && (
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      setAssignValue(issue.responsibleName || issue.responsible || '');
+                      setAssignResponsibleId(issue.responsibleId || '');
+                      setAssignResponsibleType(issue.responsibleType || 'USER');
+                      setAssignDialogOpen(true);
+                    }}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    {governanceTexts.governance.list.actionAssign}
+                  </Button>
+                )}
+                {canResolve && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setStatusValue(issue.status || 'OPEN');
+                      setStatusIgnoredReason('');
+                      setStatusDialogOpen(true);
+                    }}
+                  >
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    {governanceTexts.governance.list.actionStatus}
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -747,154 +755,158 @@ export default function GovernanceIssueDetailPage() {
       )}
 
       {/* Dialog de Atribuição */}
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
-          </DialogHeader>
+      {canAssign && (
+        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>{governanceTexts.governance.assignDialog.responsibleLabel}</Label>
-              <Input
-                placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
-                value={assignValue}
-                onChange={(e) => setAssignValue(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
-              <Select value={assignResponsibleType} onValueChange={setAssignResponsibleType}>
-                <SelectTrigger>
-                  <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
-                  <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
-              <Input
-                placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
-                value={assignResponsibleId}
-                onChange={(e) => setAssignResponsibleId(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>{governanceTexts.governance.assignDialog.dueDateLabel}</Label>
-              <Input
-                type="date"
-                value={assignDueDate}
-                onChange={(e) => setAssignDueDate(e.target.value)}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setAssignDueDate(formatInputDate(new Date()))}>
-                  {governanceTexts.governance.assignDialog.quickDateToday}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const date = new Date();
-                    date.setDate(date.getDate() + 3);
-                    setAssignDueDate(formatInputDate(date));
-                  }}
-                >
-                  {governanceTexts.governance.assignDialog.quickDateThreeDays}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const date = new Date();
-                    date.setDate(date.getDate() + 7);
-                    setAssignDueDate(formatInputDate(date));
-                  }}
-                >
-                  {governanceTexts.governance.assignDialog.quickDateSevenDays}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
-              {governanceTexts.governance.assignDialog.cancel}
-            </Button>
-            <Button onClick={handleAssign} disabled={actionLoading}>
-              {actionLoading ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {governanceTexts.governance.assignDialog.saving}
-                </span>
-              ) : (
-                governanceTexts.governance.assignDialog.save
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog de Status */}
-      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>{governanceTexts.governance.statusDialog.statusLabel}</Label>
-              <Select value={statusValue} onValueChange={(value) => setStatusValue(value as IssueStatus)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                  {ISSUE_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {governanceTexts.status.labels[option]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {statusValue === 'IGNORED' && (
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label>{governanceTexts.governance.statusDialog.ignoredReasonLabel}</Label>
+                <Label>{governanceTexts.governance.assignDialog.responsibleLabel}</Label>
                 <Input
-                  placeholder={governanceTexts.governance.statusDialog.ignoredReasonPlaceholder}
-                  value={statusIgnoredReason}
-                  onChange={(e) => setStatusIgnoredReason(e.target.value)}
+                  placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
+                  value={assignValue}
+                  onChange={(e) => setAssignValue(e.target.value)}
                 />
               </div>
-            )}
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
-              {governanceTexts.governance.statusDialog.cancel}
-            </Button>
-            <Button onClick={handleStatusChange} disabled={actionLoading}>
-              {actionLoading ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {governanceTexts.governance.statusDialog.saving}
-                </span>
-              ) : (
-                governanceTexts.governance.statusDialog.save
+              <div className="space-y-2">
+                <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
+                <Select value={assignResponsibleType} onValueChange={setAssignResponsibleType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+                    <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
+                <Input
+                  placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
+                  value={assignResponsibleId}
+                  onChange={(e) => setAssignResponsibleId(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{governanceTexts.governance.assignDialog.dueDateLabel}</Label>
+                <Input
+                  type="date"
+                  value={assignDueDate}
+                  onChange={(e) => setAssignDueDate(e.target.value)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setAssignDueDate(formatInputDate(new Date()))}>
+                    {governanceTexts.governance.assignDialog.quickDateToday}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const date = new Date();
+                      date.setDate(date.getDate() + 3);
+                      setAssignDueDate(formatInputDate(date));
+                    }}
+                  >
+                    {governanceTexts.governance.assignDialog.quickDateThreeDays}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const date = new Date();
+                      date.setDate(date.getDate() + 7);
+                      setAssignDueDate(formatInputDate(date));
+                    }}
+                  >
+                    {governanceTexts.governance.assignDialog.quickDateSevenDays}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
+                {governanceTexts.governance.assignDialog.cancel}
+              </Button>
+              <Button onClick={handleAssign} disabled={actionLoading}>
+                {actionLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {governanceTexts.governance.assignDialog.saving}
+                  </span>
+                ) : (
+                  governanceTexts.governance.assignDialog.save
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Dialog de Status */}
+      {canResolve && (
+        <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>{governanceTexts.governance.statusDialog.statusLabel}</Label>
+                <Select value={statusValue} onValueChange={(value) => setStatusValue(value as IssueStatus)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ISSUE_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {governanceTexts.status.labels[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {statusValue === 'IGNORED' && (
+                <div className="space-y-2">
+                  <Label>{governanceTexts.governance.statusDialog.ignoredReasonLabel}</Label>
+                  <Input
+                    placeholder={governanceTexts.governance.statusDialog.ignoredReasonPlaceholder}
+                    value={statusIgnoredReason}
+                    onChange={(e) => setStatusIgnoredReason(e.target.value)}
+                  />
+                </div>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+                {governanceTexts.governance.statusDialog.cancel}
+              </Button>
+              <Button onClick={handleStatusChange} disabled={actionLoading}>
+                {actionLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {governanceTexts.governance.statusDialog.saving}
+                  </span>
+                ) : (
+                  governanceTexts.governance.statusDialog.save
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </MainLayout>
   );
 }

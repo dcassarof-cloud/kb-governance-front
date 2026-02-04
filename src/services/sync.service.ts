@@ -4,6 +4,7 @@
 
 import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
+import { authService } from './auth.service';
 import { SyncRun, SyncConfig, SyncMode, SyncModeLabel } from '@/types';
 import { mockSyncRuns, mockSyncConfig } from '@/data/mock-data';
 
@@ -169,9 +170,13 @@ class SyncService {
     }
 
     // Chamada à API real
-    const response = await apiClient.post<unknown>(API_ENDPOINTS.SYNC_TRIGGER, undefined, {
-      params: { mode: request.mode, daysBack: request.daysBack },
-    });
+    const response = await apiClient.post<unknown>(
+      API_ENDPOINTS.SYNC_TRIGGER,
+      { actor: authService.getActorIdentifier() ?? 'system' },
+      {
+        params: { mode: request.mode, daysBack: request.daysBack },
+      }
+    );
     return normalizeSyncRun(response);
   }
 
@@ -194,7 +199,10 @@ class SyncService {
     }
 
     // Chamada à API real
-    const response = await apiClient.put<unknown>(API_ENDPOINTS.SYNC_CONFIG, configData);
+    const response = await apiClient.put<unknown>(API_ENDPOINTS.SYNC_CONFIG, {
+      ...configData,
+      actor: authService.getActorIdentifier() ?? 'system',
+    });
     return normalizeSyncConfig(response);
   }
 }
