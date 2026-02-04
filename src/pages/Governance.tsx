@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   AlertCircle,
+  AlertOctagon,
   RefreshCw,
   UserPlus,
   Loader2,
   Eye,
   ClipboardCheck,
   CalendarClock,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -312,6 +315,17 @@ export default function GovernancePage() {
   };
 
   const getSlaStatus = (issue: GovernanceIssueDto) => {
+    // Se status é fechado (RESOLVED ou IGNORED), mostrar badge especial
+    if (issue.status === 'RESOLVED' || issue.status === 'IGNORED') {
+      return {
+        label: governanceTexts.status.labels[issue.status],
+        variant: 'secondary' as const,
+        className: 'bg-muted text-muted-foreground',
+        priority: 4, // Menor prioridade - já resolvido
+        icon: 'check' as const,
+      };
+    }
+
     const dueDateValue = getDueDateValue(issue);
     if (!dueDateValue) {
       return {
@@ -319,6 +333,7 @@ export default function GovernancePage() {
         variant: 'secondary' as const,
         className: 'bg-muted text-muted-foreground',
         priority: 3,
+        icon: 'none' as const,
       };
     }
 
@@ -329,6 +344,7 @@ export default function GovernancePage() {
         variant: 'secondary' as const,
         className: 'bg-muted text-muted-foreground',
         priority: 3,
+        icon: 'none' as const,
       };
     }
 
@@ -342,6 +358,7 @@ export default function GovernancePage() {
         variant: 'destructive' as const,
         className: '',
         priority: 0,
+        icon: 'alert' as const,
       };
     }
     if (due.getTime() === today.getTime()) {
@@ -350,6 +367,7 @@ export default function GovernancePage() {
         variant: 'secondary' as const,
         className: 'bg-warning text-warning-foreground',
         priority: 1,
+        icon: 'warning' as const,
       };
     }
     return {
@@ -357,6 +375,7 @@ export default function GovernancePage() {
       variant: 'secondary' as const,
       className: 'bg-success text-success-foreground',
       priority: 2,
+      icon: 'check' as const,
     };
   };
 
@@ -992,13 +1011,45 @@ export default function GovernancePage() {
                           <span className="text-xs text-muted-foreground">{situationSummary}</span>
                         </div>
                       </td>
-                      <td className="p-4 text-sm text-muted-foreground">{responsible}</td>
+                      <td className="p-4">
+                        {issue.responsible || issue.responsibleName ? (
+                          <div className="space-y-1">
+                            <span className="text-sm font-medium text-foreground">{responsible}</span>
+                            {issue.responsibleType && issue.responsibleId && (
+                              <div className="text-xs text-muted-foreground">
+                                {(governanceTexts.governance.assignDialog.responsibleTypeOptions as Record<string, string>)[issue.responsibleType] ?? issue.responsibleType}: {issue.responsibleId}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            <span className="text-sm font-medium text-warning">{governanceTexts.governance.filters.unassigned}</span>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAssignTarget(issue);
+                              }}
+                              className="w-fit"
+                            >
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              {governanceTexts.governance.list.actionAssign}
+                            </Button>
+                          </div>
+                        )}
+                      </td>
                       <td className="p-4">
                         <div className="flex flex-col gap-1">
-                          <Badge variant={slaStatus.variant} className={slaStatus.className}>
+                          <Badge variant={slaStatus.variant} className={`${slaStatus.className} flex items-center gap-1 w-fit`}>
+                            {slaStatus.icon === 'alert' && <AlertOctagon className="h-3 w-3" />}
+                            {slaStatus.icon === 'warning' && <Clock className="h-3 w-3" />}
+                            {slaStatus.icon === 'check' && <CheckCircle2 className="h-3 w-3" />}
                             {slaStatus.label}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">{dueDate}</span>
+                          {issue.status !== 'RESOLVED' && issue.status !== 'IGNORED' && (
+                            <span className="text-xs text-muted-foreground">{dueDate}</span>
+                          )}
                         </div>
                       </td>
                       <td className="p-4">
