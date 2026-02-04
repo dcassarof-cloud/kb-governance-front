@@ -175,6 +175,7 @@ export default function GovernancePage() {
   useEffect(() => {
     const responsible = searchParams.get('responsible') ?? '';
     const assignTo = searchParams.get('assignTo') ?? '';
+    const assignIssueId = searchParams.get('assignIssueId') ?? '';
     const systemCode = searchParams.get('system') ?? '';
     const status = searchParams.get('status') ?? '';
     const type = searchParams.get('type') ?? '';
@@ -200,6 +201,17 @@ export default function GovernancePage() {
     if (assignTo) {
       setAssignValue(assignTo);
       setAssignResponsibleId(assignTo);
+    }
+
+    if (assignIssueId) {
+      governanceService
+        .getIssueById(assignIssueId)
+        .then((issue) => setAssignTarget(issue))
+        .catch((err) => {
+          const message =
+            err instanceof Error ? err.message : governanceTexts.governance.toasts.loadError;
+          toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+        });
     }
   }, [searchParams]);
 

@@ -11,6 +11,52 @@ export interface DashboardSummary {
   byStatus: StatusStats[];
 }
 
+export interface DashboardGovernanceDto {
+  summary: DashboardGovernanceSummary;
+  systemsAtRisk: DashboardGovernanceSystem[];
+  overdueToday: DashboardGovernanceIssueItem[];
+  unassigned: DashboardGovernanceIssueItem[];
+  trends: DashboardGovernanceTrend[];
+}
+
+export interface DashboardGovernanceSummary {
+  openIssues: number;
+  errorIssues: number;
+  overdueIssues: number;
+  unassignedIssues: number;
+  slaCompliancePercent: number;
+}
+
+export interface DashboardGovernanceSystem {
+  systemCode: string;
+  systemName: string;
+  healthScore: number;
+  errorIssues: number;
+  overdueIssues: number;
+  unassignedIssues: number;
+}
+
+export interface DashboardGovernanceIssueItem {
+  id: string;
+  title?: string | null;
+  systemCode?: string | null;
+  systemName?: string | null;
+  type?: IssueType | string | null;
+  severity?: IssueSeverity | string | null;
+  slaDueAt?: string | null;
+  createdAt?: string | null;
+  slaDays?: number | null;
+  ageDays?: number | null;
+}
+
+export interface DashboardGovernanceTrend {
+  key: 'openIssues' | 'resolvedIssues' | 'sla';
+  label: string;
+  delta: number;
+  direction: 'up' | 'down';
+  context?: string | null;
+}
+
 export interface SystemStats {
   systemCode: string;
   systemName: string;
