@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CalendarClock, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CalendarClock, Loader2, UserPlus, ClipboardCheck, RefreshCw, AlertOctagon, Clock, CheckCircle2 } from 'lucide-react';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -17,11 +17,166 @@ import {
   GovernanceIssueHistoryDto,
   DuplicateGroup,
   IssueSeverity,
+  IssueStatus,
+  GovernanceResponsible,
 } from '@/types';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
 
 const ISSUE_TYPE_LABELS: Record<string, string> = governanceTexts.issueTypes;
+const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
+
+/**
+ * Transforma campos técnicos do histórico em frases humanas legíveis
+ */
+const humanizeHistoryField = (field: string | null | undefined): string => {
+  if (!field) return 'Atualização geral';
+
+  const fieldMappings: Record<string, string> = {
+    'status': 'Situação',
+    'responsible': 'Responsável',
+    'responsible_id': 'Responsável',
+    'responsible_type': 'Tipo de responsável',
+    'responsibleId': 'Responsável',
+    'responsibleType': 'Tipo de responsável',
+    'responsibleName': 'Nome do responsável',
+    'due_date': 'Prazo',
+    'dueDate': 'Prazo',
+    'sla_due_at': 'Prazo SLA',
+    'slaDueAt': 'Prazo SLA',
+    'sla_days': 'Dias SLA',
+    'slaDays': 'Dias SLA',
+    'severity': 'Impacto',
+    'priority': 'Prioridade',
+    'type': 'Tipo',
+    'description': 'Descrição',
+    'recommendation': 'Recomendação',
+    'article_id': 'Manual',
+    'articleId': 'Manual',
+    'system_code': 'Sistema',
+    'systemCode': 'Sistema',
+    'ignored_reason': 'Motivo do descarte',
+    'ignoredReason': 'Motivo do descarte',
+    'note': 'Observação',
+    'created_at': 'Data de criação',
+    'createdAt': 'Data de criação',
+    'updated_at': 'Data de atualização',
+    'updatedAt': 'Data de atualização',
+  };
+
+  const normalizedField = field.replace(/_/g, '').toLowerCase();
+  for (const [key, label] of Object.entries(fieldMappings)) {
+    if (key.replace(/_/g, '').toLowerCase() === normalizedField) {
+      return label;
+    }
+  }
+
+  // Fallback: capitaliza o campo
+  return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+/**
+ * Transforma valores técnicos em valores legíveis
+ */
+const humanizeHistoryValue = (value: string | null | undefined, field?: string | null): string => {
+  if (value === null || value === undefined || value === '') return '(vazio)';
+
+  // Status
+  if (governanceTexts.status.labels[value as IssueStatus]) {
+    return governanceTexts.status.labels[value as IssueStatus];
+  }
+
+  // Severity
+  if (governanceTexts.severity.labels[value as IssueSeverity]) {
+    return governanceTexts.severity.labels[value as IssueSeverity];
+  }
+
+  // Issue types
+  if (governanceTexts.issueTypes[value as keyof typeof governanceTexts.issueTypes]) {
+    return governanceTexts.issueTypes[value as keyof typeof governanceTexts.issueTypes];
+  }
+
+  // Responsible types
+  if (['USER', 'TEAM', 'ROLE'].includes(value)) {
+    const types: Record<string, string> = governanceTexts.governance.assignDialog.responsibleTypeOptions;
+    return types[value] || value;
+  }
+
+  // Dates - try to format
+  if (field?.toLowerCase().includes('date') || field?.toLowerCase().includes('at')) {
+    try {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toLocaleDateString('pt-BR');
+      }
+    } catch {
+      // não é data, retorna valor original
+    }
+  }
+
+  return value;
+};
+
+/**
+ * Gera uma frase humana completa para uma entrada do histórico
+ */
+const generateHumanPhrase = (entry: GovernanceIssueHistoryDto): string => {
+  const field = entry.field;
+  const oldValue = entry.oldValue;
+  const newValue = entry.newValue;
+  const status = entry.status;
+
+  // Se é uma mudança de status direto
+  if (status && !field) {
+    const statusLabel = governanceTexts.status.labels[status as IssueStatus] || status;
+    return `Situação alterada para: ${statusLabel}`;
+  }
+
+  // Se é uma mudança de campo
+  if (field) {
+    const fieldLabel = humanizeHistoryField(field);
+    const oldLabel = humanizeHistoryValue(oldValue, field);
+    const newLabel = humanizeHistoryValue(newValue, field);
+
+    // Responsável
+    if (field.toLowerCase().includes('responsible') && !field.toLowerCase().includes('type')) {
+      if (!oldValue || oldValue === '') {
+        return `Responsável atribuído: ${newLabel}`;
+      }
+      return `Responsável alterado: ${oldLabel} → ${newLabel}`;
+    }
+
+    // Status
+    if (field.toLowerCase() === 'status') {
+      return `Situação alterada: ${oldLabel} → ${newLabel}`;
+    }
+
+    // Due date / SLA
+    if (field.toLowerCase().includes('due') || field.toLowerCase().includes('sla')) {
+      if (!oldValue || oldValue === '') {
+        return `${fieldLabel} definido: ${newLabel}`;
+      }
+      return `${fieldLabel} alterado: ${oldLabel} → ${newLabel}`;
+    }
+
+    // Genérico
+    if (!oldValue || oldValue === '') {
+      return `${fieldLabel} definido: ${newLabel}`;
+    }
+    return `${fieldLabel} alterado: ${oldLabel} → ${newLabel}`;
+  }
+
+  // Note ou observação
+  if (entry.note) {
+    return entry.note;
+  }
+
+  return 'Registro atualizado';
+};
 
 export default function GovernanceIssueDetailPage() {
   const { id } = useParams();
@@ -32,6 +187,18 @@ export default function GovernanceIssueDetailPage() {
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // States para ações (atribuição e status)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignValue, setAssignValue] = useState('');
+  const [assignResponsibleType, setAssignResponsibleType] = useState('USER');
+  const [assignResponsibleId, setAssignResponsibleId] = useState('');
+  const [assignDueDate, setAssignDueDate] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusValue, setStatusValue] = useState<IssueStatus>('OPEN');
+  const [statusIgnoredReason, setStatusIgnoredReason] = useState('');
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return governanceTexts.general.notAvailable;
@@ -61,14 +228,34 @@ export default function GovernanceIssueDetailPage() {
   };
 
   const getSlaStatus = (currentIssue: GovernanceIssueDetail | null) => {
+    // Se status é fechado (RESOLVED ou IGNORED), mostrar badge especial
+    if (currentIssue?.status === 'RESOLVED' || currentIssue?.status === 'IGNORED') {
+      return {
+        label: governanceTexts.status.labels[currentIssue.status],
+        variant: 'secondary' as const,
+        className: 'bg-muted text-muted-foreground',
+        icon: 'check' as const,
+      };
+    }
+
     const dueDateValue = getDueDateValue(currentIssue);
     if (!dueDateValue) {
-      return { label: governanceTexts.governance.statusLabels.noDueDate, variant: 'secondary' as const, className: 'bg-muted text-muted-foreground' };
+      return {
+        label: governanceTexts.governance.statusLabels.noDueDate,
+        variant: 'secondary' as const,
+        className: 'bg-muted text-muted-foreground',
+        icon: 'none' as const,
+      };
     }
 
     const dueDate = new Date(dueDateValue);
     if (Number.isNaN(dueDate.getTime())) {
-      return { label: governanceTexts.governance.statusLabels.noDueDate, variant: 'secondary' as const, className: 'bg-muted text-muted-foreground' };
+      return {
+        label: governanceTexts.governance.statusLabels.noDueDate,
+        variant: 'secondary' as const,
+        className: 'bg-muted text-muted-foreground',
+        icon: 'none' as const,
+      };
     }
 
     const today = startOfToday();
@@ -76,12 +263,108 @@ export default function GovernanceIssueDetailPage() {
     due.setHours(0, 0, 0, 0);
 
     if (due < today) {
-      return { label: governanceTexts.governance.statusLabels.overdue, variant: 'destructive' as const, className: '' };
+      return {
+        label: governanceTexts.governance.statusLabels.overdue,
+        variant: 'destructive' as const,
+        className: '',
+        icon: 'alert' as const,
+      };
     }
     if (due.getTime() === today.getTime()) {
-      return { label: governanceTexts.governance.statusLabels.dueToday, variant: 'secondary' as const, className: 'bg-warning text-warning-foreground' };
+      return {
+        label: governanceTexts.governance.statusLabels.dueToday,
+        variant: 'secondary' as const,
+        className: 'bg-warning text-warning-foreground',
+        icon: 'warning' as const,
+      };
     }
-    return { label: governanceTexts.governance.statusLabels.onTrack, variant: 'secondary' as const, className: 'bg-success text-success-foreground' };
+    return {
+      label: governanceTexts.governance.statusLabels.onTrack,
+      variant: 'secondary' as const,
+      className: 'bg-success text-success-foreground',
+      icon: 'check' as const,
+    };
+  };
+
+  const formatInputDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleAssign = async () => {
+    if (!issue) return;
+    const trimmedId = assignResponsibleId.trim();
+    const trimmedName = assignValue.trim();
+    if (!trimmedId) {
+      toast({
+        title: governanceTexts.general.attentionTitle,
+        description: governanceTexts.governance.assignDialog.missingResponsibleId,
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const updated = await governanceService.assignIssue(issue.id, trimmedName || trimmedId, {
+        dueDate: assignDueDate || undefined,
+        responsibleType: assignResponsibleType,
+        responsibleId: trimmedId,
+      });
+      setIssue((prev) => prev ? {
+        ...prev,
+        responsible: updated?.responsible ?? (trimmedName || trimmedId),
+        responsibleId: updated?.responsibleId ?? trimmedId,
+        responsibleType: updated?.responsibleType ?? assignResponsibleType,
+        responsibleName: updated?.responsibleName ?? trimmedName,
+      } : prev);
+      toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
+      setAssignDialogOpen(false);
+      setAssignValue('');
+      setAssignResponsibleId('');
+      setAssignDueDate('');
+      // Recarregar histórico
+      const newHistory = await governanceService.getIssueHistory(issue.id);
+      setHistory(newHistory);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.assignError;
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStatusChange = async () => {
+    if (!issue) return;
+    if (statusValue === 'IGNORED' && !statusIgnoredReason.trim()) {
+      toast({
+        title: governanceTexts.general.attentionTitle,
+        description: governanceTexts.governance.statusDialog.ignoredReasonRequired,
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const updated = await governanceService.changeStatus(
+        issue.id,
+        statusValue,
+        statusValue === 'IGNORED' ? statusIgnoredReason.trim() : undefined
+      );
+      setIssue((prev) => prev ? { ...prev, status: updated?.status ?? statusValue } : prev);
+      toast({ title: governanceTexts.general.update, description: governanceTexts.governance.statusDialog.success });
+      setStatusDialogOpen(false);
+      setStatusIgnoredReason('');
+      // Recarregar histórico
+      const newHistory = await governanceService.getIssueHistory(issue.id);
+      setHistory(newHistory);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.statusError;
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const loadDuplicateGroup = async (currentIssue: GovernanceIssueDetail) => {
@@ -149,27 +432,17 @@ export default function GovernanceIssueDetailPage() {
 
   const timeline = useMemo(() => {
     return history.map((entry, index) => {
-      const field = entry.field ? entry.field.replace(/_/g, ' ').toLowerCase() : null;
-      const oldValue = entry.oldValue ?? null;
-      const newValue = entry.newValue ?? null;
-      const status = entry.status ?? null;
-      const changeLabel = field
-        ? `${field.charAt(0).toUpperCase()}${field.slice(1)}`
-        : status
-          ? governanceTexts.issueDetail.statusLabel
-          : governanceTexts.issueDetail.updateLabel;
-      const values =
-        oldValue || newValue
-          ? `${oldValue ?? governanceTexts.general.notAvailable} → ${newValue ?? governanceTexts.general.notAvailable}`
-          : status ?? entry.note ?? governanceTexts.general.notAvailable;
+      const humanPhrase = generateHumanPhrase(entry);
+      const fieldLabel = humanizeHistoryField(entry.field);
 
       return {
         id: entry.id ?? `${entry.changedAt}-${index}`,
         date: formatDateTime(entry.changedAt),
         changedBy: entry.changedBy,
-        label: changeLabel,
-        values,
+        label: fieldLabel,
+        phrase: humanPhrase,
         note: entry.note,
+        field: entry.field,
       };
     });
   }, [history]);
@@ -182,10 +455,39 @@ export default function GovernanceIssueDetailPage() {
         title={governanceTexts.issueDetail.title}
         description={governanceTexts.issueDetail.description}
         actions={
-          <Button variant="outline" onClick={() => navigate('/governance')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {governanceTexts.issueDetail.backToList}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => navigate('/governance')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {governanceTexts.issueDetail.backToList}
+            </Button>
+            {issue && issue.status !== 'RESOLVED' && issue.status !== 'IGNORED' && (
+              <>
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    setAssignValue(issue.responsibleName || issue.responsible || '');
+                    setAssignResponsibleId(issue.responsibleId || '');
+                    setAssignResponsibleType(issue.responsibleType || 'USER');
+                    setAssignDialogOpen(true);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {governanceTexts.governance.list.actionAssign}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setStatusValue(issue.status || 'OPEN');
+                    setStatusIgnoredReason('');
+                    setStatusDialogOpen(true);
+                  }}
+                >
+                  <ClipboardCheck className="h-4 w-4 mr-2" />
+                  {governanceTexts.governance.list.actionStatus}
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -264,17 +566,24 @@ export default function GovernanceIssueDetailPage() {
                   {governanceTexts.issueDetail.dueDateLabel}
                 </div>
                 <div className="mt-2">
-                  <Badge variant={getSlaStatus(issue).variant} className={getSlaStatus(issue).className}>
+                  <Badge variant={getSlaStatus(issue).variant} className={`${getSlaStatus(issue).className} flex items-center gap-1 w-fit`}>
+                    {getSlaStatus(issue).icon === 'alert' && <AlertOctagon className="h-3 w-3" />}
+                    {getSlaStatus(issue).icon === 'warning' && <Clock className="h-3 w-3" />}
+                    {getSlaStatus(issue).icon === 'check' && <CheckCircle2 className="h-3 w-3" />}
                     {getSlaStatus(issue).label}
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {governanceTexts.issueDetail.dueDatePrefix} {formatDate(getDueDateValue(issue))}
-                </p>
-                {issue.slaDays !== null && issue.slaDays !== undefined && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {governanceTexts.issueDetail.slaDaysPrefix} {issue.slaDays} {governanceTexts.issueDetail.daysLabel}
-                  </p>
+                {issue.status !== 'RESOLVED' && issue.status !== 'IGNORED' && (
+                  <>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {governanceTexts.issueDetail.dueDatePrefix} {formatDate(getDueDateValue(issue))}
+                    </p>
+                    {issue.slaDays !== null && issue.slaDays !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {governanceTexts.issueDetail.slaDaysPrefix} {issue.slaDays} {governanceTexts.issueDetail.daysLabel}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -380,14 +689,15 @@ export default function GovernanceIssueDetailPage() {
               <ul className="space-y-3">
                 {timeline.map((entry) => (
                   <li key={entry.id} className="rounded-md border border-border bg-muted/40 p-3">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium">{entry.label}</p>
-                        <p className="text-xs text-muted-foreground">{entry.values}</p>
-                        {entry.note && <p className="text-xs text-muted-foreground mt-1">{entry.note}</p>}
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">{entry.phrase}</p>
+                        {entry.note && entry.note !== entry.phrase && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">"{entry.note}"</p>
+                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground text-right">
-                        <div>{entry.date}</div>
+                      <div className="text-xs text-muted-foreground text-right whitespace-nowrap">
+                        <div className="font-medium">{entry.date}</div>
                         {entry.changedBy && <div>{governanceTexts.issueDetail.changedByLabel} {entry.changedBy}</div>}
                       </div>
                     </div>
@@ -398,6 +708,157 @@ export default function GovernanceIssueDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Dialog de Atribuição */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{governanceTexts.governance.assignDialog.responsibleLabel}</Label>
+              <Input
+                placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
+                value={assignValue}
+                onChange={(e) => setAssignValue(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
+              <Select value={assignResponsibleType} onValueChange={setAssignResponsibleType}>
+                <SelectTrigger>
+                  <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+                  <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
+                  <SelectItem value="ROLE">{governanceTexts.governance.assignDialog.responsibleTypeOptions.ROLE}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
+              <Input
+                placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
+                value={assignResponsibleId}
+                onChange={(e) => setAssignResponsibleId(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>{governanceTexts.governance.assignDialog.dueDateLabel}</Label>
+              <Input
+                type="date"
+                value={assignDueDate}
+                onChange={(e) => setAssignDueDate(e.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setAssignDueDate(formatInputDate(new Date()))}>
+                  {governanceTexts.governance.assignDialog.quickDateToday}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const date = new Date();
+                    date.setDate(date.getDate() + 3);
+                    setAssignDueDate(formatInputDate(date));
+                  }}
+                >
+                  {governanceTexts.governance.assignDialog.quickDateThreeDays}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const date = new Date();
+                    date.setDate(date.getDate() + 7);
+                    setAssignDueDate(formatInputDate(date));
+                  }}
+                >
+                  {governanceTexts.governance.assignDialog.quickDateSevenDays}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
+              {governanceTexts.governance.assignDialog.cancel}
+            </Button>
+            <Button onClick={handleAssign} disabled={actionLoading}>
+              {actionLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {governanceTexts.governance.assignDialog.saving}
+                </span>
+              ) : (
+                governanceTexts.governance.assignDialog.save
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Status */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{governanceTexts.governance.statusDialog.statusLabel}</Label>
+              <Select value={statusValue} onValueChange={(value) => setStatusValue(value as IssueStatus)}>
+                <SelectTrigger>
+                  <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {ISSUE_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {governanceTexts.status.labels[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {statusValue === 'IGNORED' && (
+              <div className="space-y-2">
+                <Label>{governanceTexts.governance.statusDialog.ignoredReasonLabel}</Label>
+                <Input
+                  placeholder={governanceTexts.governance.statusDialog.ignoredReasonPlaceholder}
+                  value={statusIgnoredReason}
+                  onChange={(e) => setStatusIgnoredReason(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+              {governanceTexts.governance.statusDialog.cancel}
+            </Button>
+            <Button onClick={handleStatusChange} disabled={actionLoading}>
+              {actionLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {governanceTexts.governance.statusDialog.saving}
+                </span>
+              ) : (
+                governanceTexts.governance.statusDialog.save
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
