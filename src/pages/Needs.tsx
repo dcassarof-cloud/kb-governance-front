@@ -29,6 +29,7 @@ import { systemsService } from '@/services/systems.service';
 import { toast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
 import { IssueSeverity, KbSystem, NeedDetail, NeedItem, PaginatedResponse } from '@/types';
+import { governanceTexts } from '@/governanceTexts';
 
 const SEVERITY_OPTIONS: IssueSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
@@ -84,9 +85,9 @@ export default function NeedsPage() {
 
       setNeedsData(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar needs';
+      const message = err instanceof Error ? err.message : governanceTexts.needs.errors.loadNeeds;
       setNeedsError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setNeedsLoading(false);
     }
@@ -101,9 +102,9 @@ export default function NeedsPage() {
       const detail = await needsService.getNeed(needId);
       setDetailData(detail);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar detalhe';
+      const message = err instanceof Error ? err.message : governanceTexts.needs.detail.error;
       setDetailError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setDetailLoading(false);
     }
@@ -115,15 +116,15 @@ export default function NeedsPage() {
     try {
       if (action === 'task') {
         await needsService.createInternalTask(detailId);
-        toast({ title: 'Tarefa criada', description: 'A tarefa interna foi registrada com sucesso.' });
+        toast({ title: governanceTexts.needs.detail.taskSuccess, description: governanceTexts.needs.detail.taskDescription });
       } else {
         await needsService.createMasterTicket(detailId);
-        toast({ title: 'Ticket mestre criado', description: 'O ticket mestre foi registrado com sucesso.' });
+        toast({ title: governanceTexts.needs.detail.ticketSuccess, description: governanceTexts.needs.detail.ticketDescription });
       }
       await fetchNeeds(filters, page);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao executar ação';
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      const message = err instanceof Error ? err.message : governanceTexts.needs.errors.actionError;
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setActionLoading(null);
       setPendingAction(null);
@@ -176,40 +177,42 @@ export default function NeedsPage() {
   const totalPages = needsData?.totalPages ?? 0;
 
   const formatDate = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return '-';
+    if (!dateStr) return governanceTexts.general.notAvailable;
     try {
       return new Date(dateStr).toLocaleDateString('pt-BR');
     } catch {
-      return '-';
+      return governanceTexts.general.notAvailable;
     }
   };
 
   const formatWindow = (need: NeedItem) => {
     const start = formatDate(need.windowStart);
     const end = formatDate(need.windowEnd);
-    if (start === '-' && end === '-') return 'Sem janela definida';
+    if (start === governanceTexts.general.notAvailable && end === governanceTexts.general.notAvailable) {
+      return governanceTexts.needs.list.noWindow;
+    }
     return `${start} → ${end}`;
   };
 
   return (
     <MainLayout>
-      <PageHeader title="Needs" description="Demandas operacionais abertas para a base de conhecimento" />
+      <PageHeader title={governanceTexts.needs.title} description={governanceTexts.needs.description} />
 
       <div className="card-metric mb-6">
-        <h3 className="font-semibold mb-4">Filtros disponíveis</h3>
+        <h3 className="font-semibold mb-4">{governanceTexts.needs.filtersTitle}</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-2">
-            <Label>Sistema</Label>
+            <Label>{governanceTexts.needs.filters.system}</Label>
             <Select
               value={filters.systemCode || 'ALL'}
               onValueChange={(value) => handleFilterChange('systemCode', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todos os sistemas" />
+                <SelectValue placeholder={governanceTexts.needs.filters.systemPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.needs.filters.systemPlaceholder}</SelectItem>
                 {systemOptions.map((system) => (
                   <SelectItem key={system} value={system}>
                     {system}
@@ -220,19 +223,19 @@ export default function NeedsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Status</Label>
+            <Label>{governanceTexts.needs.filters.status}</Label>
             <Select
               value={filters.status || 'ALL'}
               onValueChange={(value) => handleFilterChange('status', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todos os status" />
+                <SelectValue placeholder={governanceTexts.needs.filters.statusPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.needs.filters.statusPlaceholder}</SelectItem>
                 {statusOptions.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status}
+                    {governanceTexts.status.labels[status] || status}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -240,19 +243,19 @@ export default function NeedsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Severidade</Label>
+            <Label>{governanceTexts.needs.filters.severity}</Label>
             <Select
               value={filters.severity || 'ALL'}
               onValueChange={(value) => handleFilterChange('severity', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todas as severidades" />
+                <SelectValue placeholder={governanceTexts.needs.filters.severityPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todas</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.needs.filters.severityPlaceholder}</SelectItem>
                 {SEVERITY_OPTIONS.map((severity) => (
                   <SelectItem key={severity} value={severity}>
-                    {severity}
+                    {governanceTexts.severity.labels[severity]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -260,7 +263,7 @@ export default function NeedsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Janela (início)</Label>
+            <Label>{governanceTexts.needs.filters.startDate}</Label>
             <Input
               type="date"
               value={filters.windowStart || ''}
@@ -269,7 +272,7 @@ export default function NeedsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Janela (fim)</Label>
+            <Label>{governanceTexts.needs.filters.endDate}</Label>
             <Input
               type="date"
               value={filters.windowEnd || ''}
@@ -292,21 +295,21 @@ export default function NeedsPage() {
               });
             }}
           >
-            Limpar filtros
+            {governanceTexts.general.clearFilters}
           </Button>
 
           <Button variant="secondary" onClick={() => fetchNeeds(filters, page)}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Atualizar lista
+            {governanceTexts.general.refreshList}
           </Button>
         </div>
       </div>
 
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Needs em aberto</h3>
+          <h3 className="font-semibold">{governanceTexts.needs.list.title}</h3>
           <span className="text-sm text-muted-foreground">
-            {needs.length} need{needs.length !== 1 ? 's' : ''}
+            {governanceTexts.governance.list.count(needs.length)}
           </span>
         </div>
 
@@ -315,31 +318,31 @@ export default function NeedsPage() {
         ) : needsError ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar needs</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.needs.errors.loadNeeds}</h3>
             <p className="text-sm text-muted-foreground mb-4">{needsError}</p>
             <Button onClick={() => fetchNeeds(filters, page)}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </Button>
           </div>
         ) : needs.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
-            title="Nenhum need aberto"
-            description="Não há necessidades registradas para o período selecionado."
+            title={governanceTexts.needs.list.emptyTitle}
+            description={governanceTexts.needs.list.emptyDescription}
           />
         ) : (
           <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-4 font-semibold text-sm">Sistema</th>
-                  <th className="text-left p-4 font-semibold text-sm">Status</th>
-                  <th className="text-left p-4 font-semibold text-sm">Severidade</th>
-                  <th className="text-left p-4 font-semibold text-sm">Janela</th>
-                  <th className="text-left p-4 font-semibold text-sm">Quantidade</th>
-                  <th className="text-left p-4 font-semibold text-sm">Motivo</th>
-                  <th className="text-left p-4 font-semibold text-sm">Ações</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.system}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.status}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.severity}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.windowLabel}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.quantityLabel}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.reasonLabel}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.actionsLabel}</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,7 +351,7 @@ export default function NeedsPage() {
                   return (
                     <tr key={needId} className="border-t border-border hover:bg-muted/30 transition-colors">
                       <td className="p-4 text-sm text-muted-foreground">
-                        {need.systemName || need.systemCode || '-'}
+                        {need.systemName || need.systemCode || governanceTexts.general.notAvailable}
                       </td>
                       <td className="p-4">
                         <StatusBadge status={need.status || 'OPEN'} />
@@ -357,15 +360,15 @@ export default function NeedsPage() {
                         <StatusBadge status={need.severity || 'LOW'} />
                       </td>
                       <td className="p-4 text-sm text-muted-foreground">{formatWindow(need)}</td>
-                      <td className="p-4 text-sm text-muted-foreground">{need.quantity ?? '-'}</td>
+                      <td className="p-4 text-sm text-muted-foreground">{need.quantity ?? governanceTexts.general.notAvailable}</td>
                       <td className="p-4">
                         <div className="line-clamp-2 text-sm text-muted-foreground">
-                          {need.reason || 'Motivo não informado'}
+                          {need.reason || governanceTexts.needs.list.noReason}
                         </div>
                       </td>
                       <td className="p-4">
                         <Button variant="outline" size="sm" onClick={() => openDetail(needId)}>
-                          Ver detalhe
+                          {governanceTexts.governance.list.actionDetail}
                         </Button>
                       </td>
                     </tr>
@@ -380,12 +383,12 @@ export default function NeedsPage() {
       {!needsLoading && !needsError && totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Página {page} de {totalPages}
+            {governanceTexts.general.page(page, totalPages)}
           </p>
 
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-              Anterior
+              {governanceTexts.general.previous}
             </Button>
 
             <Button
@@ -394,7 +397,7 @@ export default function NeedsPage() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
             >
-              Próxima
+              {governanceTexts.general.next}
             </Button>
           </div>
         </div>
@@ -413,13 +416,13 @@ export default function NeedsPage() {
       >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Detalhe do need</DialogTitle>
+            <DialogTitle>{governanceTexts.needs.detail.title}</DialogTitle>
           </DialogHeader>
 
           {detailLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Carregando informações...
+              {governanceTexts.needs.detail.loading}
             </div>
           ) : detailError ? (
             <div className="text-sm text-destructive">{detailError}</div>
@@ -427,40 +430,40 @@ export default function NeedsPage() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Sistema</p>
-                  <p className="font-medium">{detailData.systemName || detailData.systemCode || '-'}</p>
+                  <p className="text-muted-foreground">{governanceTexts.needs.filters.system}</p>
+                  <p className="font-medium">{detailData.systemName || detailData.systemCode || governanceTexts.general.notAvailable}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Status</p>
+                  <p className="text-muted-foreground">{governanceTexts.needs.filters.status}</p>
                   <StatusBadge status={detailData.status || 'OPEN'} />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Severidade</p>
+                  <p className="text-muted-foreground">{governanceTexts.needs.filters.severity}</p>
                   <StatusBadge status={detailData.severity || 'LOW'} />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Janela</p>
+                  <p className="text-muted-foreground">{governanceTexts.needs.list.windowLabel}</p>
                   <p className="font-medium">{formatWindow(detailData)}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Quantidade</p>
-                  <p className="font-medium">{detailData.quantity ?? '-'}</p>
+                  <p className="text-muted-foreground">{governanceTexts.needs.list.quantityLabel}</p>
+                  <p className="font-medium">{detailData.quantity ?? governanceTexts.general.notAvailable}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-muted-foreground">Gerado em</p>
+                  <p className="text-muted-foreground">{governanceTexts.needs.detail.createdAtLabel}</p>
                   <p className="font-medium">{formatDate(detailData.createdAt)}</p>
                 </div>
               </div>
 
               <div className="rounded-md border border-border bg-muted/30 p-4 text-sm">
-                <p className="text-muted-foreground mb-1">Por que foi gerado</p>
+                <p className="text-muted-foreground mb-1">{governanceTexts.needs.detail.reasonTitle}</p>
                 <p className="font-medium">
-                  {detailData.description || detailData.reason || 'Motivo não informado pelo backend.'}
+                  {detailData.description || detailData.reason || governanceTexts.needs.detail.noReason}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Exemplos de tickets</p>
+                <p className="text-sm font-semibold">{governanceTexts.needs.detail.examplesTitle}</p>
                 {detailData.examples && detailData.examples.length > 0 ? (
                   <div className="space-y-2">
                     {detailData.examples.map((example, idx) => (
@@ -468,46 +471,46 @@ export default function NeedsPage() {
                         key={`${example.id || idx}`}
                         className="rounded-md border border-border bg-muted/40 p-3 text-sm"
                       >
-                        <p className="font-medium">{example.title || 'Ticket sem título'}</p>
+                        <p className="font-medium">{example.title || governanceTexts.needs.detail.noExampleTitle}</p>
                         <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                          <span>Sistema: {example.systemCode || 'N/A'}</span>
-                          <span>Aberto em: {formatDate(example.createdAt)}</span>
+                          <span>{governanceTexts.needs.filters.system}: {example.systemCode || governanceTexts.general.notAvailable}</span>
+                          <span>{governanceTexts.needs.detail.openedAtLabel}: {formatDate(example.createdAt)}</span>
                           {example.url ? (
                             <a href={example.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                              Abrir ticket
+                              {governanceTexts.needs.detail.viewTicket}
                             </a>
                           ) : (
-                            <span>Link indisponível</span>
+                            <span>{governanceTexts.general.notAvailable}</span>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground">Nenhum exemplo retornado pelo backend.</div>
+                  <div className="text-sm text-muted-foreground">{governanceTexts.needs.detail.noExamples}</div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">Selecione um need para ver detalhes.</div>
+            <div className="text-sm text-muted-foreground">{governanceTexts.needs.detail.selectPrompt}</div>
           )}
 
           <DialogFooter className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setDetailId(null)}>
-              Fechar
+              {governanceTexts.general.close}
             </Button>
             <Button
               variant="secondary"
               onClick={() => setPendingAction('task')}
               disabled={detailLoading || !detailData}
             >
-              Criar tarefa interna
+              {governanceTexts.needs.actions.createTask}
             </Button>
             <Button
               onClick={() => setPendingAction('ticket')}
               disabled={detailLoading || !detailData}
             >
-              Criar ticket mestre
+              {governanceTexts.needs.actions.createTicket}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -516,20 +519,20 @@ export default function NeedsPage() {
       <AlertDialog open={Boolean(pendingAction)} onOpenChange={(open) => !open && setPendingAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar ação</AlertDialogTitle>
+            <AlertDialogTitle>{governanceTexts.needs.actions.confirmTitle}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction === 'task'
-                ? 'Deseja criar uma tarefa interna para este need?'
-                : 'Deseja criar um ticket mestre para este need?'}
+                ? governanceTexts.needs.actions.confirmTask
+                : governanceTexts.needs.actions.confirmTicket}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{governanceTexts.general.cancel}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => pendingAction && handleAction(pendingAction)}
               disabled={Boolean(pendingAction && actionLoading === pendingAction)}
             >
-              {actionLoading ? 'Processando...' : 'Confirmar'}
+              {actionLoading ? governanceTexts.needs.actions.processing : governanceTexts.needs.actions.confirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

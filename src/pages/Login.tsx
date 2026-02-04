@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authService } from '@/services/auth.service';
 import { toast } from '@/hooks/use-toast';
+import { governanceTexts } from '@/governanceTexts';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -21,10 +22,10 @@ export default function LoginPage() {
     const result = await authService.login(email, password);
     
     if (result.success) {
-      toast({ title: 'Login realizado com sucesso!' });
+      toast({ title: governanceTexts.login.success });
       navigate('/dashboard');
     } else {
-      toast({ title: 'Erro', description: result.message, variant: 'destructive' });
+      toast({ title: governanceTexts.login.errorTitle, description: result.message, variant: 'destructive' });
     }
     
     setLoading(false);
@@ -37,35 +38,35 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             <img
               src="/consisa-logo.png"
-              alt="Consisa Sistemas"
+              alt={governanceTexts.login.logoAlt}
               className="h-12 w-auto mx-auto mb-4"
             />
-            <h1 className="text-2xl font-bold">KB Governance</h1>
-            <p className="text-muted-foreground mt-2">Faça login para continuar</p>
+            <h1 className="text-2xl font-bold">{governanceTexts.login.title}</h1>
+            <p className="text-muted-foreground mt-2">{governanceTexts.login.subtitle}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email">{governanceTexts.login.emailLabel}</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                placeholder={governanceTexts.login.emailPlaceholder}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">{governanceTexts.login.passwordLabel}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder={governanceTexts.login.passwordPlaceholder}
                   required
                 />
                 <button
@@ -79,12 +80,12 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Entrando...' : <><LogIn className="h-4 w-4 mr-2" /> Entrar</>}
+              {loading ? governanceTexts.login.submitting : <><LogIn className="h-4 w-4 mr-2" /> {governanceTexts.login.submit}</>}
             </Button>
           </form>
 
           <p className="text-xs text-muted-foreground text-center mt-6">
-            Demo: admin@consisa.com.br / admin123
+            {governanceTexts.login.demo}
           </p>
         </div>
       </div>

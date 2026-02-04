@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { governanceService } from '@/services/governance.service';
 import { GovernanceResponsiblesSummary, GovernanceResponsible } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { governanceTexts } from '@/governanceTexts';
 
 export default function ResponsiblesPage() {
   const navigate = useNavigate();
@@ -26,9 +27,9 @@ export default function ResponsiblesPage() {
       const result = await governanceService.getResponsiblesSummary();
       setSummary(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar responsáveis';
+      const message = err instanceof Error ? err.message : governanceTexts.responsibles.loadError;
       setError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -45,21 +46,21 @@ export default function ResponsiblesPage() {
     return [
       {
         key: 'totalResponsibles',
-        title: 'Total responsáveis',
+        title: governanceTexts.responsibles.summary.totalResponsibles,
         value: summary.totalResponsibles ?? responsibles.length,
         icon: Users,
         variant: 'primary' as const,
       },
       {
         key: 'totalOpenIssues',
-        title: 'Issues abertas',
+        title: governanceTexts.responsibles.summary.openPending,
         value: summary.totalOpenIssues ?? null,
         icon: UserCheck,
         variant: 'warning' as const,
       },
       {
         key: 'totalOverdue',
-        title: 'Overdue totais',
+        title: governanceTexts.responsibles.summary.overdue,
         value: summary.totalOverdue ?? null,
         icon: AlertTriangle,
         variant: 'error' as const,
@@ -77,7 +78,7 @@ export default function ResponsiblesPage() {
 
   return (
     <MainLayout>
-      <PageHeader title="Responsáveis" description="Carga operacional por responsável" />
+      <PageHeader title={governanceTexts.responsibles.title} description={governanceTexts.responsibles.description} />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -89,11 +90,11 @@ export default function ResponsiblesPage() {
         <div className="card-metric mb-6">
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar responsáveis</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.responsibles.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
             <Button onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </Button>
           </div>
         </div>
@@ -113,10 +114,10 @@ export default function ResponsiblesPage() {
 
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Resumo por responsável</h3>
+          <h3 className="font-semibold">{governanceTexts.responsibles.table.title}</h3>
           <Button variant="outline" size="sm" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Atualizar
+            {governanceTexts.general.update}
           </Button>
         </div>
 
@@ -125,29 +126,29 @@ export default function ResponsiblesPage() {
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar responsáveis</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.responsibles.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
             <Button onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </Button>
           </div>
         ) : responsibles.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="Nenhum responsável encontrado"
-            description="Assim que houver responsáveis atribuídos, eles aparecem aqui."
+            title={governanceTexts.responsibles.table.emptyTitle}
+            description={governanceTexts.responsibles.table.emptyDescription}
           />
         ) : (
           <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-4 font-semibold text-sm">Responsável</th>
-                  <th className="text-left p-4 font-semibold text-sm">Abertas</th>
-                  <th className="text-left p-4 font-semibold text-sm">Vencidas</th>
-                  <th className="text-left p-4 font-semibold text-sm">SLA médio</th>
-                  <th className="text-left p-4 font-semibold text-sm">Ações</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.responsible}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.open}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.overdue}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.averageSla}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -169,7 +170,7 @@ export default function ResponsiblesPage() {
                       <td className="p-4 text-muted-foreground">{openIssues}</td>
                       <td className="p-4 text-muted-foreground">{overdue}</td>
                       <td className="p-4 text-muted-foreground">
-                        {sla !== null ? `${sla.toFixed(1)} dias` : '-'}
+                        {sla !== null ? governanceTexts.responsibles.table.days(sla) : governanceTexts.general.notAvailable}
                       </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
@@ -178,10 +179,10 @@ export default function ResponsiblesPage() {
                             variant="outline"
                             onClick={() => handleBacklog(responsible)}
                           >
-                            Ver backlog
+                            {governanceTexts.responsibles.table.actions.backlog}
                           </Button>
                           <Button size="sm" onClick={() => handleQuickAssign(responsible)}>
-                            Atribuir rápido
+                            {governanceTexts.responsibles.table.actions.quickAssign}
                           </Button>
                         </div>
                       </td>
