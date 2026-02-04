@@ -8,8 +8,11 @@ import { dashboardService } from '@/services/dashboard.service';
 import { DashboardSummary } from '@/types';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from '@/hooks/use-toast';
+import { governanceTexts } from '@/governanceTexts';
 
-const COLORS = ['hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(216, 100%, 39%)'];
+const COLORS = ['hsl(220, 14%, 70%)', 'hsl(220, 14%, 85%)'];
+const IMPACT_DEFAULT_COLOR = 'hsl(220, 14%, 80%)';
+const IMPACT_CRITICAL_COLOR = 'hsl(0, 84%, 60%)';
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -32,8 +35,8 @@ export default function DashboardPage() {
       );
       if (invalidMetrics.length > 0) {
         toast({
-          title: 'Aviso',
-          description: 'Algumas métricas vieram inválidas do backend e foram ajustadas para 0.',
+          title: governanceTexts.general.alertTitle,
+          description: governanceTexts.dashboard.errors.invalidMetrics,
         });
       }
       // Normaliza resposta: garante estrutura esperada
@@ -47,9 +50,9 @@ export default function DashboardPage() {
       };
       setData(normalized);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar dashboard';
+      const message = err instanceof Error ? err.message : governanceTexts.dashboard.errors.loadDashboard;
       setError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -63,7 +66,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <MainLayout>
-        <PageHeader title="Dashboard" description="Visão geral da base de conhecimento" />
+        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {[1, 2, 3, 4].map((i) => <LoadingSkeleton key={i} variant="card" />)}
         </div>
@@ -79,18 +82,18 @@ export default function DashboardPage() {
   if (error) {
     return (
       <MainLayout>
-        <PageHeader title="Dashboard" description="Visão geral da base de conhecimento" />
+        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
         <div className="card-metric">
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar dashboard</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.dashboard.errors.loadDashboard}</h3>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
             <button
               onClick={fetchData}
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
               <RefreshCw className="h-4 w-4" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </button>
           </div>
         </div>
@@ -109,53 +112,81 @@ export default function DashboardPage() {
   const issuesPercent = totalArticles > 0 ? Math.round((articlesWithIssues / totalArticles) * 100) : 0;
 
   // Prepara dados para gráficos com guard clauses
-  const pieData = Array.isArray(data?.byStatus)
-    ? data.byStatus.map(s => ({
-        name: s?.status || 'N/A',
-        value: s?.count ?? 0,
-      }))
+  const mapImpactLabel = (label: string) => {
+    if (label in governanceTexts.severity.labels) {
+      return governanceTexts.severity.labels[label as keyof typeof governanceTexts.severity.labels];
+    }
+    return label;
+  };
+
+  const impactData = Array.isArray(data?.byStatus)
+    ? data.byStatus.map((s) => {
+        const rawLabel = s?.status || governanceTexts.general.notAvailable;
+        return {
+          name: mapImpactLabel(rawLabel),
+          value: s?.count ?? 0,
+          rawLabel,
+        };
+      })
     : [];
 
-  const barData = Array.isArray(data?.bySystem)
-    ? data.bySystem.map(s => ({
-        name: s?.systemCode || 'N/A',
-        artigos: s?.count ?? 0,
-      }))
-    : [];
+  const pendingPercentData = [
+    {
+      name: governanceTexts.dashboard.charts.pendingLegend.withPending,
+      value: articlesWithIssues,
+    },
+    {
+      name: governanceTexts.dashboard.charts.pendingLegend.withoutPending,
+      value: Math.max(totalArticles - articlesWithIssues, 0),
+    },
+  ];
+
+  const isCriticalImpact = (label: string) => label.toLowerCase().includes('crític') || label.toUpperCase() === 'CRITICAL';
 
   return (
     <MainLayout>
-      <PageHeader title="Dashboard" description="Visão geral da base de conhecimento" />
+      <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <MetricCard title="Total de Manuais" value={totalArticles} icon={FileText} variant="primary" />
         <MetricCard
-          title="OK"
+          title={governanceTexts.dashboard.metrics.totalManuals}
+          value={totalArticles}
+          icon={FileText}
+          variant="primary"
+        />
+        <MetricCard
+          title={governanceTexts.dashboard.metrics.manualsOk}
           value={okCount}
           icon={CheckCircle}
           variant="success"
-          subtitle={totalArticles > 0 ? `${okPercent}% do total` : undefined}
+          subtitle={totalArticles > 0 ? governanceTexts.dashboard.metrics.percentOfTotal(okPercent) : undefined}
         />
         <MetricCard
-          title="Com Issues"
+          title={governanceTexts.dashboard.metrics.manualsWithPending}
           value={articlesWithIssues}
           icon={AlertTriangle}
           variant="warning"
-          subtitle={totalArticles > 0 ? `${issuesPercent}% do total` : undefined}
+          subtitle={totalArticles > 0 ? governanceTexts.dashboard.metrics.percentWithPending(issuesPercent) : undefined}
         />
-        <MetricCard title="Total de Issues" value={totalIssues} icon={AlertOctagon} variant="error" />
+        <MetricCard
+          title={governanceTexts.dashboard.metrics.totalPending}
+          value={totalIssues}
+          icon={AlertOctagon}
+          variant="error"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card-metric">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" /> Status de Governança
+            <TrendingUp className="h-5 w-5 text-primary" /> {governanceTexts.dashboard.charts.pendingPercentTitle}
           </h3>
-          {pieData.length > 0 ? (
+          <p className="text-sm text-muted-foreground mb-3">{governanceTexts.dashboard.charts.pendingPercentSubtitle}</p>
+          {totalArticles > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
-                  data={pieData}
+                  data={pendingPercentData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -164,7 +195,7 @@ export default function DashboardPage() {
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                 >
-                  {pieData.map((_, index) => (
+                  {pendingPercentData.map((_, index) => (
                     <Cell key={index} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -173,27 +204,35 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-              Sem dados de status disponíveis
+              {governanceTexts.dashboard.charts.noChartData}
             </div>
           )}
         </div>
 
         <div className="card-metric">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" /> Manuais por Sistema
+            <FileText className="h-5 w-5 text-primary" /> {governanceTexts.dashboard.charts.impactDistributionTitle}
           </h3>
-          {barData.length > 0 ? (
+          <p className="text-sm text-muted-foreground mb-3">{governanceTexts.dashboard.charts.impactDistributionSubtitle}</p>
+          {impactData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={barData}>
+              <BarChart data={impactData}>
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Bar dataKey="artigos" fill="hsl(216, 100%, 39%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {impactData.map((item, index) => (
+                    <Cell
+                      key={`${item.name}-${index}`}
+                      fill={isCriticalImpact(item.rawLabel ?? item.name) ? IMPACT_CRITICAL_COLOR : IMPACT_DEFAULT_COLOR}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-              Sem dados de sistemas disponíveis
+              {governanceTexts.dashboard.charts.noChartData}
             </div>
           )}
         </div>

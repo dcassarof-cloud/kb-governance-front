@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { syncService } from '@/services/sync.service';
 import { SyncRun } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { governanceTexts } from '@/governanceTexts';
 
 export default function SyncPage() {
   const [runs, setRuns] = useState<SyncRun[]>([]);
@@ -24,9 +25,9 @@ export default function SyncPage() {
       const normalized = Array.isArray(result) ? result : [];
       setRuns(normalized);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar histórico de sincronizações';
+      const message = err instanceof Error ? err.message : governanceTexts.sync.loadError;
       setError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -38,24 +39,24 @@ export default function SyncPage() {
 
   const handleSync = async () => {
     try {
-      toast({ title: 'Sync iniciado', description: 'Executando sincronização manual...' });
-      await syncService.triggerSync({ mode: 'INCREMENTAL', note: 'Sync manual' });
-      toast({ title: 'Sucesso', description: 'Sincronização concluída com sucesso' });
+      toast({ title: governanceTexts.sync.runStartedTitle, description: governanceTexts.sync.runStartedDescription });
+      await syncService.triggerSync({ mode: 'INCREMENTAL', note: governanceTexts.sync.manualNote });
+      toast({ title: governanceTexts.sync.runSuccessTitle, description: governanceTexts.sync.runSuccessDescription });
       // Recarrega a lista após sync
       fetchData();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao executar sincronização';
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      const message = err instanceof Error ? err.message : governanceTexts.sync.runError;
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     }
   };
 
   // Função segura para formatar data
   const formatDateTime = (dateStr: string | undefined | null): string => {
-    if (!dateStr) return '-';
+    if (!dateStr) return governanceTexts.general.notAvailable;
     try {
       return new Date(dateStr).toLocaleString('pt-BR');
     } catch {
-      return '-';
+      return governanceTexts.general.notAvailable;
     }
   };
 
@@ -70,14 +71,14 @@ export default function SyncPage() {
         <div className="card-metric">
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar dados</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.sync.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
             <button
               onClick={fetchData}
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
               <RefreshCw className="h-4 w-4" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </button>
           </div>
         </div>
@@ -88,8 +89,8 @@ export default function SyncPage() {
       return (
         <EmptyState
           icon={Clock}
-          title="Nenhuma sincronização encontrada"
-          description="Ainda não há histórico de sincronizações. Execute uma sincronização manual."
+          title={governanceTexts.sync.emptyTitle}
+          description={governanceTexts.sync.emptyDescription}
         />
       );
     }
@@ -99,11 +100,11 @@ export default function SyncPage() {
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left p-4 font-semibold text-sm">Início</th>
-              <th className="text-left p-4 font-semibold text-sm">Status</th>
-              <th className="text-left p-4 font-semibold text-sm">Modo</th>
-              <th className="text-left p-4 font-semibold text-sm">Processados</th>
-              <th className="text-left p-4 font-semibold text-sm">Nota</th>
+              <th className="text-left p-4 font-semibold text-sm">{governanceTexts.sync.table.startedAt}</th>
+              <th className="text-left p-4 font-semibold text-sm">{governanceTexts.sync.table.status}</th>
+              <th className="text-left p-4 font-semibold text-sm">{governanceTexts.sync.table.mode}</th>
+              <th className="text-left p-4 font-semibold text-sm">{governanceTexts.sync.table.processed}</th>
+              <th className="text-left p-4 font-semibold text-sm">{governanceTexts.sync.table.note}</th>
             </tr>
           </thead>
           <tbody>
@@ -112,15 +113,17 @@ export default function SyncPage() {
               const runId = run?.id || `run-${index}`;
               const startedAt = formatDateTime(run?.startedAt);
               const status = run?.status || 'RUNNING';
-              const mode = run?.mode || '-';
+              const modeLabel = run?.mode
+                ? governanceTexts.settings.modeOptions[run.mode as keyof typeof governanceTexts.settings.modeOptions] ?? governanceTexts.general.notAvailable
+                : governanceTexts.general.notAvailable;
               const articlesProcessed = run?.stats?.articlesProcessed ?? 0;
-              const note = run?.note || '-';
+              const note = run?.note || governanceTexts.sync.noteFallback;
 
               return (
                 <tr key={runId} className="border-t border-border">
                   <td className="p-4 text-sm">{startedAt}</td>
                   <td className="p-4"><StatusBadge status={status} /></td>
-                  <td className="p-4 text-sm">{mode}</td>
+                  <td className="p-4 text-sm">{modeLabel}</td>
                   <td className="p-4 text-sm">{articlesProcessed}</td>
                   <td className="p-4 text-sm text-muted-foreground">{note}</td>
                 </tr>
@@ -135,11 +138,11 @@ export default function SyncPage() {
   return (
     <MainLayout>
       <PageHeader
-        title="Sincronização"
-        description="Histórico de sincronizações com Movidesk"
+        title={governanceTexts.sync.title}
+        description={governanceTexts.sync.description}
         actions={
           <Button onClick={handleSync}>
-            <Play className="h-4 w-4 mr-2" /> Executar Sync
+            <Play className="h-4 w-4 mr-2" /> {governanceTexts.sync.runAction}
           </Button>
         }
       />

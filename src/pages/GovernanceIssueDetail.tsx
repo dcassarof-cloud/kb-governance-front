@@ -19,13 +19,9 @@ import {
   IssueSeverity,
 } from '@/types';
 import { toast } from '@/hooks/use-toast';
+import { governanceTexts } from '@/governanceTexts';
 
-const ISSUE_TYPE_LABELS: Record<string, string> = {
-  REVIEW_REQUIRED: 'Revisão necessária',
-  NOT_AI_READY: 'Não pronto para IA',
-  DUPLICATE_CONTENT: 'Conteúdo Duplicado',
-  INCOMPLETE_CONTENT: 'Conteúdo Incompleto',
-};
+const ISSUE_TYPE_LABELS: Record<string, string> = governanceTexts.issueTypes;
 
 export default function GovernanceIssueDetailPage() {
   const { id } = useParams();
@@ -38,20 +34,20 @@ export default function GovernanceIssueDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const formatDate = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return '-';
+    if (!dateStr) return governanceTexts.general.notAvailable;
     try {
       return new Date(dateStr).toLocaleDateString('pt-BR');
     } catch {
-      return '-';
+      return governanceTexts.general.notAvailable;
     }
   };
 
   const formatDateTime = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return '-';
+    if (!dateStr) return governanceTexts.general.notAvailable;
     try {
       return new Date(dateStr).toLocaleString('pt-BR');
     } catch {
-      return '-';
+      return governanceTexts.general.notAvailable;
     }
   };
 
@@ -67,12 +63,12 @@ export default function GovernanceIssueDetailPage() {
   const getSlaStatus = (currentIssue: GovernanceIssueDetail | null) => {
     const dueDateValue = getDueDateValue(currentIssue);
     if (!dueDateValue) {
-      return { label: 'SEM SLA', variant: 'secondary' as const, className: 'bg-muted text-muted-foreground' };
+      return { label: governanceTexts.governance.statusLabels.noDueDate, variant: 'secondary' as const, className: 'bg-muted text-muted-foreground' };
     }
 
     const dueDate = new Date(dueDateValue);
     if (Number.isNaN(dueDate.getTime())) {
-      return { label: 'SEM SLA', variant: 'secondary' as const, className: 'bg-muted text-muted-foreground' };
+      return { label: governanceTexts.governance.statusLabels.noDueDate, variant: 'secondary' as const, className: 'bg-muted text-muted-foreground' };
     }
 
     const today = startOfToday();
@@ -80,12 +76,12 @@ export default function GovernanceIssueDetailPage() {
     due.setHours(0, 0, 0, 0);
 
     if (due < today) {
-      return { label: 'VENCIDO', variant: 'destructive' as const, className: '' };
+      return { label: governanceTexts.governance.statusLabels.overdue, variant: 'destructive' as const, className: '' };
     }
     if (due.getTime() === today.getTime()) {
-      return { label: 'HOJE', variant: 'secondary' as const, className: 'bg-warning text-warning-foreground' };
+      return { label: governanceTexts.governance.statusLabels.dueToday, variant: 'secondary' as const, className: 'bg-warning text-warning-foreground' };
     }
-    return { label: 'EM DIA', variant: 'secondary' as const, className: 'bg-success text-success-foreground' };
+    return { label: governanceTexts.governance.statusLabels.onTrack, variant: 'secondary' as const, className: 'bg-success text-success-foreground' };
   };
 
   const loadDuplicateGroup = async (currentIssue: GovernanceIssueDetail) => {
@@ -122,9 +118,9 @@ export default function GovernanceIssueDetailPage() {
           await loadDuplicateGroup(result);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro ao carregar detalhes da issue';
+        const message = err instanceof Error ? err.message : governanceTexts.issueDetail.loadError;
         setError(message);
-        toast({ title: 'Erro', description: message, variant: 'destructive' });
+        toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
       } finally {
         setLoading(false);
       }
@@ -141,8 +137,8 @@ export default function GovernanceIssueDetailPage() {
         const result = await governanceService.getIssueHistory(id);
         setHistory(result);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro ao carregar histórico';
-        toast({ title: 'Erro', description: message, variant: 'destructive' });
+        const message = err instanceof Error ? err.message : governanceTexts.issueDetail.historyError;
+        toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
       } finally {
         setHistoryLoading(false);
       }
@@ -160,9 +156,12 @@ export default function GovernanceIssueDetailPage() {
       const changeLabel = field
         ? `${field.charAt(0).toUpperCase()}${field.slice(1)}`
         : status
-          ? 'Status'
-          : 'Atualização';
-      const values = oldValue || newValue ? `${oldValue ?? '-'} → ${newValue ?? '-'}` : status ?? entry.note ?? '-';
+          ? governanceTexts.issueDetail.statusLabel
+          : governanceTexts.issueDetail.updateLabel;
+      const values =
+        oldValue || newValue
+          ? `${oldValue ?? governanceTexts.general.notAvailable} → ${newValue ?? governanceTexts.general.notAvailable}`
+          : status ?? entry.note ?? governanceTexts.general.notAvailable;
 
       return {
         id: entry.id ?? `${entry.changedAt}-${index}`,
@@ -175,22 +174,17 @@ export default function GovernanceIssueDetailPage() {
     });
   }, [history]);
 
-  const severityOrder: Record<IssueSeverity, string> = {
-    LOW: 'Baixa',
-    MEDIUM: 'Média',
-    HIGH: 'Alta',
-    CRITICAL: 'Crítica',
-  };
+  const severityOrder: Record<IssueSeverity, string> = governanceTexts.severity.shortLabels;
 
   return (
     <MainLayout>
       <PageHeader
-        title="Detalhe da issue"
-        description="Entenda o contexto, SLA e histórico da pendência"
+        title={governanceTexts.issueDetail.title}
+        description={governanceTexts.issueDetail.description}
         actions={
           <Button variant="outline" onClick={() => navigate('/governance')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para governança
+            {governanceTexts.issueDetail.backToList}
           </Button>
         }
       />
@@ -204,19 +198,19 @@ export default function GovernanceIssueDetailPage() {
         <div className="card-metric">
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar a issue</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.issueDetail.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => navigate('/governance')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
+              {governanceTexts.general.back}
             </Button>
           </div>
         </div>
       ) : !issue ? (
         <EmptyState
           icon={AlertCircle}
-          title="Issue não encontrada"
-          description="Verifique o link ou volte para a governança para selecionar outra issue."
+          title={governanceTexts.issueDetail.notFoundTitle}
+          description={governanceTexts.issueDetail.notFoundDescription}
         />
       ) : (
         <div className="space-y-6">
@@ -224,41 +218,41 @@ export default function GovernanceIssueDetailPage() {
             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Tipo</p>
+                  <p className="text-sm text-muted-foreground">{governanceTexts.issueDetail.typeLabel}</p>
                   <h3 className="text-xl font-semibold">
                     {issue.displayName || ISSUE_TYPE_LABELS[issue.type] || issue.type}
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Sistema</p>
-                    <p className="font-medium">{issue.systemName || issue.systemCode || '-'}</p>
+                    <p className="text-muted-foreground">{governanceTexts.issueDetail.systemLabel}</p>
+                    <p className="font-medium">{issue.systemName || issue.systemCode || governanceTexts.general.notAvailable}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Manual</p>
-                    <p className="font-medium">{issue.articleTitle || issue.title || 'Manual sem título'}</p>
+                    <p className="text-muted-foreground">{governanceTexts.issueDetail.manualLabel}</p>
+                    <p className="font-medium">{issue.articleTitle || issue.title || governanceTexts.general.notAvailable}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Status</p>
+                    <p className="text-muted-foreground">{governanceTexts.issueDetail.statusLabel}</p>
                     <StatusBadge status={issue.status || 'OPEN'} />
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Severidade</p>
+                    <p className="text-muted-foreground">{governanceTexts.issueDetail.impactLabel}</p>
                     <StatusBadge status={issue.severity || 'LOW'} />
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Responsável</p>
+                    <p className="text-muted-foreground">{governanceTexts.issueDetail.responsibleLabel}</p>
                     <p className="font-medium">
-                      {issue.responsibleName || issue.responsible || 'Não atribuído'}
+                      {issue.responsibleName || issue.responsible || governanceTexts.general.notAvailable}
                     </p>
                     {issue.responsibleType && issue.responsibleId && (
                       <p className="text-xs text-muted-foreground">
-                        {issue.responsibleType}: {issue.responsibleId}
+                        {(governanceTexts.governance.assignDialog.responsibleTypeOptions as Record<string, string>)[issue.responsibleType] ?? issue.responsibleType}: {issue.responsibleId}
                       </p>
                     )}
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Criada em</p>
+                    <p className="text-muted-foreground">{governanceTexts.issueDetail.createdAtLabel}</p>
                     <p className="font-medium">{formatDateTime(issue.createdAt)}</p>
                   </div>
                 </div>
@@ -267,7 +261,7 @@ export default function GovernanceIssueDetailPage() {
               <div className="rounded-lg border border-border bg-muted/30 p-4 min-w-[220px]">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <CalendarClock className="h-4 w-4" />
-                  SLA
+                  {governanceTexts.issueDetail.dueDateLabel}
                 </div>
                 <div className="mt-2">
                   <Badge variant={getSlaStatus(issue).variant} className={getSlaStatus(issue).className}>
@@ -275,10 +269,12 @@ export default function GovernanceIssueDetailPage() {
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Vence em: {formatDate(getDueDateValue(issue))}
+                  {governanceTexts.issueDetail.dueDatePrefix} {formatDate(getDueDateValue(issue))}
                 </p>
                 {issue.slaDays !== null && issue.slaDays !== undefined && (
-                  <p className="text-xs text-muted-foreground mt-1">SLA: {issue.slaDays} dias</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {governanceTexts.issueDetail.slaDaysPrefix} {issue.slaDays} {governanceTexts.issueDetail.daysLabel}
+                  </p>
                 )}
               </div>
             </div>
@@ -287,31 +283,33 @@ export default function GovernanceIssueDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card-metric space-y-4">
               <div>
-                <h4 className="text-sm font-semibold">O que é isso?</h4>
+                <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.whatIsItTitle}</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {issue.description || issue.details || 'Descrição indisponível no momento.'}
+                  {issue.description || issue.details || governanceTexts.issueDetail.noDescription}
                 </p>
               </div>
               <div>
-                <h4 className="text-sm font-semibold">Como resolver</h4>
+                <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.howToResolveTitle}</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {issue.recommendation || issue.message || 'Recomendação indisponível no momento.'}
+                  {issue.recommendation || issue.message || governanceTexts.issueDetail.noRecommendation}
                 </p>
               </div>
             </div>
 
             <div className="card-metric space-y-4">
-              <h4 className="text-sm font-semibold">Metadados da issue</h4>
+              <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.metadataTitle}</h4>
               <div className="grid grid-cols-1 gap-2 text-sm text-muted-foreground">
                 <div>
-                  <span className="font-medium text-foreground">Severidade:</span>{' '}
-                  {severityOrder[issue.severity] || issue.severity}
+                  <span className="font-medium text-foreground">{governanceTexts.issueDetail.impactLabel}:</span>{' '}
+                  {severityOrder[issue.severity] || governanceTexts.general.notAvailable}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Status atual:</span> {issue.status}
+                  <span className="font-medium text-foreground">{governanceTexts.issueDetail.statusLabel}:</span>{' '}
+                  {governanceTexts.status.labels[issue.status] || governanceTexts.general.notAvailable}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">SLA:</span> {formatDate(getDueDateValue(issue))}
+                  <span className="font-medium text-foreground">{governanceTexts.issueDetail.dueDateLabel}:</span>{' '}
+                  {formatDate(getDueDateValue(issue))}
                 </div>
               </div>
             </div>
@@ -320,9 +318,11 @@ export default function GovernanceIssueDetailPage() {
           {issue.type === 'DUPLICATE_CONTENT' && (
             <div className="card-metric space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold">Grupo de artigos duplicados</h4>
+                <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.duplicatesTitle}</h4>
                 {duplicateGroup?.hash && (
-                  <span className="text-xs text-muted-foreground">Hash: {duplicateGroup.hash}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {governanceTexts.issueDetail.duplicatesHashLabel}: {duplicateGroup.hash}
+                  </span>
                 )}
               </div>
               {duplicateGroup?.articles?.length ? (
@@ -332,10 +332,10 @@ export default function GovernanceIssueDetailPage() {
                       key={`${article.id}-${idx}`}
                       className="rounded-md border border-border bg-muted/40 p-3 text-sm"
                     >
-                      <p className="font-medium">{article.title || 'Sem título'}</p>
+                      <p className="font-medium">{article.title || governanceTexts.general.notAvailable}</p>
                       <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        <span>Sistema: {article.systemCode || 'N/A'}</span>
-                        <span>Atualizado: {formatDate(article.updatedAt)}</span>
+                        <span>{governanceTexts.issueDetail.systemLabel}: {article.systemCode || governanceTexts.general.notAvailable}</span>
+                        <span>{governanceTexts.issueDetail.updatedAtLabel}: {formatDate(article.updatedAt)}</span>
                         {article.url ? (
                           <a
                             href={article.url}
@@ -343,28 +343,28 @@ export default function GovernanceIssueDetailPage() {
                             rel="noreferrer"
                             className="text-primary hover:underline"
                           >
-                            Abrir artigo
+                            {governanceTexts.issueDetail.viewManual}
                           </a>
                         ) : (
-                          <span>URL indisponível</span>
+                          <span>{governanceTexts.issueDetail.unavailableUrl}</span>
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Nenhum artigo duplicado retornado pelo backend.</p>
+                <p className="text-sm text-muted-foreground">{governanceTexts.issueDetail.duplicatesEmpty}</p>
               )}
             </div>
           )}
 
           <div className="card-metric">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-semibold">Timeline da issue</h4>
+              <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.historyTitle}</h4>
               {historyLoading && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Carregando histórico...
+                  {governanceTexts.issueDetail.historyLoading}
                 </div>
               )}
             </div>
@@ -373,8 +373,8 @@ export default function GovernanceIssueDetailPage() {
             ) : timeline.length === 0 ? (
               <EmptyState
                 icon={AlertCircle}
-                title="Nenhum histórico encontrado"
-                description="Ainda não há alterações registradas para essa issue."
+                title={governanceTexts.issueDetail.historyEmptyTitle}
+                description={governanceTexts.issueDetail.historyEmptyDescription}
               />
             ) : (
               <ul className="space-y-3">
@@ -388,7 +388,7 @@ export default function GovernanceIssueDetailPage() {
                       </div>
                       <div className="text-xs text-muted-foreground text-right">
                         <div>{entry.date}</div>
-                        {entry.changedBy && <div>por {entry.changedBy}</div>}
+                        {entry.changedBy && <div>{governanceTexts.issueDetail.changedByLabel} {entry.changedBy}</div>}
                       </div>
                     </div>
                   </li>

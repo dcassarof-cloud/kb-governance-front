@@ -16,15 +16,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { authService } from '@/services/auth.service';
 import { ConsisaBrand } from '@/components/brand/ConsisaBrand';
+import { governanceTexts } from '@/governanceTexts';
 
 const menuItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/articles', label: 'Manuais', icon: FileText },
-  { path: '/governance', label: 'Governança', icon: Shield },
-  { path: '/needs', label: 'Needs', icon: ClipboardList },
-  { path: '/responsibles', label: 'Responsáveis', icon: Users },
-  { path: '/sync', label: 'Sincronização', icon: RefreshCw },
-  { path: '/settings', label: 'Configurações', icon: Settings },
+  { path: '/dashboard', label: governanceTexts.navigation.routes.dashboard, icon: LayoutDashboard },
+  { path: '/articles', label: governanceTexts.navigation.routes.articles, icon: FileText },
+  { path: '/governance', label: governanceTexts.navigation.routes.governance, icon: Shield },
+  { path: '/needs', label: governanceTexts.navigation.routes.needs, icon: ClipboardList },
+  { path: '/responsibles', label: governanceTexts.navigation.routes.responsibles, icon: Users },
+  { path: '/sync', label: governanceTexts.navigation.routes.sync, icon: RefreshCw },
+  { path: '/settings', label: governanceTexts.navigation.routes.settings, icon: Settings },
 ];
 
 export function Sidebar() {
@@ -51,8 +52,8 @@ export function Sidebar() {
             'flex flex-1 items-center gap-3 min-w-0 transition-all',
             collapsed ? 'justify-center' : 'animate-slide-in-left'
           )}
-          aria-label="Consisa Sistemas - KB Governance"
-          title={collapsed ? 'Consisa Sistemas' : undefined}
+          aria-label={governanceTexts.navigation.sidebar.brandAria}
+          title={collapsed ? governanceTexts.navigation.sidebar.brandTitle : undefined}
         >
           <ConsisaBrand collapsed={collapsed} />
         </NavLink>
@@ -62,7 +63,7 @@ export function Sidebar() {
           size="icon"
           className="text-sidebar-foreground hover:bg-sidebar-accent ml-auto"
           onClick={() => setCollapsed(!collapsed)}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          aria-label={collapsed ? governanceTexts.navigation.sidebar.expand : governanceTexts.navigation.sidebar.collapse}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
@@ -94,10 +95,10 @@ export function Sidebar() {
         <button
           onClick={handleLogout}
           className={cn('sidebar-item w-full text-sidebar-foreground/70 hover:text-sidebar-foreground')}
-          title={collapsed ? 'Sair' : undefined}
+          title={collapsed ? governanceTexts.navigation.sidebar.logout : undefined}
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          {!collapsed && <span>Sair</span>}
+          {!collapsed && <span>{governanceTexts.navigation.sidebar.logout}</span>}
         </button>
       </div>
     </aside>

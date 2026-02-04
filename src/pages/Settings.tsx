@@ -12,6 +12,7 @@ import { syncService } from '@/services/sync.service';
 import { SyncConfig } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings';
+import { governanceTexts } from '@/governanceTexts';
 
 export default function SettingsPage() {
   const [config, setConfig] = useState<SyncConfig | null>(null);
@@ -24,44 +25,51 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!config) return;
     await syncService.updateSyncConfig(config);
-    toast({ title: 'Configurações salvas!' });
+    toast({ title: governanceTexts.settings.saveSuccess });
   };
 
-  if (loading) return <MainLayout><PageHeader title="Configurações" /><LoadingSkeleton variant="card" /></MainLayout>;
+  if (loading) {
+    return (
+      <MainLayout>
+        <PageHeader title={governanceTexts.settings.title} />
+        <LoadingSkeleton variant="card" />
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
-      <PageHeader title="Configurações" description="Configurações de sincronização automática" />
+      <PageHeader title={governanceTexts.settings.title} description={governanceTexts.settings.description} />
       <div className="max-w-xl space-y-6">
         <AppearanceSettings />
         <div className="card-metric space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <Label>Sync Automático</Label>
-              <p className="text-sm text-muted-foreground">Ativar sincronização automática</p>
+              <Label>{governanceTexts.settings.syncTitle}</Label>
+              <p className="text-sm text-muted-foreground">{governanceTexts.settings.syncDescription}</p>
             </div>
             <Switch checked={config?.enabled} onCheckedChange={(v) => setConfig(c => c ? { ...c, enabled: v } : c)} />
           </div>
           <div className="space-y-2">
-            <Label>Modo</Label>
+            <Label>{governanceTexts.settings.modeLabel}</Label>
             <Select value={config?.mode} onValueChange={(v) => setConfig(c => c ? { ...c, mode: v as any } : c)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="FULL">Completo</SelectItem>
-                <SelectItem value="INCREMENTAL">Incremental</SelectItem>
-                <SelectItem value="DELTA">Delta</SelectItem>
+                <SelectItem value="FULL">{governanceTexts.settings.modeOptions.FULL}</SelectItem>
+                <SelectItem value="INCREMENTAL">{governanceTexts.settings.modeOptions.INCREMENTAL}</SelectItem>
+                <SelectItem value="DELTA">{governanceTexts.settings.modeOptions.DELTA}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Intervalo (minutos)</Label>
+            <Label>{governanceTexts.settings.intervalLabel}</Label>
             <Input type="number" value={config?.intervalMinutes} onChange={(e) => setConfig(c => c ? { ...c, intervalMinutes: +e.target.value } : c)} />
           </div>
           <div className="space-y-2">
-            <Label>Dias retroativos</Label>
+            <Label>{governanceTexts.settings.daysBackLabel}</Label>
             <Input type="number" value={config?.daysBack} onChange={(e) => setConfig(c => c ? { ...c, daysBack: +e.target.value } : c)} />
           </div>
-          <Button onClick={handleSave}><Save className="h-4 w-4 mr-2" /> Salvar</Button>
+          <Button onClick={handleSave}><Save className="h-4 w-4 mr-2" /> {governanceTexts.general.save}</Button>
         </div>
       </div>
     </MainLayout>

@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { governanceService, IssuesFilter } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
 import {
@@ -40,6 +41,7 @@ import {
 } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
+import { governanceTexts } from '@/governanceTexts';
 
 const ALLOWED_ISSUE_TYPES: IssueType[] = [
   'REVIEW_REQUIRED',
@@ -48,12 +50,7 @@ const ALLOWED_ISSUE_TYPES: IssueType[] = [
   'INCOMPLETE_CONTENT',
 ];
 
-const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
-  REVIEW_REQUIRED: 'Revisão necessária',
-  NOT_AI_READY: 'Não pronto para IA',
-  DUPLICATE_CONTENT: 'Conteúdo Duplicado',
-  INCOMPLETE_CONTENT: 'Conteúdo Incompleto',
-};
+const ISSUE_TYPE_LABELS: Record<IssueType, string> = governanceTexts.issueTypes;
 
 const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 const ISSUE_STATUS_FILTER_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
@@ -115,9 +112,9 @@ export default function GovernancePage() {
       const result = await governanceService.getOverview();
       setOverview(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar indicadores';
+      const message = err instanceof Error ? err.message : governanceTexts.governance.summary.loadError;
       setOverviewError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setOverviewLoading(false);
     }
@@ -150,9 +147,9 @@ export default function GovernancePage() {
 
       setIssuesData(normalized);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar issues';
+      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.loadError;
       setIssuesError(message);
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setIssuesLoading(false);
     }
@@ -272,11 +269,11 @@ export default function GovernancePage() {
   const resolvedSeverityOptions = ISSUE_SEVERITY_OPTIONS;
 
   const formatDate = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return '-';
+    if (!dateStr) return governanceTexts.general.notAvailable;
     try {
       return new Date(dateStr).toLocaleDateString('pt-BR');
     } catch {
-      return '-';
+      return governanceTexts.general.notAvailable;
     }
   };
 
@@ -291,12 +288,22 @@ export default function GovernancePage() {
   const getSlaStatus = (issue: GovernanceIssueDto) => {
     const dueDateValue = getDueDateValue(issue);
     if (!dueDateValue) {
-      return { label: 'SEM SLA', variant: 'secondary' as const, className: 'bg-muted text-muted-foreground', priority: 3 };
+      return {
+        label: governanceTexts.governance.statusLabels.noDueDate,
+        variant: 'secondary' as const,
+        className: 'bg-muted text-muted-foreground',
+        priority: 3,
+      };
     }
 
     const dueDate = new Date(dueDateValue);
     if (Number.isNaN(dueDate.getTime())) {
-      return { label: 'SEM SLA', variant: 'secondary' as const, className: 'bg-muted text-muted-foreground', priority: 3 };
+      return {
+        label: governanceTexts.governance.statusLabels.noDueDate,
+        variant: 'secondary' as const,
+        className: 'bg-muted text-muted-foreground',
+        priority: 3,
+      };
     }
 
     const today = startOfToday();
@@ -304,12 +311,27 @@ export default function GovernancePage() {
     due.setHours(0, 0, 0, 0);
 
     if (due < today) {
-      return { label: 'VENCIDO', variant: 'destructive' as const, className: '', priority: 0 };
+      return {
+        label: governanceTexts.governance.statusLabels.overdue,
+        variant: 'destructive' as const,
+        className: '',
+        priority: 0,
+      };
     }
     if (due.getTime() === today.getTime()) {
-      return { label: 'HOJE', variant: 'secondary' as const, className: 'bg-warning text-warning-foreground', priority: 1 };
+      return {
+        label: governanceTexts.governance.statusLabels.dueToday,
+        variant: 'secondary' as const,
+        className: 'bg-warning text-warning-foreground',
+        priority: 1,
+      };
     }
-    return { label: 'EM DIA', variant: 'secondary' as const, className: 'bg-success text-success-foreground', priority: 2 };
+    return {
+      label: governanceTexts.governance.statusLabels.onTrack,
+      variant: 'secondary' as const,
+      className: 'bg-success text-success-foreground',
+      priority: 2,
+    };
   };
 
   const updateIssueState = (issueId: string, updates: Partial<GovernanceIssueDto>) => {
@@ -338,12 +360,12 @@ export default function GovernancePage() {
         responsibleType: updated?.responsibleType ?? options.responsibleType ?? issue.responsibleType,
         responsibleName: updated?.responsibleName ?? issue.responsibleName,
       });
-      toast({ title: 'Ação concluída', description: 'Responsável atribuído com sucesso.' });
+      toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
       await fetchOverview();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao atribuir responsável';
+      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.assignError;
       updateIssueState(issue.id, { responsible: previousResponsible });
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -359,7 +381,7 @@ export default function GovernancePage() {
       setSuggestedAssignee(result?.suggested ?? null);
       setSuggestedAlternatives(result?.alternatives ?? []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar sugestão';
+      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.suggestionError;
       setSuggestedError(message);
     } finally {
       setSuggestedLoading(false);
@@ -387,12 +409,12 @@ export default function GovernancePage() {
         }
         return { ...prev, data: nextData };
       });
-      toast({ title: 'Ação concluída', description: 'Status atualizado com sucesso.' });
+      toast({ title: governanceTexts.general.update, description: governanceTexts.governance.statusDialog.success });
       await fetchOverview();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao atualizar status';
+      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.statusError;
       updateIssueState(issue.id, { status: previousStatus });
-      toast({ title: 'Erro', description: message, variant: 'destructive' });
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -425,7 +447,7 @@ export default function GovernancePage() {
   const renderResponsibleLabel = (responsible: GovernanceResponsible | null) => {
     if (!responsible) return '';
     const pending = responsible.pendingIssues ?? responsible.openIssues;
-    return typeof pending === 'number' ? `${pending} pendências` : '';
+    return typeof pending === 'number' ? governanceTexts.governance.list.count(pending) : '';
   };
 
   const totalPages = issuesData?.totalPages ?? 0;
@@ -434,28 +456,28 @@ export default function GovernancePage() {
   const summaryMetrics = [
     {
       key: 'openTotal',
-      title: 'Abertas',
+      title: governanceTexts.governance.summary.openTotal,
       value: overview?.openTotal,
       icon: AlertCircle,
       variant: 'warning' as const,
     },
     {
       key: 'errorOpen',
-      title: 'Erros/Críticas',
+      title: governanceTexts.governance.summary.errorOpen,
       value: overview?.errorOpen ?? overview?.criticalOpen,
       icon: AlertTriangle,
       variant: 'error' as const,
     },
     {
       key: 'unassignedOpen',
-      title: 'Sem responsável',
+      title: governanceTexts.governance.summary.unassignedOpen,
       value: overview?.unassignedOpen,
       icon: UserPlus,
       variant: 'warning' as const,
     },
     {
       key: 'overdueOpen',
-      title: 'Vencidas',
+      title: governanceTexts.governance.summary.overdueOpen,
       value: overview?.overdueOpen,
       icon: CalendarClock,
       variant: 'error' as const,
@@ -510,7 +532,7 @@ export default function GovernancePage() {
 
     const issueMap = new Map<string, GovernanceOverviewSystemDto>();
     issues.forEach((issue) => {
-      const systemCode = issue.systemCode || 'N/A';
+      const systemCode = issue.systemCode || governanceTexts.general.notAvailable;
       const existing = issueMap.get(systemCode) ?? {
         systemCode,
         systemName: issue.systemName ?? null,
@@ -554,26 +576,48 @@ export default function GovernancePage() {
     });
   }, [overview?.systems, issues, systems]);
 
+  const getOverdueDays = (issue: GovernanceIssueDto) => {
+    const dueDateValue = getDueDateValue(issue);
+    if (!dueDateValue) return null;
+    const dueDate = new Date(dueDateValue);
+    if (Number.isNaN(dueDate.getTime())) return null;
+    const today = startOfToday();
+    dueDate.setHours(0, 0, 0, 0);
+    if (dueDate >= today) return null;
+    const diffMs = today.getTime() - dueDate.getTime();
+    return Math.max(Math.floor(diffMs / (1000 * 60 * 60 * 24)), 0);
+  };
+
+  const getShortSeverityLabel = (severity?: IssueSeverity | null) => {
+    if (!severity) return governanceTexts.general.notAvailable;
+    return governanceTexts.severity.shortLabels[severity];
+  };
+
+  const getStatusLabel = (status?: IssueStatus | null) => {
+    if (!status) return governanceTexts.general.notAvailable;
+    return governanceTexts.status.labels[status];
+  };
+
   return (
     <MainLayout>
-      <PageHeader title="Governança" description="Cockpit operacional da base de conhecimento" />
+      <PageHeader title={governanceTexts.governance.title} description={governanceTexts.governance.description} />
 
       {/* ------------------ FILTROS ------------------ */}
       <div className="card-metric mb-6">
-        <h3 className="font-semibold mb-4">Filtros avançados</h3>
+        <h3 className="font-semibold mb-4">{governanceTexts.governance.filtersTitle}</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label>Tipo</Label>
+            <Label>{governanceTexts.governance.filters.type}</Label>
             <Select
               value={filters.type || 'ALL'}
               onValueChange={(value) => handleFilterChange('type', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todos os tipos" />
+                <SelectValue placeholder={governanceTexts.governance.filters.typePlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.governance.filters.typePlaceholder}</SelectItem>
                 {resolvedTypeOptions.map((type) => (
                   <SelectItem key={type} value={type}>
                     {ISSUE_TYPE_LABELS[type] || type}
@@ -584,19 +628,29 @@ export default function GovernancePage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Severidade</Label>
+            <div className="flex items-center gap-2">
+              <Label>{governanceTexts.governance.filters.severity}</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground cursor-help">?</span>
+                  </TooltipTrigger>
+                  <TooltipContent>{governanceTexts.severity.tooltip}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Select
               value={filters.severity || 'ALL'}
               onValueChange={(value) => handleFilterChange('severity', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todas as severidades" />
+                <SelectValue placeholder={governanceTexts.governance.filters.severityPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todas</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.governance.filters.severityPlaceholder}</SelectItem>
                 {resolvedSeverityOptions.map((severity) => (
                   <SelectItem key={severity} value={severity}>
-                    {severity}
+                    {governanceTexts.severity.labels[severity]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -604,16 +658,16 @@ export default function GovernancePage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Sistema</Label>
+            <Label>{governanceTexts.governance.filters.system}</Label>
             <Select
               value={filters.systemCode || 'ALL'}
               onValueChange={(value) => handleFilterChange('systemCode', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todos os sistemas" />
+                <SelectValue placeholder={governanceTexts.governance.filters.systemPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.governance.filters.systemPlaceholder}</SelectItem>
                 {systemOptions.map((system) => (
                   <SelectItem key={system} value={system}>
                     {system}
@@ -624,19 +678,19 @@ export default function GovernancePage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Status</Label>
+            <Label>{governanceTexts.governance.filters.status}</Label>
             <Select
               value={filters.status || 'ALL'}
               onValueChange={(value) => handleFilterChange('status', value === 'ALL' ? '' : value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Todos os status" />
+                <SelectValue placeholder={governanceTexts.governance.filters.statusPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Todos</SelectItem>
+                <SelectItem value="ALL">{governanceTexts.governance.filters.statusPlaceholder}</SelectItem>
                 {resolvedStatusOptions.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status}
+                    {governanceTexts.status.labels[status]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -644,18 +698,18 @@ export default function GovernancePage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Busca</Label>
+            <Label>{governanceTexts.governance.filters.search}</Label>
             <Input
-              placeholder="Buscar por mensagem ou título"
+              placeholder={governanceTexts.governance.filters.searchPlaceholder}
               value={filters.q || ''}
               onChange={(event) => handleFilterChange('q', event.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Responsável</Label>
+            <Label>{governanceTexts.governance.filters.responsible}</Label>
             <Input
-              placeholder="Filtrar por responsável"
+              placeholder={governanceTexts.governance.filters.responsiblePlaceholder}
               value={filters.responsible || ''}
               onChange={(event) => handleFilterChange('responsible', event.target.value)}
             />
@@ -670,7 +724,7 @@ export default function GovernancePage() {
               onCheckedChange={(checked) => handleToggleChange('overdue', Boolean(checked))}
             />
             <Label htmlFor="filter-overdue" className="text-sm font-medium">
-              Só vencidas
+              {governanceTexts.governance.filters.overdue}
             </Label>
           </div>
           <div className="flex items-center space-x-2">
@@ -680,7 +734,7 @@ export default function GovernancePage() {
               onCheckedChange={(checked) => handleToggleChange('unassigned', Boolean(checked))}
             />
             <Label htmlFor="filter-unassigned" className="text-sm font-medium">
-              Sem responsável
+              {governanceTexts.governance.filters.unassigned}
             </Label>
           </div>
         </div>
@@ -702,12 +756,12 @@ export default function GovernancePage() {
               });
             }}
           >
-            Limpar filtros
+            {governanceTexts.general.clearFilters}
           </Button>
 
           <Button variant="secondary" onClick={() => fetchIssues(filters, page)}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Atualizar lista
+            {governanceTexts.general.refreshList}
           </Button>
         </div>
       </div>
@@ -723,11 +777,11 @@ export default function GovernancePage() {
         <div className="card-metric mb-6">
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <AlertCircle className="h-10 w-10 text-destructive mb-3" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar indicadores</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.governance.summary.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{overviewError}</p>
             <Button onClick={fetchOverview}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </Button>
           </div>
         </div>
@@ -749,7 +803,7 @@ export default function GovernancePage() {
             <div className="card-metric">
               <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
                 <AlertCircle className="h-10 w-10 mb-2" />
-                <p className="text-sm">Indicadores indisponíveis no momento.</p>
+                <p className="text-sm">{governanceTexts.governance.summary.empty}</p>
               </div>
             </div>
           )}
@@ -760,8 +814,8 @@ export default function GovernancePage() {
       <div className="card-metric mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold">Saúde por sistema</h3>
-            <p className="text-sm text-muted-foreground">Clique em um sistema para filtrar a fila.</p>
+            <h3 className="font-semibold">{governanceTexts.governance.systems.title}</h3>
+            <p className="text-sm text-muted-foreground">{governanceTexts.governance.systems.subtitle}</p>
           </div>
         </div>
 
@@ -770,30 +824,30 @@ export default function GovernancePage() {
         ) : overviewError ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar sistemas</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.governance.systems.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{overviewError}</p>
             <Button onClick={fetchOverview}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </Button>
           </div>
         ) : systemRows.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
-            title="Nenhum sistema encontrado"
-            description="Assim que houver dados por sistema, eles aparecem aqui."
+            title={governanceTexts.governance.systems.emptyTitle}
+            description={governanceTexts.governance.systems.emptyDescription}
           />
         ) : (
           <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-4 font-semibold text-sm">Sistema</th>
-                  <th className="text-left p-4 font-semibold text-sm">HealthScore</th>
-                  <th className="text-left p-4 font-semibold text-sm">Abertas</th>
-                  <th className="text-left p-4 font-semibold text-sm">Erros</th>
-                  <th className="text-left p-4 font-semibold text-sm">Vencidas</th>
-                  <th className="text-left p-4 font-semibold text-sm">Sem responsável</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.systems.table.system}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.systems.table.healthScore}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.systems.table.open}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.systems.table.critical}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.systems.table.overdue}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.systems.table.unassigned}</th>
                 </tr>
               </thead>
               <tbody>
@@ -821,7 +875,7 @@ export default function GovernancePage() {
                             <span className="text-sm text-muted-foreground">{score}%</span>
                           </div>
                         ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
+                          <span className="text-sm text-muted-foreground">{governanceTexts.general.notAvailable}</span>
                         )}
                       </td>
                       <td className="p-4 text-muted-foreground">{system.openIssues ?? 0}</td>
@@ -840,9 +894,9 @@ export default function GovernancePage() {
       {/* ------------------ LISTA ------------------ */}
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Lista de issues</h3>
+          <h3 className="font-semibold">{governanceTexts.governance.list.title}</h3>
           <span className="text-sm text-muted-foreground">
-            {orderedIssues.length} issue{orderedIssues.length !== 1 ? 's' : ''}
+            {governanceTexts.governance.list.count(orderedIssues.length)}
           </span>
         </div>
 
@@ -851,52 +905,68 @@ export default function GovernancePage() {
         ) : issuesError ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Erro ao carregar issues</h3>
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.governance.list.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{issuesError}</p>
             <Button onClick={() => fetchIssues(filters, page)}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
+              {governanceTexts.general.retry}
             </Button>
           </div>
         ) : orderedIssues.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
-            title="Nenhuma issue encontrada"
-            description="Ajuste os filtros para visualizar as issues pendentes."
+            title={governanceTexts.governance.list.emptyTitle}
+            description={governanceTexts.governance.list.emptyDescription}
           />
         ) : (
           <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-4 font-semibold text-sm">Tipo</th>
-                  <th className="text-left p-4 font-semibold text-sm">SLA</th>
-                  <th className="text-left p-4 font-semibold text-sm">Sistema</th>
-                  <th className="text-left p-4 font-semibold text-sm">Manual / Resumo</th>
-                  <th className="text-left p-4 font-semibold text-sm">Status</th>
-                  <th className="text-left p-4 font-semibold text-sm">Responsável</th>
-                  <th className="text-left p-4 font-semibold text-sm">Ações rápidas</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.list.table.issue}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.list.table.situation}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.list.table.responsible}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.list.table.overdue}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.governance.list.table.actions}</th>
                 </tr>
               </thead>
 
               <tbody>
                 {orderedIssues.map((issue, index) => {
                   const issueId = issue?.id || `issue-${index}`;
-                  const system = issue?.systemName || issue?.systemCode || '-';
-                  const manualTitle = issue?.articleTitle || issue?.title || 'Manual sem título';
+                  const system = issue?.systemName || issue?.systemCode || governanceTexts.general.notAvailable;
+                  const manualTitle = issue?.articleTitle || issue?.title || governanceTexts.general.notAvailable;
                   const manualDetails = issue?.message || issue?.details || '';
                   const status = issue?.status || 'OPEN';
-                  const responsible = issue?.responsibleName || issue?.responsible || '-';
+                  const responsible = issue?.responsibleName || issue?.responsible || governanceTexts.general.notAvailable;
                   const slaStatus = getSlaStatus(issue);
                   const dueDate = formatDate(getDueDateValue(issue));
+                  const overdueDays = getOverdueDays(issue);
+                  const situationSummary = `${getShortSeverityLabel(issue.severity)} – ${getStatusLabel(status)}${
+                    overdueDays ? ` há ${overdueDays} dia${overdueDays !== 1 ? 's' : ''}` : ''
+                  }`;
 
                   const isActionLoading = (action: string) => actionLoading?.id === issueId && actionLoading?.action === action;
 
                   return (
                     <tr key={issueId} className="border-t border-border hover:bg-muted/30 transition-colors">
                       <td className="p-4">
-                        <Badge variant="secondary">{ISSUE_TYPE_LABELS[issue?.type] || issue?.type || '-'}</Badge>
+                        <div className="space-y-2">
+                          <Badge variant="secondary">{issue?.displayName || ISSUE_TYPE_LABELS[issue?.type] || issue?.type || governanceTexts.general.notAvailable}</Badge>
+                          <div className="text-sm text-muted-foreground">{system}</div>
+                          <div className="font-medium">{manualTitle}</div>
+                          {manualDetails && (
+                            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{manualDetails}</div>
+                          )}
+                        </div>
                       </td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-2">
+                          <StatusBadge status={issue.severity || 'LOW'} />
+                          <span className="text-xs text-muted-foreground">{situationSummary}</span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">{responsible}</td>
                       <td className="p-4">
                         <div className="flex flex-col gap-1">
                           <Badge variant={slaStatus.variant} className={slaStatus.className}>
@@ -905,22 +975,11 @@ export default function GovernancePage() {
                           <span className="text-xs text-muted-foreground">{dueDate}</span>
                         </div>
                       </td>
-                      <td className="p-4 text-muted-foreground">{system}</td>
-                      <td className="p-4">
-                        <div className="font-medium">{manualTitle}</div>
-                        {manualDetails && (
-                          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{manualDetails}</div>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <StatusBadge status={status} />
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">{responsible}</td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
                           <Button variant="outline" size="sm" onClick={() => setAssignTarget(issue)}>
                             <UserPlus className="h-4 w-4 mr-1" />
-                            Atribuir
+                            {governanceTexts.governance.list.actionAssign}
                           </Button>
 
                           <Button
@@ -934,12 +993,12 @@ export default function GovernancePage() {
                             disabled={isActionLoading('status')}
                           >
                             <ClipboardCheck className="h-4 w-4 mr-1" />
-                            Status
+                            {governanceTexts.governance.list.actionStatus}
                           </Button>
 
                           <Button variant="ghost" size="sm" onClick={() => navigate(`/governance/issues/${issue.id}`)}>
                             <Eye className="h-4 w-4 mr-1" />
-                            Detalhe
+                            {governanceTexts.governance.list.actionDetail}
                           </Button>
                         </div>
                       </td>
@@ -956,12 +1015,12 @@ export default function GovernancePage() {
       {!issuesLoading && !issuesError && totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-muted-foreground">
-            Página {page} de {totalPages}
+            {governanceTexts.general.page(page, totalPages)}
           </p>
 
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-              Anterior
+              {governanceTexts.general.previous}
             </Button>
 
             <Button
@@ -970,7 +1029,7 @@ export default function GovernancePage() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
             >
-              Próxima
+              {governanceTexts.general.next}
             </Button>
           </div>
         </div>
@@ -988,23 +1047,23 @@ export default function GovernancePage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Atualizar status da issue</DialogTitle>
+            <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{governanceTexts.governance.statusDialog.statusLabel}</Label>
               <Select
                 value={statusValue}
                 onValueChange={(value) => setStatusValue(value as IssueStatus)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o status" />
+                  <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
                   {ISSUE_STATUS_OPTIONS.map((option) => (
                     <SelectItem key={option} value={option}>
-                      {option}
+                      {governanceTexts.status.labels[option]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1013,9 +1072,9 @@ export default function GovernancePage() {
 
             {statusValue === 'IGNORED' && (
               <div className="space-y-2">
-                <Label>Motivo obrigatório</Label>
+                <Label>{governanceTexts.governance.statusDialog.ignoredReasonLabel}</Label>
                 <Input
-                  placeholder="Descreva o motivo para ignorar"
+                  placeholder={governanceTexts.governance.statusDialog.ignoredReasonPlaceholder}
                   value={statusIgnoredReason}
                   onChange={(event) => setStatusIgnoredReason(event.target.value)}
                 />
@@ -1025,13 +1084,16 @@ export default function GovernancePage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setStatusTarget(null)}>
-              Cancelar
+              {governanceTexts.governance.statusDialog.cancel}
             </Button>
             <Button
               onClick={() => {
                 if (!statusTarget) return;
                 if (statusValue === 'IGNORED' && !statusIgnoredReason.trim()) {
-                  toast({ title: 'Atenção', description: 'Informe o motivo para ignorar a issue.' });
+                  toast({
+                    title: governanceTexts.general.attentionTitle,
+                    description: governanceTexts.governance.statusDialog.ignoredReasonRequired,
+                  });
                   return;
                 }
                 handleStatusChange(statusTarget, statusValue, statusValue === 'IGNORED' ? statusIgnoredReason.trim() : undefined);
@@ -1043,10 +1105,10 @@ export default function GovernancePage() {
               {actionLoading?.action === 'status' ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Salvando...
+                  {governanceTexts.governance.statusDialog.saving}
                 </span>
               ) : (
-                'Atualizar status'
+                governanceTexts.governance.statusDialog.save
               )}
             </Button>
           </DialogFooter>
@@ -1071,20 +1133,20 @@ export default function GovernancePage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Atribuir responsável</DialogTitle>
+            <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold">Sugestão automática</h4>
+                <h4 className="text-sm font-semibold">{governanceTexts.governance.assignDialog.suggestionTitle}</h4>
                 {suggestedLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </div>
 
               {suggestedError ? (
                 <div className="text-sm text-destructive">{suggestedError}</div>
               ) : suggestedLoading ? (
-                <div className="text-sm text-muted-foreground">Buscando responsável recomendado...</div>
+                <div className="text-sm text-muted-foreground">{governanceTexts.governance.assignDialog.suggestionLoading}</div>
               ) : suggestedAssignee ? (
                 <Button
                   className="w-full justify-between text-base"
@@ -1101,18 +1163,20 @@ export default function GovernancePage() {
                     setAssignResponsibleId('');
                   }}
                 >
-                  <span>Atribuir para {suggestedAssignee.name}</span>
+                  <span>{governanceTexts.governance.assignDialog.assignTo(suggestedAssignee.name)}</span>
                   {renderResponsibleLabel(suggestedAssignee) && (
                     <span className="text-xs opacity-80">{renderResponsibleLabel(suggestedAssignee)}</span>
                   )}
                 </Button>
               ) : (
-                <div className="text-sm text-muted-foreground">Nenhuma sugestão encontrada.</div>
+                <div className="text-sm text-muted-foreground">{governanceTexts.governance.assignDialog.suggestionEmpty}</div>
               )}
 
               {!suggestedLoading && suggestedAlternatives.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Alternativas</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {governanceTexts.governance.assignDialog.alternativesTitle}
+                  </p>
                   <div className="space-y-2">
                     {suggestedAlternatives.slice(0, 3).map((option, index) => {
                       const pending = option.pendingIssues ?? option.openIssues ?? null;
@@ -1141,42 +1205,42 @@ export default function GovernancePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Responsável (nome)</Label>
+              <Label>{governanceTexts.governance.assignDialog.responsibleLabel}</Label>
               <Input
-                placeholder="Informe o nome do responsável"
+                placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
                 value={assignValue}
                 onChange={(event) => setAssignValue(event.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Tipo de responsável</Label>
+              <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
               <Select
                 value={assignResponsibleType}
                 onValueChange={(value) => setAssignResponsibleType(value)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
+                  <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USER">Usuário</SelectItem>
-                  <SelectItem value="TEAM">Time</SelectItem>
-                  <SelectItem value="ROLE">Papel</SelectItem>
+                  <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+                  <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
+                  <SelectItem value="ROLE">{governanceTexts.governance.assignDialog.responsibleTypeOptions.ROLE}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>Identificador do responsável</Label>
+              <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
               <Input
-                placeholder="Informe o ID ou e-mail do responsável"
+                placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
                 value={assignResponsibleId}
                 onChange={(event) => setAssignResponsibleId(event.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Prazo</Label>
+              <Label>{governanceTexts.governance.assignDialog.dueDateLabel}</Label>
               <Input
                 type="date"
                 value={assignDueDate}
@@ -1189,7 +1253,7 @@ export default function GovernancePage() {
                   variant="outline"
                   onClick={() => setAssignDueDate(formatInputDate(new Date()))}
                 >
-                  Hoje
+                  {governanceTexts.governance.assignDialog.quickDateToday}
                 </Button>
                 <Button
                   type="button"
@@ -1201,7 +1265,7 @@ export default function GovernancePage() {
                     setAssignDueDate(formatInputDate(date));
                   }}
                 >
-                  +3 dias
+                  {governanceTexts.governance.assignDialog.quickDateThreeDays}
                 </Button>
                 <Button
                   type="button"
@@ -1213,7 +1277,7 @@ export default function GovernancePage() {
                     setAssignDueDate(formatInputDate(date));
                   }}
                 >
-                  +7 dias
+                  {governanceTexts.governance.assignDialog.quickDateSevenDays}
                 </Button>
               </div>
             </div>
@@ -1230,7 +1294,7 @@ export default function GovernancePage() {
                 setAssignResponsibleType('USER');
               }}
             >
-              Cancelar
+              {governanceTexts.governance.assignDialog.cancel}
             </Button>
 
             <Button
@@ -1239,7 +1303,10 @@ export default function GovernancePage() {
                 const trimmedId = assignResponsibleId.trim();
                 const trimmedName = assignValue.trim();
                 if (!trimmedId) {
-                  toast({ title: 'Atenção', description: 'Informe o identificador do responsável para atribuição.' });
+                  toast({
+                    title: governanceTexts.general.attentionTitle,
+                    description: governanceTexts.governance.assignDialog.missingResponsibleId,
+                  });
                   return;
                 }
                 handleAssign(assignTarget, trimmedName || trimmedId, {
@@ -1256,10 +1323,10 @@ export default function GovernancePage() {
               {actionLoading?.action === 'assign' ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Salvando...
+                  {governanceTexts.governance.assignDialog.saving}
                 </span>
               ) : (
-                'Atribuir'
+                governanceTexts.governance.assignDialog.save
               )}
             </Button>
 
@@ -1270,7 +1337,10 @@ export default function GovernancePage() {
                 const trimmedId = assignResponsibleId.trim();
                 const trimmedName = assignValue.trim();
                 if (!trimmedId) {
-                  toast({ title: 'Atenção', description: 'Informe o identificador do responsável para atribuição.' });
+                  toast({
+                    title: governanceTexts.general.attentionTitle,
+                    description: governanceTexts.governance.assignDialog.missingResponsibleId,
+                  });
                   return;
                 }
                 handleAssign(assignTarget, trimmedName || trimmedId, {
@@ -1285,7 +1355,7 @@ export default function GovernancePage() {
               }}
               disabled={Boolean(assignTarget && actionLoading?.action === 'assign')}
             >
-              Atribuir + Criar ticket
+              {governanceTexts.governance.assignDialog.saveWithTicket}
             </Button>
           </DialogFooter>
         </DialogContent>

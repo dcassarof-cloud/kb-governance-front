@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { authService } from '@/services/auth.service';
+import { governanceTexts } from '@/governanceTexts';
 
 export function Topbar() {
   const user = authService.getUser();
@@ -17,14 +18,14 @@ export function Topbar() {
 
   const pageTitle = (() => {
     const pathname = location.pathname;
-    if (pathname === '/dashboard') return 'Dashboard';
-    if (pathname.startsWith('/articles')) return 'Manuais';
-    if (pathname.startsWith('/governance')) return 'Governança';
-    if (pathname.startsWith('/needs')) return 'Needs';
-    if (pathname.startsWith('/responsibles') || pathname.startsWith('/responsaveis')) return 'Responsáveis';
-    if (pathname.startsWith('/sync')) return 'Sincronização';
-    if (pathname.startsWith('/settings')) return 'Configurações';
-    return 'Dashboard';
+    if (pathname === '/dashboard') return governanceTexts.navigation.routes.dashboard;
+    if (pathname.startsWith('/articles')) return governanceTexts.navigation.routes.articles;
+    if (pathname.startsWith('/governance')) return governanceTexts.navigation.routes.governance;
+    if (pathname.startsWith('/needs')) return governanceTexts.navigation.routes.needs;
+    if (pathname.startsWith('/responsibles') || pathname.startsWith('/responsaveis')) return governanceTexts.navigation.routes.responsibles;
+    if (pathname.startsWith('/sync')) return governanceTexts.navigation.routes.sync;
+    if (pathname.startsWith('/settings')) return governanceTexts.navigation.routes.settings;
+    return governanceTexts.navigation.routes.dashboard;
   })();
 
   const handleLogout = async () => {
@@ -36,14 +37,14 @@ export function Topbar() {
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
       {/* Title (sem logo para não duplicar marca) */}
       <div className="flex min-w-0 flex-col">
-        <span className="text-xs text-muted-foreground">Consisa / KB Governance</span>
+        <span className="text-xs text-muted-foreground">{governanceTexts.navigation.appTitle}</span>
         <span className="text-lg font-semibold text-foreground truncate">{pageTitle}</span>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notificações">
+        <Button variant="ghost" size="icon" className="relative" aria-label={governanceTexts.navigation.topbar.notifications}>
           <Bell className="h-5 w-5" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" />
         </Button>
@@ -51,11 +52,13 @@ export function Topbar() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-2" aria-label="Menu do usuário">
+            <Button variant="ghost" className="flex items-center gap-2 px-2" aria-label={governanceTexts.navigation.topbar.userMenu}>
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                 <User className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="hidden md:block text-sm font-medium">{user?.name || 'Usuário'}</span>
+              <span className="hidden md:block text-sm font-medium">
+                {user?.name || governanceTexts.navigation.topbar.defaultUser}
+              </span>
             </Button>
           </DropdownMenuTrigger>
 
@@ -68,12 +71,12 @@ export function Topbar() {
             </DropdownMenuLabel>
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Perfil</DropdownMenuItem>
-            <DropdownMenuItem>Preferências</DropdownMenuItem>
+            <DropdownMenuItem>{governanceTexts.navigation.topbar.profile}</DropdownMenuItem>
+            <DropdownMenuItem>{governanceTexts.navigation.topbar.preferences}</DropdownMenuItem>
             <DropdownMenuSeparator />
 
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-              Sair
+              {governanceTexts.navigation.topbar.logout}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

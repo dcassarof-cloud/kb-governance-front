@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { GovernanceStatus, SyncStatus, IssueStatus, IssueSeverity, SyncRunStatus } from '@/types';
+import { governanceTexts } from '@/governanceTexts';
 
 type BadgeVariant = 'ok' | 'warning' | 'error' | 'info' | 'muted';
 
@@ -11,33 +12,33 @@ interface StatusBadgeProps {
 
 const statusMap: Record<string, { variant: BadgeVariant; label: string }> = {
   // Governance Status
-  'OK': { variant: 'ok', label: 'OK' },
-  'WARNING': { variant: 'warning', label: 'Atenção' },
-  'ERROR': { variant: 'error', label: 'Erro' },
-  'PENDING': { variant: 'info', label: 'Pendente' },
+  'OK': { variant: 'ok', label: governanceTexts.statusBadge.labels.OK },
+  'WARNING': { variant: 'warning', label: governanceTexts.statusBadge.labels.WARNING },
+  'ERROR': { variant: 'error', label: governanceTexts.statusBadge.labels.ERROR },
+  'PENDING': { variant: 'info', label: governanceTexts.statusBadge.labels.PENDING },
   
   // Sync Status
-  'SYNCED': { variant: 'ok', label: 'Sincronizado' },
-  'OUTDATED': { variant: 'warning', label: 'Desatualizado' },
-  'FAILED': { variant: 'error', label: 'Falhou' },
+  'SYNCED': { variant: 'ok', label: governanceTexts.statusBadge.labels.SYNCED },
+  'OUTDATED': { variant: 'warning', label: governanceTexts.statusBadge.labels.OUTDATED },
+  'FAILED': { variant: 'error', label: governanceTexts.statusBadge.labels.FAILED },
   
   // Issue Status
-  'OPEN': { variant: 'error', label: 'Aberto' },
-  'ASSIGNED': { variant: 'info', label: 'Atribuído' },
-  'IN_PROGRESS': { variant: 'warning', label: 'Em Progresso' },
-  'RESOLVED': { variant: 'ok', label: 'Resolvido' },
-  'IGNORED': { variant: 'muted', label: 'Ignorado' },
+  'OPEN': { variant: 'error', label: governanceTexts.statusBadge.labels.OPEN },
+  'ASSIGNED': { variant: 'info', label: governanceTexts.statusBadge.labels.ASSIGNED },
+  'IN_PROGRESS': { variant: 'warning', label: governanceTexts.statusBadge.labels.IN_PROGRESS },
+  'RESOLVED': { variant: 'ok', label: governanceTexts.statusBadge.labels.RESOLVED },
+  'IGNORED': { variant: 'muted', label: governanceTexts.statusBadge.labels.IGNORED },
   
   // Severity
-  'LOW': { variant: 'info', label: 'Baixa' },
-  'MEDIUM': { variant: 'warning', label: 'Média' },
-  'HIGH': { variant: 'error', label: 'Alta' },
-  'CRITICAL': { variant: 'error', label: 'Crítica' },
+  'LOW': { variant: 'info', label: governanceTexts.statusBadge.labels.LOW },
+  'MEDIUM': { variant: 'warning', label: governanceTexts.statusBadge.labels.MEDIUM },
+  'HIGH': { variant: 'error', label: governanceTexts.statusBadge.labels.HIGH },
+  'CRITICAL': { variant: 'error', label: governanceTexts.statusBadge.labels.CRITICAL },
   
   // Sync Run Status
-  'RUNNING': { variant: 'info', label: 'Executando' },
-  'COMPLETED': { variant: 'ok', label: 'Concluído' },
-  'CANCELLED': { variant: 'muted', label: 'Cancelado' },
+  'RUNNING': { variant: 'info', label: governanceTexts.statusBadge.labels.RUNNING },
+  'COMPLETED': { variant: 'ok', label: governanceTexts.statusBadge.labels.COMPLETED },
+  'CANCELLED': { variant: 'muted', label: governanceTexts.statusBadge.labels.CANCELLED },
 };
 
 const variantClasses: Record<BadgeVariant, string> = {
@@ -54,7 +55,7 @@ const sizeClasses = {
 };
 
 export function StatusBadge({ status, className, size = 'sm' }: StatusBadgeProps) {
-  const config = statusMap[status] || { variant: 'muted' as BadgeVariant, label: status };
+  const config = statusMap[status] || { variant: 'muted' as BadgeVariant, label: governanceTexts.general.notAvailable };
   
   return (
     <span
