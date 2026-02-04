@@ -15,46 +15,6 @@ export interface ArticlesFilter {
   status?: GovernanceStatus;
 }
 
-// Helper: Normaliza resposta paginada (suporta items, content, data, ou array direto)
-function normalizePaginatedResponse<T>(response: unknown, page: number, size: number): PaginatedResponse<T> {
-  // Se é um array direto
-  if (Array.isArray(response)) {
-    return {
-      data: response,
-      total: response.length,
-      page,
-      size,
-      totalPages: Math.ceil(response.length / size) || 1,
-    };
-  }
-
-  // Se é um objeto
-  if (response && typeof response === 'object') {
-    const obj = response as Record<string, unknown>;
-
-    // Tenta extrair dados de diferentes formatos de API
-    const items = obj.data || obj.items || obj.content || [];
-    const dataArray = Array.isArray(items) ? items : [];
-
-    return {
-      data: dataArray as T[],
-      total: (obj.total as number) ?? (obj.totalElements as number) ?? dataArray.length,
-      page: (obj.page as number) ?? page,
-      size: (obj.size as number) ?? size,
-      totalPages: (obj.totalPages as number) ?? (Math.ceil(dataArray.length / size) || 1),
-    };
-  }
-
-  // Fallback: retorna estrutura vazia
-  return {
-    data: [],
-    total: 0,
-    page,
-    size,
-    totalPages: 0,
-  };
-}
-
 class ArticlesService {
   async getArticles(filter: ArticlesFilter = {}): Promise<PaginatedResponse<KbArticle>> {
     const { page = 1, size = config.defaultPageSize, q, systemCode, status } = filter;
@@ -95,11 +55,13 @@ class ArticlesService {
     }
 
     // Chamada à API real com normalização de resposta
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.ARTICLES, {
+    const response = await apiClient.getPaginated<KbArticle>(API_ENDPOINTS.ARTICLES, {
       params: { page, size, q, systemCode, status },
+      page,
+      size,
     });
 
-    return normalizePaginatedResponse<KbArticle>(response, page, size);
+    return response;
   }
 
   async getArticleById(id: string): Promise<KbArticle | null> {

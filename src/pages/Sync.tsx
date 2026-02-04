@@ -40,7 +40,7 @@ export default function SyncPage() {
   const handleSync = async () => {
     try {
       toast({ title: governanceTexts.sync.runStartedTitle, description: governanceTexts.sync.runStartedDescription });
-      await syncService.triggerSync({ mode: 'INCREMENTAL' });
+      await syncService.triggerSync({ mode: 'DELTA' });
       toast({ title: governanceTexts.sync.runSuccessTitle, description: governanceTexts.sync.runSuccessDescription });
       // Recarrega a lista após sync
       fetchData();
@@ -113,10 +113,10 @@ export default function SyncPage() {
               const runId = run?.id || `run-${index}`;
               const startedAt = formatDateTime(run?.startedAt);
               const status = run?.status || 'RUNNING';
-              const normalizedMode = run?.mode === 'DELTA_WINDOW' ? 'DELTA' : run?.mode;
-              const modeLabel = normalizedMode
-                ? governanceTexts.settings.modeOptions[normalizedMode as keyof typeof governanceTexts.settings.modeOptions] ?? normalizedMode
-                : governanceTexts.general.notAvailable;
+              const modeLabel =
+                run?.mode && run.mode !== 'DESCONHECIDO'
+                  ? governanceTexts.settings.modeOptions[run.mode as keyof typeof governanceTexts.settings.modeOptions] ?? run.mode
+                  : 'DESCONHECIDO';
               const stats = run?.stats;
               const statsSummary = stats
                 ? [

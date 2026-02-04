@@ -233,7 +233,7 @@ export interface SyncRun {
   startedAt: string;
   finishedAt: string | null;
   status: SyncRunStatus;
-  mode: SyncMode;
+  mode: SyncModeLabel;
   note: string;
   stats: SyncStats;
 }
@@ -292,7 +292,8 @@ export type IssueType =
 export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type SyncMode = 'FULL' | 'INCREMENTAL' | 'DELTA' | 'DELTA_WINDOW';
+export type SyncMode = 'FULL' | 'DELTA';
+export type SyncModeLabel = SyncMode | 'DESCONHECIDO';
 export type NeedStatus = string;
 
 // Auth

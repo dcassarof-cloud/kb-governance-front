@@ -4,7 +4,7 @@
 
 import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
-import { SyncRun, SyncConfig, SyncMode } from '@/types';
+import { SyncRun, SyncConfig, SyncMode, SyncModeLabel } from '@/types';
 import { mockSyncRuns, mockSyncConfig } from '@/data/mock-data';
 
 export interface TriggerSyncRequest {
@@ -33,6 +33,19 @@ function normalizeArrayResponse<T>(response: unknown): T[] {
   return [];
 }
 
+const normalizeSyncMode = (raw: unknown): SyncModeLabel => {
+  if (raw === 'DELTA_WINDOW' || raw === 'DELTA') {
+    return 'DELTA';
+  }
+  if (raw === 'FULL') {
+    return 'FULL';
+  }
+  if (import.meta.env.DEV) {
+    console.error('[sync] SyncMode desconhecido recebido do backend.', raw);
+  }
+  return 'DESCONHECIDO';
+};
+
 export const normalizeSyncRun = (raw: unknown): SyncRun => {
   if (!raw || typeof raw !== 'object') {
     return {
@@ -40,7 +53,7 @@ export const normalizeSyncRun = (raw: unknown): SyncRun => {
       startedAt: '',
       finishedAt: null,
       status: 'RUNNING',
-      mode: 'INCREMENTAL',
+      mode: 'DESCONHECIDO',
       note: '',
       stats: { articlesProcessed: 0, articlesCreated: 0, articlesUpdated: 0, errors: 0 },
     };
@@ -66,9 +79,7 @@ export const normalizeSyncRun = (raw: unknown): SyncRun => {
       (obj.state as SyncRun['status']) ??
       'RUNNING',
     mode:
-      (obj.mode as SyncMode) ??
-      (obj.syncMode as SyncMode) ??
-      'INCREMENTAL',
+      normalizeSyncMode(obj.mode ?? obj.syncMode),
     note:
       (obj.note as string) ??
       (obj.message as string) ??
@@ -99,7 +110,7 @@ function normalizeSyncConfig(response: unknown): SyncConfig {
   const defaultConfig: SyncConfig = {
     id: '',
     enabled: false,
-    mode: 'INCREMENTAL',
+    mode: 'FULL',
     intervalMinutes: 60,
     daysBack: 7,
   };
@@ -110,10 +121,12 @@ function normalizeSyncConfig(response: unknown): SyncConfig {
 
   const obj = response as Record<string, unknown>;
 
+  const normalizedMode = normalizeSyncMode(obj.mode);
+
   return {
     id: typeof obj.id === 'string' ? obj.id : defaultConfig.id,
     enabled: typeof obj.enabled === 'boolean' ? obj.enabled : defaultConfig.enabled,
-    mode: (obj.mode as SyncMode) || defaultConfig.mode,
+    mode: normalizedMode === 'DESCONHECIDO' ? defaultConfig.mode : normalizedMode,
     intervalMinutes: typeof obj.intervalMinutes === 'number' ? obj.intervalMinutes : defaultConfig.intervalMinutes,
     daysBack: typeof obj.daysBack === 'number' ? obj.daysBack : defaultConfig.daysBack,
   };

@@ -51,48 +51,6 @@ export interface GovernanceManualFilters {
 }
 
 /**
- * Helper: Normaliza resposta paginada (suporta items, content, data, ou array direto)
- */
-function normalizePaginatedResponse<T>(response: unknown, page: number, size: number): PaginatedResponse<T> {
-  // Se é um array direto
-  if (Array.isArray(response)) {
-    return {
-      data: response,
-      total: response.length,
-      page,
-      size,
-      totalPages: Math.ceil(response.length / size) || 1,
-    };
-  }
-
-  // Se é um objeto
-  if (response && typeof response === 'object') {
-    const obj = response as Record<string, unknown>;
-
-    // Tenta extrair dados de diferentes formatos de API
-    const items = obj.data || obj.items || obj.content || [];
-    const dataArray = Array.isArray(items) ? items : [];
-
-    return {
-      data: dataArray as T[],
-      total: (obj.total as number) ?? (obj.totalElements as number) ?? (obj.totalItems as number) ?? dataArray.length,
-      page: (obj.page as number) ?? (obj.pageNumber as number) ?? page,
-      size: (obj.size as number) ?? (obj.pageSize as number) ?? size,
-      totalPages: (obj.totalPages as number) ?? (obj.pages as number) ?? (Math.ceil(dataArray.length / size) || 1),
-    };
-  }
-
-  // Fallback: retorna estrutura vazia
-  return {
-    data: [],
-    total: 0,
-    page,
-    size,
-    totalPages: 0,
-  };
-}
-
-/**
  * Helper: Normaliza resposta de array (suporta items, content, data, ou array direto)
  */
 function normalizeArrayResponse<T>(response: unknown): T[] {
@@ -405,10 +363,8 @@ const normalizeIssueHistory = (response: unknown): GovernanceIssueHistoryDto[] =
 class GovernanceService {
   private formatDueDateForAssign(dueDate?: string): string | undefined {
     if (!dueDate) return undefined;
-    if (config.governanceDueDateFormat === 'offset-datetime') {
-      return dueDate.includes('T') ? dueDate : `${dueDate}T00:00:00-03:00`;
-    }
-    return dueDate.includes('T') ? dueDate.split('T')[0] : dueDate;
+    const datePart = dueDate.split('T')[0]?.split(' ')[0] ?? dueDate;
+    return datePart;
   }
 
   async getSummary(): Promise<GovernanceSummary> {
@@ -453,11 +409,13 @@ class GovernanceService {
   async listManuals(filter: GovernanceManualFilters = {}): Promise<PaginatedResponse<GovernanceManual>> {
     const { page = 1, size = config.defaultPageSize, system, status, q } = filter;
 
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_MANUALS, {
+    const response = await apiClient.getPaginated<GovernanceManual>(API_ENDPOINTS.GOVERNANCE_MANUALS, {
       params: { page, size, system, status, q },
+      page,
+      size,
     });
 
-    return normalizePaginatedResponse<GovernanceManual>(response, page, size);
+    return response;
   }
 
   async assignManual(id: string, responsible: string): Promise<void> {
@@ -499,7 +457,7 @@ class GovernanceService {
       unassigned,
     } = filter;
 
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
+    const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
       params: {
         page,
         size,
@@ -513,12 +471,13 @@ class GovernanceService {
         overdue,
         unassigned,
       },
+      page,
+      size,
     });
 
-    const normalized = normalizePaginatedResponse<GovernanceIssueDto>(response, page, size);
     return {
-      ...normalized,
-      data: normalized.data.map((item) => normalizeGovernanceIssue(item)),
+      ...response,
+      data: response.data.map((item) => normalizeGovernanceIssue(item)),
     };
   }
 
@@ -530,10 +489,10 @@ class GovernanceService {
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
     const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
-      ...restOptions,
-      ...(responsibleType ? { responsibleType } : {}),
-      ...(responsibleId ? { responsibleId } : {}),
-      ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
+      createTicket: restOptions.createTicket ?? null,
+      responsibleType: responsibleType ?? null,
+      responsibleId: responsibleId ?? null,
+      dueDate: formattedDueDate ?? null,
     });
     return normalizeGovernanceIssue(response);
   }
