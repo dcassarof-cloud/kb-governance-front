@@ -63,6 +63,7 @@ export const API_ENDPOINTS = {
 
   // Governance
   GOVERNANCE_SUMMARY: '/governance/summary',
+  GOVERNANCE_OVERVIEW: '/governance/overview',
   GOVERNANCE_MANUALS: '/governance/manuals',
   GOVERNANCE_ISSUES: '/governance/issues',
   GOVERNANCE_DUPLICATES: '/governance/duplicates',
@@ -83,7 +84,7 @@ export const API_ENDPOINTS = {
   GOVERNANCE_DUPLICATES_MERGE: (hash: string | number) => `/governance/duplicates/${hash}/merge`,
 
   // Needs
-  NEEDS: '/needs',
+  NEEDS: '/needs/recurring',
   NEEDS_BY_ID: (id: string | number) => `/needs/${id}`,
   NEEDS_CREATE_TASK: (id: string | number) => `/needs/${id}/tasks`,
   NEEDS_CREATE_MASTER_TICKET: (id: string | number) => `/needs/${id}/master-ticket`,
@@ -93,9 +94,9 @@ export const API_ENDPOINTS = {
   SYSTEM_BY_ID: (id: string | number) => `/systems/${id}`,
 
   // Sync
-  SYNC_RUNS: '/sync/runs',
+  SYNC_RUNS_LATEST: '/sync/runs/latest',
   SYNC_CONFIG: '/sync/config',
-  SYNC_TRIGGER: '/sync/runs',
+  SYNC_TRIGGER: '/sync/run',
 
   // Reports
   REPORTS_ARTICLES: '/reports/articles',

@@ -94,7 +94,7 @@ export default function DashboardPage() {
   const summary = data?.summary;
   const systemsAtRisk = useMemo(() => {
     if (!data?.systemsAtRisk) return [];
-    return [...data.systemsAtRisk].sort((a, b) => a.healthScore - b.healthScore);
+    return data.systemsAtRisk;
   }, [data?.systemsAtRisk]);
 
   const handleNavigate = (params: Record<string, string | boolean | undefined>) => {
@@ -276,7 +276,7 @@ export default function DashboardPage() {
                   return (
                     <tr
                       key={system.systemCode}
-                      onClick={() => handleNavigate({ system: system.systemCode })}
+                      onClick={() => handleNavigate({ systemCode: system.systemCode })}
                       className="border-t border-border hover:bg-muted/40 cursor-pointer"
                     >
                       <td className="p-4 font-medium">{system.systemName}</td>

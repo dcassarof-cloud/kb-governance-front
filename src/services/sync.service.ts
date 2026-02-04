@@ -33,6 +33,67 @@ function normalizeArrayResponse<T>(response: unknown): T[] {
   return [];
 }
 
+export const normalizeSyncRun = (raw: unknown): SyncRun => {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      id: '',
+      startedAt: '',
+      finishedAt: null,
+      status: 'RUNNING',
+      mode: 'INCREMENTAL',
+      note: '',
+      stats: { articlesProcessed: 0, articlesCreated: 0, articlesUpdated: 0, errors: 0 },
+    };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const statsRaw = (obj.stats as Record<string, unknown>) ?? (obj.summary as Record<string, unknown>) ?? {};
+
+  return {
+    id: obj.id ? String(obj.id) : (obj.runId as string) ?? '',
+    startedAt:
+      (obj.startedAt as string) ??
+      (obj.started_at as string) ??
+      (obj.started as string) ??
+      '',
+    finishedAt:
+      (obj.finishedAt as string) ??
+      (obj.finished_at as string) ??
+      (obj.completedAt as string) ??
+      null,
+    status:
+      (obj.status as SyncRun['status']) ??
+      (obj.state as SyncRun['status']) ??
+      'RUNNING',
+    mode:
+      (obj.mode as SyncMode) ??
+      (obj.syncMode as SyncMode) ??
+      'INCREMENTAL',
+    note:
+      (obj.note as string) ??
+      (obj.message as string) ??
+      '',
+    stats: {
+      articlesProcessed:
+        (statsRaw.articlesProcessed as number) ??
+        (statsRaw.processed as number) ??
+        0,
+      articlesCreated:
+        (statsRaw.articlesCreated as number) ??
+        (statsRaw.created as number) ??
+        0,
+      articlesUpdated:
+        (statsRaw.articlesUpdated as number) ??
+        (statsRaw.updated as number) ??
+        0,
+      errors:
+        (statsRaw.errors as number) ??
+        (statsRaw.failed as number) ??
+        0,
+    },
+  };
+};
+
 // Helper: Normaliza resposta de SyncConfig com valores padrão
 function normalizeSyncConfig(response: unknown): SyncConfig {
   const defaultConfig: SyncConfig = {
@@ -66,8 +127,15 @@ class SyncService {
     }
 
     // Chamada à API real com normalização de resposta
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.SYNC_RUNS);
-    return normalizeArrayResponse<SyncRun>(response);
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.SYNC_RUNS_LATEST);
+    const latest = normalizeArrayResponse<unknown>(response);
+    if (latest.length > 0) {
+      return latest.map((item) => normalizeSyncRun(item));
+    }
+    if (response && typeof response === 'object') {
+      return [normalizeSyncRun(response)];
+    }
+    return [];
   }
 
   async triggerSync(request: TriggerSyncRequest): Promise<SyncRun> {
@@ -88,7 +156,10 @@ class SyncService {
     }
 
     // Chamada à API real
-    return apiClient.post<SyncRun>(API_ENDPOINTS.SYNC_TRIGGER, request);
+    const response = await apiClient.post<unknown>(API_ENDPOINTS.SYNC_TRIGGER, undefined, {
+      params: { mode: request.mode, daysBack: request.daysBack },
+    });
+    return normalizeSyncRun(response);
   }
 
   async getSyncConfig(): Promise<SyncConfig> {

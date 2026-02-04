@@ -69,7 +69,8 @@ export default function ResponsiblesPage() {
   }, [summary, responsibles.length]);
 
   const handleBacklog = (responsible: GovernanceResponsible) => {
-    navigate(`/governance?responsible=${encodeURIComponent(responsible.name)}`);
+    const responsibleId = responsible.id ?? responsible.name;
+    navigate(`/governance?responsibleId=${encodeURIComponent(responsibleId)}`);
   };
 
   const handleQuickAssign = (responsible: GovernanceResponsible) => {

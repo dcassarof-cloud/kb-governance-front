@@ -31,7 +31,8 @@ export interface IssuesFilter {
   severity?: IssueSeverity;
   status?: IssueStatus;
   systemCode?: string;
-  responsible?: string;
+  responsibleType?: string;
+  responsibleId?: string;
   q?: string;
   overdue?: boolean;
   unassigned?: boolean;
@@ -189,7 +190,7 @@ const normalizeDuplicateGroup = (raw: unknown): DuplicateGroup | null => {
   return null;
 };
 
-const normalizeIssueDetail = (response: unknown): GovernanceIssueDetail => {
+export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto => {
   if (!response || typeof response !== 'object') {
     return {
       id: '',
@@ -207,12 +208,127 @@ const normalizeIssueDetail = (response: unknown): GovernanceIssueDetail => {
   const raw = response as Record<string, unknown>;
   const issueData = (raw.issue as Record<string, unknown>) ?? (raw.data as Record<string, unknown>) ?? raw;
 
+  return {
+    id: issueData.id ? String(issueData.id) : (issueData.issueId as string) ?? '',
+    type:
+      (issueData.type as IssueType) ??
+      (issueData.issueType as IssueType) ??
+      'INCOMPLETE_CONTENT',
+    typeDisplayName:
+      (issueData.typeDisplayName as string) ??
+      (issueData.type_display_name as string) ??
+      (issueData.displayName as string) ??
+      null,
+    severity:
+      (issueData.severity as IssueSeverity) ??
+      (issueData.issueSeverity as IssueSeverity) ??
+      'LOW',
+    articleId:
+      (issueData.articleId as string) ??
+      (issueData.manualId as string) ??
+      (issueData.article_id as string) ??
+      '',
+    articleTitle:
+      (issueData.articleTitle as string) ??
+      (issueData.title as string) ??
+      (issueData.article_title as string) ??
+      '',
+    systemCode:
+      (issueData.systemCode as string) ??
+      (issueData.system_code as string) ??
+      (issueData.system as string) ??
+      '',
+    status:
+      (issueData.status as IssueStatus) ??
+      (issueData.issueStatus as IssueStatus) ??
+      'OPEN',
+    createdAt:
+      (issueData.createdAt as string) ??
+      (issueData.created_at as string) ??
+      '',
+    details:
+      (issueData.details as string) ??
+      (issueData.message as string) ??
+      (issueData.description as string) ??
+      '',
+    responsible:
+      (issueData.responsible as string) ??
+      (issueData.assignee as string) ??
+      null,
+    responsibleId:
+      (issueData.responsibleId as string) ??
+      (issueData.responsible_id as string) ??
+      null,
+    responsibleType:
+      (issueData.responsibleType as string) ??
+      (issueData.responsible_type as string) ??
+      null,
+    responsibleName:
+      (issueData.responsibleName as string) ??
+      (issueData.responsible_name as string) ??
+      null,
+    dueDate:
+      (issueData.dueDate as string) ??
+      (issueData.due_date as string) ??
+      null,
+    slaDueAt:
+      (issueData.slaDueAt as string) ??
+      (issueData.sla_due_at as string) ??
+      null,
+    slaDays:
+      (issueData.slaDays as number) ??
+      (issueData.sla_days as number) ??
+      null,
+    systemName:
+      (issueData.systemName as string) ??
+      (issueData.system_name as string) ??
+      null,
+    message:
+      (issueData.message as string) ??
+      (issueData.details as string) ??
+      null,
+    title:
+      (issueData.title as string) ??
+      (issueData.articleTitle as string) ??
+      null,
+    duplicateHash:
+      (issueData.duplicateHash as string) ??
+      (issueData.contentHash as string) ??
+      (issueData.duplicate_hash as string) ??
+      null,
+    displayName:
+      (issueData.displayName as string) ??
+      (issueData.typeDisplayName as string) ??
+      (issueData.type_display_name as string) ??
+      null,
+    description:
+      (issueData.description as string) ??
+      (issueData.details as string) ??
+      null,
+    recommendation:
+      (issueData.recommendation as string) ??
+      (issueData.recommendedAction as string) ??
+      null,
+    metadata:
+      (issueData.metadata as Record<string, unknown>) ??
+      null,
+  };
+};
+
+const normalizeIssueDetail = (response: unknown): GovernanceIssueDetail => {
+  if (!response || typeof response !== 'object') {
+    return normalizeGovernanceIssue(response);
+  }
+
+  const raw = response as Record<string, unknown>;
+  const issueData = (raw.issue as Record<string, unknown>) ?? (raw.data as Record<string, unknown>) ?? raw;
+
   const duplicateGroup =
     normalizeDuplicateGroup(issueData?.duplicateGroup ?? issueData?.duplicates ?? issueData?.duplicateArticles ?? null) ??
     normalizeDuplicateGroup(raw?.duplicateGroup ?? raw?.duplicates ?? raw?.duplicateArticles ?? null);
 
   return {
-    ...(issueData as GovernanceIssueDetail),
+    ...(normalizeGovernanceIssue(issueData) as GovernanceIssueDetail),
     duplicateGroup,
     duplicateHash:
       (issueData.duplicateHash as string) ??
@@ -223,7 +339,7 @@ const normalizeIssueDetail = (response: unknown): GovernanceIssueDetail => {
   };
 };
 
-const normalizeOverview = (response: unknown): GovernanceOverviewDto => {
+export const normalizeGovernanceOverview = (response: unknown): GovernanceOverviewDto => {
   if (!response || typeof response !== 'object') {
     return {};
   }
@@ -258,6 +374,16 @@ const normalizeOverview = (response: unknown): GovernanceOverviewDto => {
   };
 };
 
+const normalizeHistoryValue = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
 const normalizeIssueHistory = (response: unknown): GovernanceIssueHistoryDto[] => {
   const entries = normalizeArrayResponse<Record<string, unknown>>(response);
   return entries.map((entry) => ({
@@ -268,16 +394,8 @@ const normalizeIssueHistory = (response: unknown): GovernanceIssueHistoryDto[] =
       (entry.createdAt as string) ??
       '',
     field: (entry.field as string) ?? (entry.attribute as string) ?? (entry.property as string) ?? null,
-    oldValue:
-      (entry.oldValue as string) ??
-      (entry.previousValue as string) ??
-      (entry.from as string) ??
-      null,
-    newValue:
-      (entry.newValue as string) ??
-      (entry.currentValue as string) ??
-      (entry.to as string) ??
-      null,
+    oldValue: normalizeHistoryValue(entry.oldValue ?? entry.previousValue ?? entry.from),
+    newValue: normalizeHistoryValue(entry.newValue ?? entry.currentValue ?? entry.to),
     changedBy: (entry.changedBy as string) ?? (entry.user as string) ?? null,
     note: (entry.note as string) ?? (entry.reason as string) ?? null,
     status: (entry.status as IssueStatus) ?? (entry.toStatus as IssueStatus) ?? null,
@@ -318,8 +436,8 @@ class GovernanceService {
   }
 
   async getOverview(): Promise<GovernanceOverviewDto> {
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_SUMMARY);
-    const overview = normalizeOverview(response);
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_OVERVIEW);
+    const overview = normalizeGovernanceOverview(response);
 
     if (overview.errorOpen === null && overview.criticalOpen !== null) {
       return { ...overview, errorOpen: overview.criticalOpen };
@@ -367,37 +485,65 @@ class GovernanceService {
   }
 
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssueDto>> {
-    const { page = 1, size = config.defaultPageSize, type, severity, status, systemCode, responsible, q, overdue, unassigned } = filter;
+    const {
+      page = 1,
+      size = config.defaultPageSize,
+      type,
+      severity,
+      status,
+      systemCode,
+      responsibleType,
+      responsibleId,
+      q,
+      overdue,
+      unassigned,
+    } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
-      params: { page, size, type, severity, status, systemCode, responsible, q, overdue, unassigned },
+      params: {
+        page,
+        size,
+        type,
+        severity,
+        status,
+        systemCode,
+        responsibleType,
+        responsibleId,
+        q,
+        overdue,
+        unassigned,
+      },
     });
 
-    return normalizePaginatedResponse<GovernanceIssueDto>(response, page, size);
+    const normalized = normalizePaginatedResponse<GovernanceIssueDto>(response, page, size);
+    return {
+      ...normalized,
+      data: normalized.data.map((item) => normalizeGovernanceIssue(item)),
+    };
   }
 
   async assignIssue(
     id: string,
-    responsible: string,
     options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string } = {}
   ): Promise<GovernanceIssueDto> {
     const { dueDate, responsibleType, responsibleId, ...restOptions } = options;
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
-    return apiClient.post<GovernanceIssueDto>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
-      responsible,
+    const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
       ...restOptions,
       ...(responsibleType ? { responsibleType } : {}),
       ...(responsibleId ? { responsibleId } : {}),
       ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
     });
+    return normalizeGovernanceIssue(response);
   }
 
   async changeStatus(id: string, status: IssueStatus, ignoredReason?: string): Promise<GovernanceIssueDto> {
-    return apiClient.patch<GovernanceIssueDto>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
+    const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
       status,
-      ...(ignoredReason ? { reason: ignoredReason } : {}),
+      ...(ignoredReason ? { ignoredReason } : {}),
     });
+    return normalizeGovernanceIssue(response);
   }
 
   async getHistory(id: string): Promise<IssueHistoryEntry[]> {
@@ -416,10 +562,11 @@ class GovernanceService {
   }
 
   async ignoreIssue(id: string, reason: string): Promise<GovernanceIssueDto> {
-    return apiClient.patch<GovernanceIssueDto>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
+    const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
       status: 'IGNORED',
-      reason,
+      ignoredReason: reason,
     });
+    return normalizeGovernanceIssue(response);
   }
 
   async getSuggestedAssignee(id: string): Promise<GovernanceSuggestedAssignee> {

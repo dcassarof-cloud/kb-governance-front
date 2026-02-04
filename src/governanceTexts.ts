@@ -12,6 +12,7 @@ export const governanceTexts = {
     close: 'Fechar',
     update: 'Atualizar',
     save: 'Salvar',
+    all: 'Todos',
     clearFilters: 'Limpar filtros',
     refreshList: 'Atualizar lista',
     page: (current: number, total: number) => `Página ${current} de ${total}`,
@@ -439,6 +440,7 @@ export const governanceTexts = {
       actionsLabel: 'Ações',
       noWindow: 'Sem janela definida',
       noReason: 'Motivo não informado',
+      linkLabel: 'Abrir link',
     },
     detail: {
       title: 'Detalhe da necessidade',

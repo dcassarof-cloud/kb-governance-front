@@ -118,6 +118,7 @@ export interface GovernanceOverviewSystemDto {
 export interface GovernanceIssueDto {
   id: string;
   type: IssueType;
+  typeDisplayName?: string | null;
   severity: IssueSeverity;
   articleId: string;
   articleTitle: string;
@@ -260,6 +261,7 @@ export interface NeedItem {
   severity?: IssueSeverity | null;
   windowStart?: string | null;
   windowEnd?: string | null;
+  link?: string | null;
   reason?: string | null;
   quantity?: number | null;
   createdAt?: string | null;
@@ -290,7 +292,7 @@ export type IssueType =
 export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type SyncMode = 'FULL' | 'INCREMENTAL' | 'DELTA';
+export type SyncMode = 'FULL' | 'INCREMENTAL' | 'DELTA' | 'DELTA_WINDOW';
 export type NeedStatus = string;
 
 // Auth

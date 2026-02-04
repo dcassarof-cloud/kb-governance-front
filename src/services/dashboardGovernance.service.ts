@@ -126,7 +126,7 @@ const normalizeTrendsFromSummary = (raw: Record<string, unknown>): DashboardGove
   return trends;
 };
 
-const normalizeDashboardGovernance = (response: unknown): DashboardGovernanceDto => {
+export const normalizeDashboardGovernance = (response: unknown): DashboardGovernanceDto => {
   if (!response || typeof response !== 'object') {
     return {
       summary: normalizeSummary({}),
