@@ -248,8 +248,22 @@ export default function GovernancePage() {
     fetchSuggestedAssignee(assignTarget);
   }, [assignTarget, searchParams]);
 
-  const uniqueOptions = (values: Array<string | null | undefined>) =>
-    Array.from(new Set(values.filter((value): value is string => Boolean(value && value.trim()))));
+  const uniqueOptions = (values: Array<string | number | null | undefined>) =>
+    Array.from(
+      new Set(
+        values
+          .map((value) => {
+            if (typeof value === 'string') {
+              return value.trim();
+            }
+            if (typeof value === 'number') {
+              return String(value);
+            }
+            return '';
+          })
+          .filter((value) => value.length > 0),
+      ),
+    );
 
   const issues = issuesData?.data ?? [];
 
