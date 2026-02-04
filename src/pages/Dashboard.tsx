@@ -112,16 +112,17 @@ export default function DashboardPage() {
   const issuesPercent = totalArticles > 0 ? Math.round((articlesWithIssues / totalArticles) * 100) : 0;
 
   // Prepara dados para gráficos com guard clauses
-  const mapImpactLabel = (label: string) => {
-    if (label in governanceTexts.severity.labels) {
-      return governanceTexts.severity.labels[label as keyof typeof governanceTexts.severity.labels];
+  const mapImpactLabel = (label: unknown) => {
+    const normalizedLabel = typeof label === 'string' ? label : String(label ?? '');
+    if (normalizedLabel in governanceTexts.severity.labels) {
+      return governanceTexts.severity.labels[normalizedLabel as keyof typeof governanceTexts.severity.labels];
     }
-    return label;
+    return normalizedLabel || governanceTexts.general.notAvailable;
   };
 
   const impactData = Array.isArray(data?.byStatus)
     ? data.byStatus.map((s) => {
-        const rawLabel = s?.status || governanceTexts.general.notAvailable;
+        const rawLabel = s?.status ?? governanceTexts.general.notAvailable;
         return {
           name: mapImpactLabel(rawLabel),
           value: s?.count ?? 0,
@@ -141,7 +142,10 @@ export default function DashboardPage() {
     },
   ];
 
-  const isCriticalImpact = (label: string) => label.toLowerCase().includes('crític') || label.toUpperCase() === 'CRITICAL';
+  const isCriticalImpact = (label: unknown) => {
+    const normalizedLabel = typeof label === 'string' ? label : String(label ?? '');
+    return normalizedLabel.toLowerCase().includes('crític') || normalizedLabel.toUpperCase() === 'CRITICAL';
+  };
 
   return (
     <MainLayout>
