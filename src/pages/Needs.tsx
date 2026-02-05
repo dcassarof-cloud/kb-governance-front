@@ -44,6 +44,7 @@ export default function NeedsPage() {
     start: '',
     end: '',
   });
+  const [sortOption, setSortOption] = useState<'impact' | 'recurrence' | ''>('');
 
   const [page, setPage] = useState(1);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -72,6 +73,8 @@ export default function NeedsPage() {
         status: currentFilters.status || undefined,
         start: currentFilters.start || undefined,
         end: currentFilters.end || undefined,
+        page: currentPage,
+        size: 50,
       });
 
       setNeedsData(result);
@@ -185,6 +188,37 @@ export default function NeedsPage() {
     return `${start} → ${end}`;
   };
 
+  const severityOrder: Record<string, number> = {
+    CRITICAL: 0,
+    HIGH: 1,
+    MEDIUM: 2,
+    LOW: 3,
+  };
+
+  const resolveOccurrences = (need: NeedItem) =>
+    typeof need.occurrences === 'number'
+      ? need.occurrences
+      : typeof need.quantity === 'number'
+        ? need.quantity
+        : null;
+
+  const sortedNeeds = useMemo(() => {
+    const items = [...needs];
+    if (!sortOption) return items;
+    if (sortOption === 'impact') {
+      return items.sort((a, b) => {
+        const aKey = a.severity ? severityOrder[a.severity] ?? 99 : 99;
+        const bKey = b.severity ? severityOrder[b.severity] ?? 99 : 99;
+        return aKey - bKey;
+      });
+    }
+    return items.sort((a, b) => {
+      const aCount = resolveOccurrences(a) ?? 0;
+      const bCount = resolveOccurrences(b) ?? 0;
+      return bCount - aCount;
+    });
+  }, [needs, sortOption]);
+
   return (
     <MainLayout>
       <PageHeader title={governanceTexts.needs.title} description={governanceTexts.needs.description} />
@@ -192,7 +226,7 @@ export default function NeedsPage() {
       <div className="card-metric mb-6">
         <h3 className="font-semibold mb-4">{governanceTexts.needs.filtersTitle}</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="space-y-2">
             <Label>{governanceTexts.needs.filters.system}</Label>
             <Select
@@ -250,6 +284,23 @@ export default function NeedsPage() {
               onChange={(event) => handleFilterChange('end', event.target.value)}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>{governanceTexts.needs.filters.sort}</Label>
+            <Select
+              value={sortOption || 'ALL'}
+              onValueChange={(value) => setSortOption(value === 'ALL' ? '' : (value as 'impact' | 'recurrence'))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={governanceTexts.needs.filters.sortPlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">{governanceTexts.needs.filters.sortPlaceholder}</SelectItem>
+                <SelectItem value="impact">{governanceTexts.needs.filters.sortOptions.impact}</SelectItem>
+                <SelectItem value="recurrence">{governanceTexts.needs.filters.sortOptions.recurrence}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -263,6 +314,7 @@ export default function NeedsPage() {
                 start: '',
                 end: '',
               });
+              setSortOption('');
             }}
           >
             {governanceTexts.general.clearFilters}
@@ -279,7 +331,7 @@ export default function NeedsPage() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{governanceTexts.needs.list.title}</h3>
           <span className="text-sm text-muted-foreground">
-            {governanceTexts.governance.list.count(needs.length)}
+            {governanceTexts.governance.list.count(sortedNeeds.length)}
           </span>
         </div>
 
@@ -295,7 +347,7 @@ export default function NeedsPage() {
               {governanceTexts.general.retry}
             </Button>
           </div>
-        ) : needs.length === 0 ? (
+        ) : sortedNeeds.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
             title={governanceTexts.needs.list.emptyTitle}
@@ -310,14 +362,16 @@ export default function NeedsPage() {
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.status}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.severity}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.windowLabel}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.quantityLabel}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.occurrencesLabel}</th>
+                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.lastOccurrenceLabel}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.reasonLabel}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.actionsLabel}</th>
                 </tr>
               </thead>
               <tbody>
-                {needs.map((need, index) => {
+                {sortedNeeds.map((need, index) => {
                   const needId = need?.id || `need-${index}`;
+                  const occurrences = resolveOccurrences(need);
                   return (
                     <tr key={needId} className="border-t border-border hover:bg-muted/30 transition-colors">
                       <td className="p-4 text-sm text-muted-foreground">
@@ -330,7 +384,12 @@ export default function NeedsPage() {
                         <StatusBadge status={need.severity || 'LOW'} />
                       </td>
                       <td className="p-4 text-sm text-muted-foreground">{formatWindow(need)}</td>
-                      <td className="p-4 text-sm text-muted-foreground">{need.quantity ?? governanceTexts.general.notAvailable}</td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {occurrences ?? governanceTexts.general.notAvailable}
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {formatDate(need.lastOccurrenceAt || need.updatedAt || need.createdAt)}
+                      </td>
                       <td className="p-4">
                         <div className="line-clamp-2 text-sm text-muted-foreground">
                           {need.reason || governanceTexts.needs.list.noReason}

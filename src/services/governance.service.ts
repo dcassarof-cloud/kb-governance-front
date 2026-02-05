@@ -182,6 +182,12 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
       (issueData.severity as IssueSeverity) ??
       (issueData.issueSeverity as IssueSeverity) ??
       'LOW',
+    priorityLevel:
+      (issueData.priorityLevel as IssueSeverity) ??
+      (issueData.priority as IssueSeverity) ??
+      (issueData.severity as IssueSeverity) ??
+      (issueData.issueSeverity as IssueSeverity) ??
+      null,
     articleId:
       (issueData.articleId as string) ??
       (issueData.manualId as string) ??

@@ -120,6 +120,7 @@ export interface GovernanceIssueDto {
   type: IssueType;
   typeDisplayName?: string | null;
   severity: IssueSeverity;
+  priorityLevel?: IssueSeverity | null;
   articleId: string;
   articleTitle: string;
   systemCode: string;
@@ -259,6 +260,8 @@ export interface NeedItem {
   systemName?: string | null;
   status?: NeedStatus | null;
   severity?: IssueSeverity | null;
+  occurrences?: number | null;
+  lastOccurrenceAt?: string | null;
   windowStart?: string | null;
   windowEnd?: string | null;
   link?: string | null;

@@ -23,6 +23,7 @@ export function Topbar() {
     if (pathname.startsWith('/governance')) return governanceTexts.navigation.routes.governance;
     if (pathname.startsWith('/needs')) return governanceTexts.navigation.routes.needs;
     if (pathname.startsWith('/responsibles') || pathname.startsWith('/responsaveis')) return governanceTexts.navigation.routes.responsibles;
+    if (pathname.startsWith('/workload')) return governanceTexts.navigation.routes.workload;
     if (pathname.startsWith('/sync')) return governanceTexts.navigation.routes.sync;
     if (pathname.startsWith('/settings')) return governanceTexts.navigation.routes.settings;
     return governanceTexts.navigation.routes.dashboard;

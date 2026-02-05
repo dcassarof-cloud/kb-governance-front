@@ -12,6 +12,8 @@ export interface NeedsFilter {
   status?: string;
   start?: string;
   end?: string;
+  page?: number;
+  size?: number;
 }
 
 const toNumber = (value: unknown): number | null =>
@@ -49,6 +51,14 @@ const normalizeNeed = (raw: unknown): NeedItem => {
     systemName: (obj.systemName as string) ?? (obj.systemLabel as string) ?? null,
     status: (obj.status as string) ?? (obj.state as string) ?? null,
     severity: (obj.severity as IssueSeverity) ?? (obj.priority as IssueSeverity) ?? null,
+    occurrences: toNumber(obj.occurrences ?? obj.recurrence ?? obj.recurringCount ?? obj.quantity ?? obj.count ?? obj.total),
+    lastOccurrenceAt:
+      (obj.lastOccurrenceAt as string) ??
+      (obj.lastOccurrence as string) ??
+      (obj.last_seen_at as string) ??
+      (obj.updatedAt as string) ??
+      (obj.updated_at as string) ??
+      null,
     windowStart:
       (obj.windowStart as string) ??
       (windowObj?.start as string) ??
@@ -98,7 +108,7 @@ const normalizeNeedDetail = (raw: unknown): NeedDetail => {
 
 class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
-    const { systemCode, status, start, end } = filter;
+    const { systemCode, status, start, end, page = 1, size = config.defaultPageSize } = filter;
 
     const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
@@ -107,8 +117,8 @@ class NeedsService {
         start,
         end,
       },
-      page: 1,
-      size: config.defaultPageSize,
+      page,
+      size,
     });
 
     return {
