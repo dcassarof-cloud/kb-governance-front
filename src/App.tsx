@@ -12,6 +12,7 @@ import NeedsPage from "./pages/Needs";
 import SyncPage from "./pages/Sync";
 import SettingsPage from "./pages/Settings";
 import ResponsiblesPage from "./pages/Responsibles";
+import WorkloadPage from "./pages/Workload";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "./context/ThemeContext";
 import { authService, hasRole } from "./services/auth.service";
@@ -47,6 +48,14 @@ const App = () => (
             <Route path="/needs/:id" element={<NeedsPage />} />
             <Route path="/responsibles" element={<ResponsiblesPage />} />
             <Route path="/responsaveis" element={<ResponsiblesPage />} />
+            <Route
+              path="/workload"
+              element={
+                <RequireRole roles={['ADMIN', 'MANAGER']}>
+                  <WorkloadPage />
+                </RequireRole>
+              }
+            />
             <Route
               path="/sync"
               element={

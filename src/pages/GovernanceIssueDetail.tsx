@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { governanceService } from '@/services/governance.service';
-import { hasRole } from '@/services/auth.service';
+import { authService, hasRole } from '@/services/auth.service';
 import { duplicatesService } from '@/services/duplicates.service';
 import {
   GovernanceIssueDetail,
@@ -209,6 +209,8 @@ const generateHumanPhrase = (entry: GovernanceIssueHistoryDto): string => {
 export default function GovernanceIssueDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const isManager = hasRole(['ADMIN', 'MANAGER']);
+  const actorIdentifier = authService.getActorIdentifier();
   const [issue, setIssue] = useState<GovernanceIssueDetail | null>(null);
   const [history, setHistory] = useState<GovernanceIssueHistoryDto[]>([]);
   const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroup | null>(null);
@@ -228,8 +230,8 @@ export default function GovernanceIssueDetailPage() {
   const [statusValue, setStatusValue] = useState<IssueStatus>('OPEN');
   const [statusIgnoredReason, setStatusIgnoredReason] = useState('');
 
-  const canAssign = hasRole(['ADMIN', 'MANAGER']);
-  const canResolve = hasRole(['ADMIN', 'MANAGER']);
+  const canAssign = isManager;
+  const canResolve = isManager;
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return governanceTexts.general.notAvailable;
@@ -487,6 +489,13 @@ export default function GovernanceIssueDetailPage() {
   const severityOrder: Record<IssueSeverity, string> = governanceTexts.severity.shortLabels;
   const metadataDescription = issue?.description || issue?.details || null;
   const metadataRecommendation = issue?.recommendation || issue?.message || null;
+  const isAssignedToUser = useMemo(() => {
+    if (!issue || !actorIdentifier) return false;
+    const actor = actorIdentifier.toLowerCase();
+    return [issue.responsibleId, issue.responsible, issue.responsibleName]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase() === actor);
+  }, [actorIdentifier, issue]);
 
   return (
     <MainLayout>
@@ -499,7 +508,7 @@ export default function GovernanceIssueDetailPage() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               {governanceTexts.issueDetail.backToList}
             </Button>
-            {issue && issue.status !== 'RESOLVED' && issue.status !== 'IGNORED' && (
+            {issue && (
               <>
                 {canAssign && (
                   <Button
@@ -513,6 +522,25 @@ export default function GovernanceIssueDetailPage() {
                   >
                     <UserPlus className="h-4 w-4 mr-2" />
                     {governanceTexts.governance.list.actionAssign}
+                  </Button>
+                )}
+                {canAssign && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const dueDateValue = issue.slaDueAt ?? issue.dueDate ?? '';
+                      if (dueDateValue) {
+                        const date = new Date(dueDateValue);
+                        if (!Number.isNaN(date.getTime())) {
+                          const formatted = `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
+                          setAssignDueDate(formatted);
+                        }
+                      }
+                      setAssignDialogOpen(true);
+                    }}
+                  >
+                    <CalendarClock className="h-4 w-4 mr-2" />
+                    {governanceTexts.governance.list.actionDueDate}
                   </Button>
                 )}
                 {canResolve && (
@@ -556,6 +584,12 @@ export default function GovernanceIssueDetailPage() {
           icon={AlertCircle}
           title={governanceTexts.issueDetail.notFoundTitle}
           description={governanceTexts.issueDetail.notFoundDescription}
+        />
+      ) : !isManager && !isAssignedToUser ? (
+        <EmptyState
+          icon={AlertCircle}
+          title={governanceTexts.issueDetail.unauthorizedTitle}
+          description={governanceTexts.issueDetail.unauthorizedDescription}
         />
       ) : (
         <div className="space-y-6">

@@ -31,7 +31,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { governanceService, IssuesFilter } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
-import { hasRole } from '@/services/auth.service';
+import { authService, hasRole } from '@/services/auth.service';
 import {
   GovernanceIssueDto,
   GovernanceOverviewDto,
@@ -83,20 +83,23 @@ export default function GovernancePage() {
   const [size] = useState(config.defaultPageSize);
 
   // ✅ filtros simples alinhados com backend atual
+  const isManager = hasRole(['ADMIN', 'MANAGER']);
+  const actorIdentifier = authService.getActorIdentifier() ?? '';
+
   const [filters, setFilters] = useState<GovernanceFilters>({
     systemCode: '',
     status: undefined,
     type: undefined,
     severity: undefined,
     responsibleType: '',
-    responsibleId: '',
+    responsibleId: isManager ? '' : actorIdentifier,
     q: '',
     overdue: false,
     unassigned: false,
   });
 
-  const canAssign = hasRole(['ADMIN', 'MANAGER']);
-  const canResolve = hasRole(['ADMIN', 'MANAGER']);
+  const canAssign = isManager;
+  const canResolve = isManager;
 
   const [assignTarget, setAssignTarget] = useState<GovernanceIssueDto | null>(null);
   const [assignValue, setAssignValue] = useState('');
@@ -132,6 +135,7 @@ export default function GovernancePage() {
     setIssuesLoading(true);
     setIssuesError(null);
     try {
+      const effectiveResponsibleId = isManager ? currentFilters.responsibleId : actorIdentifier;
       const result = await governanceService.listIssues({
         page: currentPage,
         size,
@@ -140,7 +144,7 @@ export default function GovernancePage() {
         type: currentFilters.type || undefined,
         severity: currentFilters.severity || undefined,
         responsibleType: currentFilters.responsibleType?.trim() || undefined,
-        responsibleId: currentFilters.responsibleId?.trim() || undefined,
+        responsibleId: effectiveResponsibleId?.trim() || undefined,
         q: currentFilters.q?.trim() || undefined,
         overdue: currentFilters.overdue || undefined,
         unassigned: currentFilters.unassigned || undefined,
@@ -197,8 +201,8 @@ export default function GovernancePage() {
 
     setFilters((prev) => ({
       ...prev,
-      responsibleId,
-      responsibleType,
+      responsibleId: isManager ? responsibleId : actorIdentifier,
+      responsibleType: isManager ? responsibleType : prev.responsibleType,
       systemCode,
       status: status ? (status as IssueStatus) : undefined,
       type: type ? (type as IssueType) : undefined,
@@ -226,7 +230,7 @@ export default function GovernancePage() {
     } else if (!canAssign) {
       setAssignTarget(null);
     }
-  }, [searchParams, canAssign]);
+  }, [searchParams, canAssign, isManager, actorIdentifier]);
 
   // ✅ debounce para busca/filtros e paginação
   useEffect(() => {
@@ -307,6 +311,7 @@ export default function GovernancePage() {
   const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : ISSUE_STATUS_FILTER_OPTIONS;
   const resolvedTypeOptions = typeOptions.length > 0 ? typeOptions : ALLOWED_ISSUE_TYPES;
   const resolvedSeverityOptions = ISSUE_SEVERITY_OPTIONS;
+  const isCriticalOnly = filters.severity === 'CRITICAL';
 
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return governanceTexts.general.notAvailable;
@@ -482,6 +487,9 @@ export default function GovernancePage() {
   };
 
   const handleFilterChange = (key: keyof GovernanceFilters, value: string) => {
+    if (!isManager && (key === 'responsibleId' || key === 'responsibleType')) {
+      return;
+    }
     // sempre resetar pagina ao filtrar
     setPage(1);
     setFilters((prev) => ({
@@ -495,6 +503,14 @@ export default function GovernancePage() {
     setFilters((prev) => ({
       ...prev,
       [key]: value,
+    }));
+  };
+
+  const handleCriticalToggle = (value: boolean) => {
+    setPage(1);
+    setFilters((prev) => ({
+      ...prev,
+      severity: value ? 'CRITICAL' : undefined,
     }));
   };
 
@@ -620,6 +636,17 @@ export default function GovernancePage() {
     return governanceTexts.status.labels[status];
   };
 
+  const getPriorityLevel = (issue: GovernanceIssueDto) => issue.priorityLevel ?? issue.severity ?? 'LOW';
+  const getPriorityClasses = (priority: IssueSeverity) => {
+    if (priority === 'CRITICAL') {
+      return 'bg-destructive/15 text-destructive border-destructive/40';
+    }
+    if (priority === 'HIGH') {
+      return 'bg-warning/20 text-warning border-warning/40';
+    }
+    return 'bg-muted text-muted-foreground border-border';
+  };
+
   return (
     <MainLayout>
       <PageHeader title={governanceTexts.governance.title} description={governanceTexts.governance.description} />
@@ -734,6 +761,7 @@ export default function GovernancePage() {
               placeholder={governanceTexts.governance.filters.responsiblePlaceholder}
               value={filters.responsibleId || ''}
               onChange={(event) => handleFilterChange('responsibleId', event.target.value)}
+              disabled={!isManager}
             />
           </div>
 
@@ -742,6 +770,7 @@ export default function GovernancePage() {
             <Select
               value={filters.responsibleType || 'ALL'}
               onValueChange={(value) => handleFilterChange('responsibleType', value === 'ALL' ? '' : value)}
+              disabled={!isManager}
             >
               <SelectTrigger>
                 <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
@@ -756,6 +785,16 @@ export default function GovernancePage() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="filter-critical"
+              checked={Boolean(isCriticalOnly)}
+              onCheckedChange={(checked) => handleCriticalToggle(Boolean(checked))}
+            />
+            <Label htmlFor="filter-critical" className="text-sm font-medium">
+              {governanceTexts.governance.filters.criticalOnly}
+            </Label>
+          </div>
           <div className="flex items-center space-x-2">
             <Checkbox
               id="filter-overdue"
@@ -789,7 +828,7 @@ export default function GovernancePage() {
                 type: undefined,
                 severity: undefined,
                 responsibleType: '',
-                responsibleId: '',
+                responsibleId: isManager ? '' : actorIdentifier,
                 q: '',
                 overdue: false,
                 unassigned: false,
@@ -985,6 +1024,7 @@ export default function GovernancePage() {
                   const situationSummary = `${getShortSeverityLabel(issue.severity)} – ${getStatusLabel(status)}${
                     overdueDays ? ` há ${overdueDays} dia${overdueDays !== 1 ? 's' : ''}` : ''
                   }`;
+                  const priorityLevel = getPriorityLevel(issue);
 
                   const isActionLoading = (action: string) => actionLoading?.id === issueId && actionLoading?.action === action;
 
@@ -999,6 +1039,13 @@ export default function GovernancePage() {
                               issue?.type ||
                               governanceTexts.general.notAvailable}
                           </Badge>
+                          <span
+                            className={`inline-flex w-fit items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getPriorityClasses(
+                              priorityLevel,
+                            )}`}
+                          >
+                            {priorityLevel}
+                          </span>
                           <div className="text-sm text-muted-foreground">{system}</div>
                           <div className="font-medium">{manualTitle}</div>
                           {manualDetails && (
@@ -1061,6 +1108,26 @@ export default function GovernancePage() {
                             <Button variant="outline" size="sm" onClick={() => setAssignTarget(issue)}>
                               <UserPlus className="h-4 w-4 mr-1" />
                               {governanceTexts.governance.list.actionAssign}
+                            </Button>
+                          )}
+
+                          {canAssign && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const dueDateValue = getDueDateValue(issue);
+                                setAssignTarget(issue);
+                                if (dueDateValue) {
+                                  const parsed = new Date(dueDateValue);
+                                  if (!Number.isNaN(parsed.getTime())) {
+                                    setAssignDueDate(formatInputDate(parsed));
+                                  }
+                                }
+                              }}
+                            >
+                              <CalendarClock className="h-4 w-4 mr-1" />
+                              {governanceTexts.governance.list.actionDueDate}
                             </Button>
                           )}
 

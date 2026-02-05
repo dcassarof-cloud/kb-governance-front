@@ -9,6 +9,7 @@ import {
   ClipboardList,
   RefreshCw,
   Settings,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -24,6 +25,7 @@ const menuItems = [
   { path: '/governance', label: governanceTexts.navigation.routes.governance, icon: Shield },
   { path: '/needs', label: governanceTexts.navigation.routes.needs, icon: ClipboardList },
   { path: '/responsibles', label: governanceTexts.navigation.routes.responsibles, icon: Users },
+  { path: '/workload', label: governanceTexts.navigation.routes.workload, icon: Briefcase, roles: ['ADMIN', 'MANAGER'] },
   { path: '/sync', label: governanceTexts.navigation.routes.sync, icon: RefreshCw, roles: ['ADMIN', 'MANAGER'] },
   { path: '/settings', label: governanceTexts.navigation.routes.settings, icon: Settings, roles: ['ADMIN'] },
 ];

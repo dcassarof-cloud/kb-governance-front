@@ -1,74 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
-  AlertOctagon,
   AlertTriangle,
   CalendarClock,
-  CheckCircle,
   RefreshCw,
-  TrendingUp,
   UserX,
+  ShieldAlert,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/ui/badge';
+import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { dashboardGovernanceService } from '@/services/dashboardGovernance.service';
-import { DashboardGovernanceDto, DashboardGovernanceTrend } from '@/types';
+import { dashboardService } from '@/services/dashboard.service';
+import { needsService } from '@/services/needs.service';
+import { hasRole } from '@/services/auth.service';
+import { DashboardGovernanceDto, DashboardSummary, NeedItem } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
 
 const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
 
-const formatDate = (value?: string | null) => {
-  if (!value) return governanceTexts.general.notAvailable;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return governanceTexts.general.notAvailable;
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date);
-};
-
-const formatPercent = (value: number) => `${Math.round(value)}%`;
-
-const resolveIssueType = (type?: string | null) => {
-  if (!type) return governanceTexts.general.notAvailable;
-  return governanceTexts.issueTypes[type as keyof typeof governanceTexts.issueTypes] ?? type;
-};
-
-const getAgeDays = (createdAt?: string | null, ageDays?: number | null) => {
-  if (typeof ageDays === 'number') return ageDays;
-  if (!createdAt) return null;
-  const created = new Date(createdAt);
-  if (Number.isNaN(created.getTime())) return null;
-  const diff = Date.now() - created.getTime();
-  return Math.max(Math.floor(diff / (1000 * 60 * 60 * 24)), 0);
-};
-
-const getHealthTone = (score: number) => {
-  if (score >= 80) return 'success';
-  if (score >= 60) return 'warning';
-  return 'error';
-};
-
-const getTrendBadge = (trend: DashboardGovernanceTrend) => {
-  const isPositive = trend.direction === 'up';
-  const value = Math.abs(trend.delta);
-  const signal = isPositive ? '↑' : '↓';
-  return `${signal} ${value}${trend.key === 'sla' ? '' : '%'}`;
-};
-
-const resolveTrendTone = (trend: DashboardGovernanceTrend) => {
-  if (trend.key === 'resolvedIssues') {
-    return trend.direction === 'up' ? 'status-ok' : 'status-error';
-  }
-  return trend.direction === 'up' ? 'status-error' : 'status-ok';
-};
-
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const isManager = hasRole(['MANAGER', 'ADMIN']);
   const [data, setData] = useState<DashboardGovernanceDto | null>(null);
+  const [summaryData, setSummaryData] = useState<DashboardSummary | null>(null);
+  const [needsData, setNeedsData] = useState<NeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,8 +39,31 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await dashboardGovernanceService.getDashboard();
-      setData(result);
+      const [dashboardResult, summaryResult, needsResult] = await Promise.allSettled([
+        dashboardGovernanceService.getDashboard(),
+        dashboardService.getSummary(),
+        needsService.listNeeds({ page: 1, size: 50 }),
+      ]);
+
+      if (dashboardResult.status === 'fulfilled') {
+        setData(dashboardResult.value);
+      }
+
+      if (summaryResult.status === 'fulfilled') {
+        setSummaryData(summaryResult.value);
+      }
+
+      if (needsResult.status === 'fulfilled') {
+        setNeedsData(needsResult.value?.data ?? []);
+      }
+
+      if (
+        dashboardResult.status === 'rejected' &&
+        summaryResult.status === 'rejected' &&
+        needsResult.status === 'rejected'
+      ) {
+        throw dashboardResult.reason ?? summaryResult.reason ?? needsResult.reason;
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : governanceTexts.dashboard.errors.loadDashboard;
       setError(message);
@@ -88,14 +74,48 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isManager) {
+      fetchData();
+      return;
+    }
+    setLoading(false);
+  }, [isManager]);
 
   const summary = data?.summary;
-  const systemsAtRisk = useMemo(() => {
-    if (!data?.systemsAtRisk) return [];
-    return data.systemsAtRisk;
-  }, [data?.systemsAtRisk]);
+  const bySystem = summaryData?.bySystem ?? [];
+  const byStatus = summaryData?.byStatus ?? [];
+  const needsOpen = useMemo(() => needsData.filter((need) => need.status === 'OPEN').length, [needsData]);
+  const needsRecurring = useMemo(
+    () =>
+      needsData.filter((need) => {
+        const occurrences = need.occurrences ?? need.quantity ?? 0;
+        return occurrences > 1;
+      }).length,
+    [needsData],
+  );
+
+  const systemChartData = useMemo(
+    () =>
+      bySystem.map((system) => ({
+        name: system.systemName || system.systemCode || governanceTexts.general.notAvailable,
+        value: system.count,
+      })),
+    [bySystem],
+  );
+
+  const statusChartData = useMemo(() => {
+    return byStatus.map((status) => {
+      const rawStatus = status.status;
+      const label =
+        governanceTexts.status.labels[rawStatus as keyof typeof governanceTexts.status.labels] ??
+        governanceTexts.statusBadge.labels[rawStatus as keyof typeof governanceTexts.statusBadge.labels] ??
+        rawStatus;
+      return {
+        name: label,
+        value: status.count,
+      };
+    });
+  }, [byStatus]);
 
   const handleNavigate = (params: Record<string, string | boolean | undefined>) => {
     const searchParams = new URLSearchParams();
@@ -107,18 +127,37 @@ export default function DashboardPage() {
     navigate(`/governance${query ? `?${query}` : ''}`);
   };
 
+  if (!isManager) {
+    return (
+      <MainLayout>
+        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
+        <div className="card-metric">
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <ShieldAlert className="h-12 w-12 text-primary mb-4" />
+            <h3 className="font-semibold text-lg mb-2">{governanceTexts.dashboard.managerOnly.title}</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-lg">
+              {governanceTexts.dashboard.managerOnly.description}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/governance')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              {governanceTexts.dashboard.managerOnly.cta}
+            </button>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (loading) {
     return (
       <MainLayout>
         <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
-          {[1, 2, 3, 4, 5].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          {[1, 2, 3, 4].map((i) => (
             <LoadingSkeleton key={i} variant="card" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <LoadingSkeleton key={i} variant="card" className="min-h-[260px]" />
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -174,14 +213,6 @@ export default function DashboardPage() {
       action: () => handleNavigate({ status: 'OPEN' }),
     },
     {
-      key: 'errorIssues',
-      title: governanceTexts.dashboard.cards.errorIssues,
-      value: formatNumber(summary.errorIssues),
-      icon: AlertOctagon,
-      tone: 'error',
-      action: () => handleNavigate({ severity: 'CRITICAL' }),
-    },
-    {
       key: 'overdueIssues',
       title: governanceTexts.dashboard.cards.overdueIssues,
       value: formatNumber(summary.overdueIssues),
@@ -198,12 +229,12 @@ export default function DashboardPage() {
       action: () => handleNavigate({ unassigned: true }),
     },
     {
-      key: 'slaCompliance',
-      title: governanceTexts.dashboard.cards.slaCompliance,
-      value: formatPercent(summary.slaCompliancePercent),
-      icon: CheckCircle,
-      tone: summary.slaCompliancePercent >= 95 ? 'success' : summary.slaCompliancePercent >= 85 ? 'warning' : 'error',
-      action: () => handleNavigate({ status: 'OPEN' }),
+      key: 'needsOpenRecurring',
+      title: governanceTexts.dashboard.cards.needsOpenRecurring,
+      value: `${formatNumber(needsOpen)} • ${formatNumber(needsRecurring)}`,
+      icon: ShieldAlert,
+      tone: needsRecurring > 0 ? 'error' : needsOpen > 0 ? 'warning' : 'success',
+      action: () => navigate('/needs'),
     },
   ];
 
@@ -211,7 +242,7 @@ export default function DashboardPage() {
     <MainLayout>
       <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
 
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
         {summaryCards.map((card) => {
           const Icon = card.icon;
           const toneClasses = {
@@ -243,193 +274,68 @@ export default function DashboardPage() {
         })}
       </section>
 
-      <section className="card-metric mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold">{governanceTexts.dashboard.systems.title}</h3>
-            <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.systems.subtitle}</p>
-          </div>
-          <Badge variant="secondary">{governanceTexts.dashboard.systems.badge}</Badge>
-        </div>
-        {systemsAtRisk.length === 0 ? (
-          <EmptyState
-            title={governanceTexts.dashboard.systems.emptyTitle}
-            description={governanceTexts.dashboard.systems.emptyDescription}
-          />
-        ) : (
-          <div className="table-container">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.system}</th>
-                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.health}</th>
-                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.errors}</th>
-                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.overdue}</th>
-                  <th className="text-left p-4 font-semibold">{governanceTexts.dashboard.systems.columns.unassigned}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {systemsAtRisk.map((system) => {
-                  const tone = getHealthTone(system.healthScore);
-                  const badgeVariant =
-                    tone === 'success' ? 'status-ok' : tone === 'warning' ? 'status-warning' : 'status-error';
-                  return (
-                    <tr
-                      key={system.systemCode}
-                      onClick={() => handleNavigate({ systemCode: system.systemCode })}
-                      className="border-t border-border hover:bg-muted/40 cursor-pointer"
-                    >
-                      <td className="p-4 font-medium">{system.systemName}</td>
-                      <td className="p-4">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${badgeVariant}`}>
-                          {formatNumber(system.healthScore)}
-                        </span>
-                      </td>
-                      <td className="p-4 text-muted-foreground">{formatNumber(system.errorIssues)}</td>
-                      <td className="p-4 text-muted-foreground">{formatNumber(system.overdueIssues)}</td>
-                      <td className="p-4 text-muted-foreground">{formatNumber(system.unassignedIssues)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card-metric">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold">{governanceTexts.dashboard.attention.overdueTitle}</h3>
-              <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.attention.overdueSubtitle}</p>
-            </div>
-            <Badge variant="secondary">{governanceTexts.dashboard.attention.overdueBadge}</Badge>
+            <h3 className="text-lg font-semibold">{governanceTexts.dashboard.charts.issuesBySystem}</h3>
+            <Badge variant="secondary">{formatNumber(bySystem.length)}</Badge>
           </div>
-          {data.overdueToday.length === 0 ? (
+          {systemChartData.length === 0 ? (
             <EmptyState
-              title={governanceTexts.dashboard.attention.emptyTitle}
-              description={governanceTexts.dashboard.attention.emptyOverdue}
+              title={governanceTexts.dashboard.charts.emptyTitle}
+              description={governanceTexts.dashboard.charts.emptyDescription}
             />
           ) : (
-            <ul className="space-y-3">
-              {data.overdueToday.slice(0, 5).map((issue) => (
-                <li key={issue.id}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/governance/issues/${issue.id}`)}
-                    className="w-full rounded-lg border border-border p-4 text-left hover:bg-muted/30"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm">
-                        {issue.systemName ?? issue.systemCode ?? governanceTexts.general.notAvailable}
-                      </span>
-                      <span className="text-xs text-destructive font-semibold">
-                        {governanceTexts.dashboard.attention.slaLabel} {formatDate(issue.slaDueAt)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-2 flex flex-wrap gap-2">
-                      <span>{resolveIssueType(issue.type)}</span>
-                      <span>•</span>
-                      <span>{issue.title ?? governanceTexts.dashboard.attention.issueFallback}</span>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ChartContainer
+              config={{
+                value: {
+                  label: governanceTexts.dashboard.charts.issuesBySystem,
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+              className="h-[260px] w-full"
+            >
+              <BarChart data={systemChartData} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} />
+                <YAxis tickLine={false} axisLine={false} width={32} />
+                <Tooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
           )}
         </div>
 
         <div className="card-metric">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold">{governanceTexts.dashboard.attention.unassignedTitle}</h3>
-              <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.attention.unassignedSubtitle}</p>
-            </div>
-            <Badge variant="secondary">{governanceTexts.dashboard.attention.unassignedBadge}</Badge>
+            <h3 className="text-lg font-semibold">{governanceTexts.dashboard.charts.issuesByStatus}</h3>
+            <Badge variant="secondary">{formatNumber(byStatus.length)}</Badge>
           </div>
-          {data.unassigned.length === 0 ? (
+          {statusChartData.length === 0 ? (
             <EmptyState
-              title={governanceTexts.dashboard.attention.emptyTitle}
-              description={governanceTexts.dashboard.attention.emptyUnassigned}
+              title={governanceTexts.dashboard.charts.emptyTitle}
+              description={governanceTexts.dashboard.charts.emptyDescription}
             />
           ) : (
-            <ul className="space-y-3">
-              {data.unassigned.slice(0, 5).map((issue) => {
-                const age = getAgeDays(issue.createdAt, issue.ageDays);
-                return (
-                  <li key={issue.id}>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/governance?assignIssueId=${issue.id}&unassigned=true`)}
-                      className="w-full rounded-lg border border-border p-4 text-left hover:bg-muted/30"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm">
-                          {issue.systemName ?? issue.systemCode ?? governanceTexts.general.notAvailable}
-                        </span>
-                        <span className="text-xs text-warning font-semibold">
-                          {age !== null
-                            ? governanceTexts.dashboard.attention.ageLabel(age)
-                            : governanceTexts.general.notAvailable}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-2 flex flex-wrap gap-2">
-                        <span>{resolveIssueType(issue.type)}</span>
-                        <span>•</span>
-                        <span>{issue.title ?? governanceTexts.dashboard.attention.issueFallback}</span>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <ChartContainer
+              config={{
+                value: {
+                  label: governanceTexts.dashboard.charts.issuesByStatus,
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+              className="h-[260px] w-full"
+            >
+              <BarChart data={statusChartData} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} />
+                <YAxis tickLine={false} axisLine={false} width={32} />
+                <Tooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
           )}
         </div>
-      </section>
-
-      <section className="card-metric">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          <div>
-            <h3 className="text-lg font-semibold">{governanceTexts.dashboard.trends.title}</h3>
-            <p className="text-sm text-muted-foreground">{governanceTexts.dashboard.trends.subtitle}</p>
-          </div>
-        </div>
-        {data.trends.length === 0 ? (
-          <EmptyState
-            title={governanceTexts.dashboard.trends.emptyTitle}
-            description={governanceTexts.dashboard.trends.emptyDescription}
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {data.trends.map((trend) => {
-              const badgeTone = resolveTrendTone(trend);
-              const action =
-                trend.key === 'resolvedIssues'
-                  ? () => handleNavigate({ status: 'RESOLVED' })
-                  : trend.key === 'sla'
-                    ? () => handleNavigate({ overdue: true })
-                    : () => handleNavigate({ status: 'OPEN' });
-              return (
-                <button
-                  key={`${trend.key}-${trend.label}`}
-                  type="button"
-                  onClick={action}
-                  className="rounded-lg border border-border p-4 text-left hover:bg-muted/30"
-                >
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${badgeTone}`}>
-                    {getTrendBadge(trend)}
-                  </span>
-                  <p className="mt-3 font-semibold text-sm">{trend.label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {trend.context ? `${trend.context}` : governanceTexts.dashboard.trends.defaultContext}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </section>
     </MainLayout>
   );
