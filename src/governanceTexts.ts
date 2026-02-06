@@ -171,7 +171,7 @@ export const governanceTexts = {
     submitting: 'Entrando...',
     success: 'Login realizado com sucesso!',
     errorTitle: 'Erro',
-    demo: 'Demo: admin@consisa.com.br / admin123',
+    demo: 'Use suas credenciais Consisa. Em DEV pode existir demo via .env.',
   },
   notFound: {
     title: '404',
