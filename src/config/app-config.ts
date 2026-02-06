@@ -12,9 +12,16 @@
  *   endpoint   = /dashboard/summary
  *   final      = http://localhost:8081/api/v1/dashboard/summary
  */
+const resolveApiBaseUrl = (): string => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
+  if (envUrl) return envUrl;
+  if (import.meta.env.DEV) return 'http://localhost:8081/api/v1';
+  throw new Error('VITE_API_BASE_URL não configurado para produção');
+};
+
 export const config = {
   // API base URL (definido por ambiente)
-  apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1').trim(),
+  apiBaseUrl: resolveApiBaseUrl(),
 
   // ✅ FIX: Desabilitar mock data para usar API real
   useMockData: false,

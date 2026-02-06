@@ -10,8 +10,10 @@ import { governanceTexts } from '@/governanceTexts';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@consisa.com.br');
-  const [password, setPassword] = useState('admin123');
+  const demoEmail = import.meta.env.DEV ? import.meta.env.VITE_DEMO_EMAIL : '';
+  const demoPassword = import.meta.env.DEV ? import.meta.env.VITE_DEMO_PASSWORD : '';
+  const [email, setEmail] = useState(demoEmail ?? '');
+  const [password, setPassword] = useState(demoPassword ?? '');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 

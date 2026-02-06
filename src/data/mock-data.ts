@@ -15,7 +15,7 @@ import {
 
 export const mockUser: User = {
   id: '1',
-  email: 'admin@consisa.com.br',
+  email: 'demo@local.dev',
   name: 'Admin Consisa',
   role: 'ADMIN',
 };
