@@ -121,6 +121,10 @@ class AuthService {
     return this.state.token;
   }
 
+  getAccessToken(): string | null {
+    return this.state.token;
+  }
+
   getRefreshToken(): string | null {
     return this.state.refreshToken;
   }

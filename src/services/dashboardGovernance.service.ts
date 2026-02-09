@@ -141,10 +141,21 @@ export const normalizeDashboardGovernance = (response: unknown): DashboardGovern
   const summaryRaw = (raw.summary as Record<string, unknown>) ?? (raw.overview as Record<string, unknown>) ?? raw;
 
   const systemsAtRisk = normalizeSystems(raw.systemsAtRisk ?? raw.systems ?? raw.bySystem ?? raw.systemStats ?? []);
-  const overdueToday = (Array.isArray(raw.overdueToday) ? raw.overdueToday : raw.overdue ?? [])
+  const overdueItems = Array.isArray(raw.overdueToday)
+    ? raw.overdueToday
+    : Array.isArray(raw.overdue)
+      ? raw.overdue
+      : [];
+  const overdueToday = overdueItems
     .map((item) => normalizeIssueItem(item))
     .filter((item): item is DashboardGovernanceIssueItem => Boolean(item));
-  const unassigned = (Array.isArray(raw.unassigned) ? raw.unassigned : raw.unassignedIssues ?? [])
+
+  const unassignedItems = Array.isArray(raw.unassigned)
+    ? raw.unassigned
+    : Array.isArray(raw.unassignedIssues)
+      ? raw.unassignedIssues
+      : [];
+  const unassigned = unassignedItems
     .map((item) => normalizeIssueItem(item))
     .filter((item): item is DashboardGovernanceIssueItem => Boolean(item));
 

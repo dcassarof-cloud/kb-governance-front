@@ -37,6 +37,7 @@ export interface IssuesFilter {
   q?: string;
   overdue?: boolean;
   unassigned?: boolean;
+  signal?: AbortSignal;
 }
 
 /**
@@ -468,6 +469,7 @@ class GovernanceService {
       q,
       overdue,
       unassigned,
+      signal,
     } = filter;
 
     const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
@@ -484,6 +486,7 @@ class GovernanceService {
         overdue,
         unassigned,
       },
+      signal,
       page,
       size,
     });
