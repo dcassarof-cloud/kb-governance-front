@@ -499,4 +499,4 @@ export const governanceTexts = {
       CANCELLED: 'Cancelado',
     },
   },
-};
+} as const;
