@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '@/components/ui/button';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -30,13 +31,14 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
             <p className="text-muted-foreground">
               Ocorreu um erro inesperado. Atualize a página ou tente novamente em alguns instantes.
             </p>
-            <button
-              className="px-4 py-2 rounded bg-primary text-primary-foreground"
-              onClick={() => window.location.reload()}
-              type="button"
-            >
-              Recarregar
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              <Button onClick={() => window.location.reload()} type="button">
+                Recarregar
+              </Button>
+              <Button variant="outline" onClick={() => (window.location.href = '/dashboard')} type="button">
+                Voltar para Dashboard
+              </Button>
+            </div>
           </div>
         </div>
       );

@@ -8,5 +8,5 @@
     "target": "ES2020",
     "types": ["vite/client"]
   },
-  "include": ["src/utils/**/*", "src/config/**/*"]
+  "include": ["src/utils/**/*", "src/config/**/*", "src/services/**/*"]
 }
