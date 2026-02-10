@@ -1,59 +1,54 @@
-// =====================================================
-// API CLIENT SERVICE - Consisa KB Governance
-// =====================================================
-
+import { apiClient } from '@/config/axios';
 import { config } from '@/config/app-config';
-import { ApiError, PaginatedResponse } from '@/types';
 import { normalizePaginatedResponse } from '@/lib/api-normalizers';
-import { httpRequest, type RequestOptions } from './http';
+import { handleApiError } from '@/lib/handle-api-error';
+import { PaginatedResponse } from '@/types';
+
+export interface RequestOptions {
+  params?: Record<string, string | number | boolean | undefined>;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+}
 
 class ApiClient {
-  private async handleResponse<T>(response: Response): Promise<T> {
-    if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({
-        code: 'UNKNOWN_ERROR',
-        message: `HTTP Error: ${response.status} ${response.statusText}`,
-      }));
-      throw error;
-    }
-
-    const text = await response.text();
-    if (!text) {
-      return {} as T;
-    }
-
-    return JSON.parse(text) as T;
-  }
-
   private async request<T>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     endpoint: string,
     body?: unknown,
     options?: RequestOptions
   ): Promise<T> {
-    const response = await httpRequest(method, endpoint, body, options);
-    return this.handleResponse<T>(response);
+    try {
+      const response = await apiClient.request<T>({
+        method,
+        url: endpoint,
+        data: body,
+        params: options?.params,
+        headers: options?.headers,
+        signal: options?.signal,
+      });
+
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   }
 
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>('GET', endpoint, undefined, options);
   }
 
-  /**
-   * GET paginado com normalização única de payload.
-   * Sempre retorna o formato interno do frontend.
-   */
   async getPaginated<T>(
     endpoint: string,
     options?: RequestOptions & { page?: number; size?: number }
   ): Promise<PaginatedResponse<T>> {
     const fallbackPage =
       options?.page ??
-      (typeof options?.params?.page === 'number' ? (options?.params?.page as number) : 1);
+      (typeof options?.params?.page === 'number' ? (options.params.page as number) : 1);
+
     const fallbackSize =
       options?.size ??
       (typeof options?.params?.size === 'number'
-        ? (options?.params?.size as number)
+        ? (options.params.size as number)
         : config.defaultPageSize);
 
     const response = await this.get<unknown>(endpoint, options);
@@ -77,4 +72,6 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient();
+export const apiClientService = new ApiClient();
+export const apiClientInstance = apiClientService;
+export { apiClientService as apiClient };
