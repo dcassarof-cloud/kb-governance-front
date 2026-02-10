@@ -333,7 +333,10 @@ export interface PaginatedResponse<T> {
 }
 
 export interface ApiError {
+  status?: number;
   code: string;
   message: string;
-  details?: Record<string, string>;
+  correlationId?: string;
+  timestamp?: string;
+  details?: string[];
 }

@@ -10,10 +10,8 @@ import { governanceTexts } from '@/governanceTexts';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const demoEmail = import.meta.env.DEV ? import.meta.env.VITE_DEMO_EMAIL : '';
-  const demoPassword = import.meta.env.DEV ? import.meta.env.VITE_DEMO_PASSWORD : '';
-  const [email, setEmail] = useState(demoEmail ?? '');
-  const [password, setPassword] = useState(demoPassword ?? '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
