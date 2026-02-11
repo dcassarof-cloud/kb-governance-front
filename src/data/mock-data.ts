@@ -25,18 +25,19 @@ export const mockDashboardSummary: DashboardSummary = {
   articlesOk: 1089,
   articlesWithIssues: 126,
   totalIssues: 154,
+  duplicatesCount: 5,
   bySystem: [
-    { systemCode: 'SISCONT', systemName: 'Sistema Contábil', count: 412 },
-    { systemCode: 'SISFIN', systemName: 'Sistema Financeiro', count: 289 },
-    { systemCode: 'SISRH', systemName: 'Sistema RH', count: 198 },
-    { systemCode: 'SISFISCAL', systemName: 'Sistema Fiscal', count: 234 },
-    { systemCode: 'SISPATRIM', systemName: 'Sistema Patrimônio', count: 114 },
+    { systemCode: 'SISCONT', systemName: 'Sistema Contábil', total: 412 },
+    { systemCode: 'SISFIN', systemName: 'Sistema Financeiro', total: 289 },
+    { systemCode: 'SISRH', systemName: 'Sistema RH', total: 198 },
+    { systemCode: 'SISFISCAL', systemName: 'Sistema Fiscal', total: 234 },
+    { systemCode: 'SISPATRIM', systemName: 'Sistema Patrimônio', total: 114 },
   ],
   byStatus: [
-    { status: 'OK', count: 1089 },
-    { status: 'WARNING', count: 98 },
-    { status: 'ERROR', count: 28 },
-    { status: 'PENDING', count: 32 },
+    { status: 'OK', total: 1089 },
+    { status: 'WARNING', total: 98 },
+    { status: 'ERROR', total: 28 },
+    { status: 'PENDING', total: 32 },
   ],
 };
 

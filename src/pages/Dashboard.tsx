@@ -158,7 +158,7 @@ export default function DashboardPage() {
     () =>
       bySystem.map((system) => ({
         name: system.systemName || system.systemCode || governanceTexts.general.notAvailable,
-        value: system.count,
+        value: system.total,
       })),
     [bySystem],
   );
@@ -172,7 +172,7 @@ export default function DashboardPage() {
         rawStatus;
       return {
         name: label,
-        value: status.count,
+        value: status.total,
       };
     });
   }, [byStatus]);
@@ -213,6 +213,46 @@ export default function DashboardPage() {
 
   const summaryCards = [
     {
+      key: 'totalArticles',
+      title: 'Total de artigos',
+      value: summaryData ? formatNumber(summaryData.totalArticles) : '—',
+      icon: Info,
+      tone: 'success',
+      action: () => handleNavigate({}),
+    },
+    {
+      key: 'articlesOk',
+      title: 'Artigos saudáveis',
+      value: summaryData ? formatNumber(summaryData.articlesOk) : '—',
+      icon: ShieldAlert,
+      tone: 'success',
+      action: () => handleNavigate({}),
+    },
+    {
+      key: 'articlesWithIssues',
+      title: 'Artigos com pendências',
+      value: summaryData ? formatNumber(summaryData.articlesWithIssues) : '—',
+      icon: AlertCircle,
+      tone: 'warning',
+      action: () => handleNavigate({ status: 'OPEN' }),
+    },
+    {
+      key: 'totalIssues',
+      title: 'Total de pendências',
+      value: summaryData ? formatNumber(summaryData.totalIssues) : '—',
+      icon: AlertTriangle,
+      tone: 'warning',
+      action: () => handleNavigate({ status: 'OPEN' }),
+    },
+    {
+      key: 'duplicatesCount',
+      title: 'Duplicidades',
+      value: summaryData ? formatNumber(summaryData.duplicatesCount) : '—',
+      icon: AlertTriangle,
+      tone: 'error',
+      action: () => handleNavigate({ type: 'DUPLICATE_CONTENT' }),
+    },
+    {
       key: 'openIssues',
       title: governanceTexts.dashboard.cards.openIssues,
       value: summary ? formatNumber(summary.openIssues) : '—',
@@ -249,7 +289,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
         {summaryCards.map((card) => {
           const Icon = card.icon;
           const toneClasses = {

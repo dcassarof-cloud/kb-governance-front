@@ -13,6 +13,7 @@ function normalizeDashboardSummary(response: unknown): DashboardSummary {
     articlesOk: 0,
     articlesWithIssues: 0,
     totalIssues: 0,
+    duplicatesCount: 0,
     bySystem: [],
     byStatus: [],
   };
@@ -29,6 +30,7 @@ function normalizeDashboardSummary(response: unknown): DashboardSummary {
     articlesWithIssues:
       typeof obj.articlesWithIssues === 'number' ? obj.articlesWithIssues : (obj.issuesCount as number) ?? 0,
     totalIssues: typeof obj.totalIssues === 'number' ? obj.totalIssues : (obj.issuesCount as number) ?? 0,
+    duplicatesCount: typeof obj.duplicatesCount === 'number' ? obj.duplicatesCount : 0,
     bySystem: Array.isArray(obj.bySystem) ? obj.bySystem : [],
     byStatus: Array.isArray(obj.byStatus) ? obj.byStatus : [],
   };

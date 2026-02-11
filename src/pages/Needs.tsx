@@ -6,6 +6,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import { needsService, NeedsFilter } from '@/services/needs.service';
 import { systemsService } from '@/services/systems.service';
 import { toast } from '@/hooks/use-toast';
 import { ApiError, KbSystem, NeedDetail, NeedItem, PaginatedResponse } from '@/types';
+import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 import { governanceTexts } from '@/governanceTexts';
 
 export default function NeedsPage() {
@@ -37,7 +39,6 @@ export default function NeedsPage() {
   const [needsLoading, setNeedsLoading] = useState(true);
   const [needsError, setNeedsError] = useState<string | null>(null);
   const [partialFailure, setPartialFailure] = useState(false);
-  const [gatewayUnavailable, setGatewayUnavailable] = useState(false);
 
   const [systems, setSystems] = useState<KbSystem[]>([]);
   const [filters, setFilters] = useState<NeedsFilter>({
@@ -74,11 +75,15 @@ export default function NeedsPage() {
         impact: 'severity,desc',
         recurrence: 'occurrences,desc',
       };
+      const now = new Date();
+      const endDefault = now.toISOString().slice(0, 10);
+      const startDefault = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
       const result = await needsService.listNeedsWithMeta({
         systemCode: currentFilters.systemCode || undefined,
         status: currentFilters.status || undefined,
-        periodStart: currentFilters.start || undefined,
-        periodEnd: currentFilters.end || undefined,
+        periodStart: currentFilters.start || startDefault,
+        periodEnd: currentFilters.end || endDefault,
         sort: sortMap[sortOption],
         page: currentPage,
         size: 50,
@@ -86,15 +91,10 @@ export default function NeedsPage() {
 
       setNeedsData(result.payload);
       setPartialFailure(result.meta.partialFailure);
-      setGatewayUnavailable(false);
+
     } catch (err) {
-      const apiErr = err as ApiError;
-      const isGatewayFailure = apiErr?.status === 500 || apiErr?.status === 502;
-      const message = isGatewayFailure
-        ? 'Não foi possível carregar necessidades agora. Tente novamente em instantes.'
-        : err instanceof Error
-          ? err.message
-          : governanceTexts.needs.errors.loadNeeds;
+      const info = toApiErrorInfo(err, governanceTexts.needs.errors.loadNeeds);
+      const message = formatApiErrorInfo(info);
 
       setNeedsData((prev) =>
         prev ?? {
@@ -107,7 +107,6 @@ export default function NeedsPage() {
       );
       setNeedsError(message);
       setPartialFailure(false);
-      setGatewayUnavailable(isGatewayFailure);
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setNeedsLoading(false);
@@ -368,23 +367,10 @@ export default function NeedsPage() {
       </div>
 
 
-      {gatewayUnavailable && (
-        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Info className="h-4 w-4" />
-            <span>Movidesk indisponível — exibindo dados parciais.</span>
-          </div>
-          <Button size="sm" variant="outline" onClick={() => fetchNeeds(filters, page)}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {governanceTexts.general.retry}
-          </Button>
-        </div>
-      )}
-
       {partialFailure && !needsError && (
         <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center gap-2">
           <Info className="h-4 w-4" />
-          <span>Dados parciais retornados pela API.</span>
+          <span>Movidesk indisponível no momento, exibindo dados parciais.</span>
         </div>
       )}
 
@@ -397,26 +383,29 @@ export default function NeedsPage() {
         </div>
 
         {needsError && sortedNeeds.length > 0 && (
-          <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center justify-between gap-2">
-            <span>{needsError}</span>
-            <Button size="sm" variant="outline" onClick={() => fetchNeeds(filters, page)}>{governanceTexts.general.retry}</Button>
-          </div>
+          <ApiErrorBanner
+            title="Falha ao carregar necessidades"
+            description={needsError}
+            onRetry={() => fetchNeeds(filters, page)}
+          />
         )}
 
         {needsLoading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : needsError && sortedNeeds.length === 0 ? (
-          <div className="rounded-md border border-destructive/20 bg-destructive/5 p-6">
-            <div className="flex flex-col items-center justify-center text-center">
-              <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-              <h3 className="font-semibold text-lg mb-2">{governanceTexts.needs.errors.loadNeeds}</h3>
-              <p className="text-sm text-muted-foreground mb-4">{needsError}</p>
-              <Button onClick={() => fetchNeeds(filters, page)}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                {governanceTexts.general.retry}
-              </Button>
-            </div>
-          </div>
+          <>
+            <ApiErrorBanner
+              title="Falha ao carregar necessidades"
+              description={needsError}
+              onRetry={() => fetchNeeds(filters, page)}
+            />
+            <EmptyState
+              icon={AlertCircle}
+              title={governanceTexts.needs.errors.loadNeeds}
+              description="Não foi possível carregar os dados. Verifique o status/correlationId no alerta acima e tente recarregar."
+              action={{ label: 'Recarregar', onClick: () => fetchNeeds(filters, page) }}
+            />
+          </>
         ) : sortedNeeds.length === 0 ? (
           <EmptyState
             icon={ClipboardList}

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 
 import { ResponsibleOption, governanceService } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
 import { authService, hasRole } from '@/services/auth.service';
 import { governanceTexts } from '@/governanceTexts';
+import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 import { toast } from '@/hooks/use-toast';
 import type {
   GovernanceIssueDto,
@@ -68,6 +70,7 @@ export function useGovernance() {
   );
   const debounceRef = useRef<number>();
   const abortRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
   const [generatingReport, setGeneratingReport] = useState(false);
   const [responsibleOptions, setResponsibleOptions] = useState<ResponsibleOption[]>([]);
   const [responsiblesWarning, setResponsiblesWarning] = useState<string | null>(null);
@@ -88,7 +91,8 @@ export function useGovernance() {
       const result = await governanceService.getOverview();
       dispatch({ type: 'SET_OVERVIEW', payload: result });
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.governance.summary.loadError;
+      const info = toApiErrorInfo(err, governanceTexts.governance.summary.loadError);
+      const message = formatApiErrorInfo(info);
       dispatch({ type: 'SET_OVERVIEW_ERROR', payload: message });
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -134,7 +138,8 @@ export function useGovernance() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      const message = err instanceof Error ? err.message : governanceTexts.governance.toasts.loadError;
+      const info = toApiErrorInfo(err, governanceTexts.governance.toasts.loadError);
+      const message = formatApiErrorInfo(info);
       dispatch({ type: 'SET_ISSUES_ERROR', payload: message });
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -223,11 +228,14 @@ export function useGovernance() {
       });
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
       await Promise.all([fetchOverview(), fetchIssues(filters, page)]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['governanceIssues'] }),
+        queryClient.invalidateQueries({ queryKey: ['responsiblesSummary'] }),
+        queryClient.invalidateQueries({ queryKey: ['responsiblesWorkload'] }),
+      ]);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : (err as { message?: string })?.message || governanceTexts.governance.toasts.assignError;
+      const info = toApiErrorInfo(err, governanceTexts.governance.toasts.assignError);
+      const message = formatApiErrorInfo(info);
       updateIssueState(issue.id, { responsible: previousResponsible });
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -258,11 +266,14 @@ export function useGovernance() {
       });
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.statusDialog.success });
       await Promise.all([fetchOverview(), fetchIssues(filters, page)]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['governanceIssues'] }),
+        queryClient.invalidateQueries({ queryKey: ['responsiblesSummary'] }),
+        queryClient.invalidateQueries({ queryKey: ['responsiblesWorkload'] }),
+      ]);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : (err as { message?: string })?.message || governanceTexts.governance.toasts.statusError;
+      const info = toApiErrorInfo(err, governanceTexts.governance.toasts.statusError);
+      const message = formatApiErrorInfo(info);
       updateIssueState(issue.id, { status: previousStatus });
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -412,17 +423,20 @@ export function useGovernance() {
   const generateSystemsReport = async () => {
     setGeneratingReport(true);
     try {
+      const now = new Date();
+      const end = now.toISOString().slice(0, 10);
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
       const blob = await governanceService.downloadManualUpdatesReport({
         systemCode: filters.systemCode || undefined,
-        status: filters.status || undefined,
-        start: undefined,
-        end: undefined,
+        start,
+        end,
       });
 
       const fileUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = fileUrl;
-      link.download = `saude-por-sistema-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `manual-updates-${filters.systemCode || 'all'}-${start}-${end}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -510,7 +524,7 @@ export function useGovernance() {
     }
     debounceRef.current = window.setTimeout(() => {
       fetchIssues(filters, page);
-    }, 250);
+    }, 300);
 
     return () => {
       if (debounceRef.current) {
