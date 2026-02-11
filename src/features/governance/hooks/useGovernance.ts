@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { governanceService } from '@/services/governance.service';
+import { ResponsibleOption, governanceService } from '@/services/governance.service';
 import { systemsService } from '@/services/systems.service';
 import { authService, hasRole } from '@/services/auth.service';
 import { governanceTexts } from '@/governanceTexts';
@@ -68,6 +68,9 @@ export function useGovernance() {
   );
   const debounceRef = useRef<number>();
   const abortRef = useRef<AbortController | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [responsibleOptions, setResponsibleOptions] = useState<ResponsibleOption[]>([]);
+  const [responsiblesWarning, setResponsiblesWarning] = useState<string | null>(null);
 
   const { filters, page, size, issuesData, overview, systems } = state;
 
@@ -136,6 +139,22 @@ export function useGovernance() {
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       dispatch({ type: 'SET_ISSUES_LOADING', payload: false });
+    }
+  };
+
+
+  const fetchResponsibleOptions = async () => {
+    try {
+      const result = await governanceService.getResponsiblesOptions();
+      setResponsibleOptions(result.options);
+      setResponsiblesWarning(
+        result.usedFallback
+          ? 'Endpoint /users/responsibles indisponível. Usando fallback resumido de responsáveis.'
+          : null,
+      );
+    } catch {
+      setResponsibleOptions([]);
+      setResponsiblesWarning('Não foi possível carregar a lista de responsáveis.');
     }
   };
 
@@ -389,6 +408,34 @@ export function useGovernance() {
   };
 
   const getPriorityLevel = (issue: GovernanceIssueDto) => issue.priorityLevel ?? issue.severity ?? 'LOW';
+
+  const generateSystemsReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const blob = await governanceService.downloadManualUpdatesReport({
+        systemCode: filters.systemCode || undefined,
+        status: filters.status || undefined,
+        start: undefined,
+        end: undefined,
+      });
+
+      const fileUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = `saude-por-sistema-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(fileUrl);
+      toast({ title: 'Relatório gerado', description: 'Download CSV iniciado.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível gerar o relatório CSV.';
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   const getPriorityClasses = (priority: IssueSeverity) => {
     if (priority === 'CRITICAL') {
       return 'bg-destructive/15 text-destructive border-destructive/40';
@@ -402,6 +449,7 @@ export function useGovernance() {
   useEffect(() => {
     fetchOverview();
     fetchSystems();
+    fetchResponsibleOptions();
     fetchIssues(filters, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -592,6 +640,10 @@ export function useGovernance() {
     getStatusLabel,
     getPriorityLevel,
     getPriorityClasses,
+    generatingReport,
+    generateSystemsReport,
+    responsibleOptions,
+    responsiblesWarning,
     fetchIssues,
     fetchOverview,
     handleAssign,

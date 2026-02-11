@@ -256,6 +256,9 @@ export interface SyncConfig {
 
 export interface NeedItem {
   id: string;
+  protocol?: string | null;
+  subject?: string | null;
+  summary?: string | null;
   systemCode?: string | null;
   systemName?: string | null;
   status?: NeedStatus | null;
@@ -295,7 +298,7 @@ export type IssueType =
 export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type SyncMode = 'FULL' | 'DELTA';
+export type SyncMode = 'FULL' | 'DELTA' | 'DELTA_WINDOW';
 export type SyncModeLabel = SyncMode | 'DESCONHECIDO';
 export type NeedStatus = string;
 

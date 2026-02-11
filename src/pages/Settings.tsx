@@ -57,6 +57,7 @@ export default function SettingsPage() {
               <SelectContent>
               <SelectItem value="FULL">{governanceTexts.settings.modeOptions.FULL}</SelectItem>
               <SelectItem value="DELTA">{governanceTexts.settings.modeOptions.DELTA}</SelectItem>
+              <SelectItem value="DELTA_WINDOW">{governanceTexts.settings.modeOptions.DELTA_WINDOW}</SelectItem>
               </SelectContent>
             </Select>
           </div>

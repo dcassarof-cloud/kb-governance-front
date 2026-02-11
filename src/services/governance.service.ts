@@ -2,11 +2,12 @@
 // GOVERNANCE SERVICE - Consisa KB Governance
 // =====================================================
 
-import { config, API_ENDPOINTS } from '@/config/app-config';
+import { API_BASE_URL, config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
 import { authService } from './auth.service';
 
 import { normalizeEnum } from '@/lib/api-normalizers';
+import { governanceTexts } from '@/governanceTexts';
 import {
   GovernanceIssueDto,
   IssueType,
@@ -42,6 +43,16 @@ export interface IssuesFilter {
   signal?: AbortSignal;
 }
 
+
+export interface ResponsibleOption {
+  value: string;
+  label: string;
+}
+
+export interface ResponsiblesOptionsResult {
+  options: ResponsibleOption[];
+  usedFallback: boolean;
+}
 /**
  * ✅ Filtros alinhados com o endpoint atual do backend:
  * GET /api/v1/governance/manuals?page=1&size=10&system=&status=&q=
@@ -98,6 +109,28 @@ const normalizeResponsibleList = (response: unknown): GovernanceResponsible[] =>
   normalizeArrayResponse<unknown>(response)
     .map((item) => normalizeResponsible(item))
     .filter((item): item is GovernanceResponsible => Boolean(item));
+
+
+const normalizeResponsibleOption = (response: unknown): ResponsibleOption | null => {
+  if (!response || typeof response !== 'object') return null;
+  const obj = response as Record<string, unknown>;
+  const value = obj.id ?? obj.userId ?? obj.email ?? obj.userEmail;
+  if (value === null || value === undefined) return null;
+
+  const displayName =
+    (obj.displayName as string) ??
+    (obj.name as string) ??
+    (obj.fullName as string) ??
+    (obj.email as string) ??
+    (obj.userEmail as string) ??
+    String(value);
+
+  return {
+    value: String(value),
+    label: displayName,
+  };
+};
+
 
 const normalizeDuplicateArticle = (raw: unknown): DuplicateArticle | null => {
   if (!raw || typeof raw !== 'object') return null;
@@ -604,6 +637,61 @@ class GovernanceService {
         null,
       responsibles,
     };
+  }
+
+  async getResponsiblesOptions(): Promise<ResponsiblesOptionsResult> {
+    try {
+      const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES);
+      const options = normalizeArrayResponse<unknown>(response)
+        .map((item) => normalizeResponsibleOption(item))
+        .filter((item): item is ResponsibleOption => Boolean(item));
+
+      return {
+        options,
+        usedFallback: false,
+      };
+    } catch {
+      const summary = await this.getResponsiblesSummary();
+      const options = (summary.responsibles ?? []).map((responsible) => ({
+        value: responsible.id ?? responsible.email ?? responsible.name,
+        label: responsible.name || responsible.email || governanceTexts.general.notAvailable,
+      }));
+
+      return {
+        options,
+        usedFallback: true,
+      };
+    }
+  }
+
+  async downloadManualUpdatesReport(params: {
+    systemCode?: string;
+    status?: string;
+    start?: string;
+    end?: string;
+  }): Promise<Blob> {
+    const token = authService.getAccessToken();
+    const url = new URL(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_MANUAL_UPDATES}`);
+
+    if (params.systemCode) url.searchParams.set('systemCode', params.systemCode);
+    if (params.status) url.searchParams.set('status', params.status);
+    if (params.start) url.searchParams.set('start', params.start);
+    if (params.end) url.searchParams.set('end', params.end);
+    url.searchParams.set('format', 'csv');
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'X-Correlation-Id': typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now()),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Falha ao gerar relatório (HTTP ${response.status}).`);
+    }
+
+    return response.blob();
   }
 }
 

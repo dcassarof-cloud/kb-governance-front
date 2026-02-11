@@ -26,6 +26,10 @@ export default function GovernancePage() {
     getStatusLabel,
     getPriorityLevel,
     getPriorityClasses,
+    generatingReport,
+    generateSystemsReport,
+    responsibleOptions,
+    responsiblesWarning,
     fetchIssues,
     fetchOverview,
     handleAssign,
@@ -115,6 +119,8 @@ export default function GovernancePage() {
         systemRows={state.systemRows}
         onRetryOverview={fetchOverview}
         onSystemClick={(systemCode) => handleFilterChange('systemCode', systemCode)}
+        onGenerateReport={generateSystemsReport}
+        generatingReport={generatingReport}
       />
 
       <GovernanceTable
@@ -142,6 +148,8 @@ export default function GovernancePage() {
         assignState={state.assign}
         statusState={state.status}
         suggested={state.suggested}
+        responsibleOptions={responsibleOptions}
+        responsiblesWarning={responsiblesWarning}
         onAssignFieldChange={setAssignField}
         onSearchResponsible={searchResponsibles}
         onStatusFieldChange={setStatusField}

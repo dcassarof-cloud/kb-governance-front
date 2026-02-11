@@ -23,6 +23,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ApiError } from '@/components/ui/ApiError';
 import { governanceTexts } from '@/governanceTexts';
 import type { GovernanceIssueDto, GovernanceResponsible, IssueSeverity, IssueStatus } from '@/types';
+import type { ResponsibleOption } from '@/services/governance.service';
 import { toast } from '@/hooks/use-toast';
 import { ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
 
@@ -72,6 +73,8 @@ interface GovernanceTableProps {
     assignee: GovernanceResponsible | null;
     alternatives: GovernanceResponsible[];
   };
+  responsibleOptions: ResponsibleOption[];
+  responsiblesWarning: string | null;
   onAssignFieldChange: (payload: Partial<GovernanceTableProps['assignState']>) => void;
   onSearchResponsible: (query: string) => void;
   onStatusFieldChange: (payload: Partial<GovernanceTableProps['statusState']>) => void;
@@ -107,6 +110,8 @@ export function GovernanceTable({
   assignState,
   statusState,
   suggested,
+  responsibleOptions,
+  responsiblesWarning,
   onAssignFieldChange,
   onStatusFieldChange,
   onAssignSave,
@@ -509,11 +514,42 @@ export function GovernanceTable({
 
               <div className="space-y-2">
                 <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
-                <Input
-                  placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
-                  value={assignState.responsibleId}
-                  onChange={(event) => onAssignFieldChange({ responsibleId: event.target.value })}
-                />
+                <Select
+                  value={assignState.responsibleId || 'NONE'}
+                  onValueChange={(value) => {
+                    if (value === 'NONE') {
+                      onAssignFieldChange({ responsibleId: '' });
+                      return;
+                    }
+                    const selected = responsibleOptions.find((option) => option.value === value);
+                    onAssignFieldChange({
+                      responsibleId: value,
+                      value: selected?.label ?? assignState.value,
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">Selecione um responsável</SelectItem>
+                    {responsibleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {responsiblesWarning && (
+                  <p className="text-xs text-warning">{responsiblesWarning}</p>
+                )}
+                {responsibleOptions.length === 0 && (
+                  <Input
+                    placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
+                    value={assignState.responsibleId}
+                    onChange={(event) => onAssignFieldChange({ responsibleId: event.target.value })}
+                  />
+                )}
               </div>
 
               <div className="space-y-2">
