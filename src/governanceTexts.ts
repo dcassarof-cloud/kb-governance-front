@@ -149,6 +149,7 @@ export const governanceTexts = {
     modeOptions: {
       FULL: 'Completo',
       DELTA: 'Delta',
+      DELTA_WINDOW: 'Delta por janela',
     },
     appearance: {
       title: '🎨 Aparência',

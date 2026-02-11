@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
   GOVERNANCE_ISSUE_HISTORY: (id: string | number) => `/governance/issues/${id}/history`,
   GOVERNANCE_RESPONSIBLES_SUGGEST: '/responsibles/suggest',
   GOVERNANCE_RESPONSIBLES_SUMMARY: '/governance/responsibles/summary',
+  USERS_RESPONSIBLES: '/users/responsibles',
   GOVERNANCE_MANUAL_ASSIGN: (id: string | number) => `/governance/manuals/${id}/assign`,
   GOVERNANCE_MANUAL_REVIEW: (id: string | number) => `/governance/manuals/${id}/review`,
   GOVERNANCE_MANUAL_MOVE: (id: string | number) => `/governance/manuals/${id}/move`,
@@ -66,4 +67,5 @@ export const API_ENDPOINTS = {
   REPORTS_ARTICLES: '/reports/articles',
   REPORTS_ISSUES: '/reports/issues',
   REPORTS_SYSTEMS: '/reports/systems',
+  REPORTS_MANUAL_UPDATES: '/reports/manual-updates',
 } as const;

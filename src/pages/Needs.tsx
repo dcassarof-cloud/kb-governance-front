@@ -37,6 +37,7 @@ export default function NeedsPage() {
   const [needsLoading, setNeedsLoading] = useState(true);
   const [needsError, setNeedsError] = useState<string | null>(null);
   const [partialFailure, setPartialFailure] = useState(false);
+  const [gatewayUnavailable, setGatewayUnavailable] = useState(false);
 
   const [systems, setSystems] = useState<KbSystem[]>([]);
   const [filters, setFilters] = useState<NeedsFilter>({
@@ -85,6 +86,7 @@ export default function NeedsPage() {
 
       setNeedsData(result.payload);
       setPartialFailure(result.meta.partialFailure);
+      setGatewayUnavailable(false);
     } catch (err) {
       const apiErr = err as ApiError;
       const isGatewayFailure = apiErr?.status === 500 || apiErr?.status === 502;
@@ -105,6 +107,7 @@ export default function NeedsPage() {
       );
       setNeedsError(message);
       setPartialFailure(false);
+      setGatewayUnavailable(isGatewayFailure);
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setNeedsLoading(false);
@@ -226,8 +229,21 @@ export default function NeedsPage() {
         ? need.quantity
         : null;
 
+  const locallyFilteredNeeds = useMemo(() => {
+    return needs.filter((need) => {
+      const matchesSystem = !filters.systemCode || (need.systemCode ?? '').toUpperCase() === filters.systemCode.toUpperCase();
+      const matchesStatus = !filters.status || (need.status ?? '').toUpperCase() === filters.status.toUpperCase();
+
+      const createdAt = need.createdAt ? new Date(need.createdAt) : null;
+      const matchesStart = !filters.start || (createdAt !== null && !Number.isNaN(createdAt.getTime()) && createdAt >= new Date(filters.start));
+      const matchesEnd = !filters.end || (createdAt !== null && !Number.isNaN(createdAt.getTime()) && createdAt <= new Date(`${filters.end}T23:59:59`));
+
+      return matchesSystem && matchesStatus && matchesStart && matchesEnd;
+    });
+  }, [filters.end, filters.start, filters.status, filters.systemCode, needs]);
+
   const sortedNeeds = useMemo(() => {
-    const items = [...needs];
+    const items = [...locallyFilteredNeeds];
     if (!sortOption) return items;
     if (sortOption === 'impact') {
       return items.sort((a, b) => {
@@ -241,7 +257,7 @@ export default function NeedsPage() {
       const bCount = resolveOccurrences(b) ?? 0;
       return bCount - aCount;
     });
-  }, [needs, sortOption]);
+  }, [locallyFilteredNeeds, sortOption]);
 
   return (
     <MainLayout>
@@ -352,6 +368,19 @@ export default function NeedsPage() {
       </div>
 
 
+      {gatewayUnavailable && (
+        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4" />
+            <span>Movidesk indisponível — exibindo dados parciais.</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => fetchNeeds(filters, page)}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            {governanceTexts.general.retry}
+          </Button>
+        </div>
+      )}
+
       {partialFailure && !needsError && (
         <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center gap-2">
           <Info className="h-4 w-4" />
@@ -367,9 +396,16 @@ export default function NeedsPage() {
           </span>
         </div>
 
+        {needsError && sortedNeeds.length > 0 && (
+          <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center justify-between gap-2">
+            <span>{needsError}</span>
+            <Button size="sm" variant="outline" onClick={() => fetchNeeds(filters, page)}>{governanceTexts.general.retry}</Button>
+          </div>
+        )}
+
         {needsLoading ? (
           <LoadingSkeleton variant="table" rows={5} />
-        ) : needsError ? (
+        ) : needsError && sortedNeeds.length === 0 ? (
           <div className="rounded-md border border-destructive/20 bg-destructive/5 p-6">
             <div className="flex flex-col items-center justify-center text-center">
               <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -392,43 +428,35 @@ export default function NeedsPage() {
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
+                  <th className="text-left p-4 font-semibold text-sm">Protocolo/ID</th>
+                  <th className="text-left p-4 font-semibold text-sm">Assunto</th>
+                  <th className="text-left p-4 font-semibold text-sm">Resumo</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.system}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.status}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.filters.severity}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.windowLabel}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.occurrencesLabel}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.lastOccurrenceLabel}</th>
-                  <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.reasonLabel}</th>
+                  <th className="text-left p-4 font-semibold text-sm">Data criação</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.needs.list.actionsLabel}</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedNeeds.map((need, index) => {
                   const needId = need?.id || `need-${index}`;
-                  const occurrences = resolveOccurrences(need);
+                  const protocol = need.protocol || need.id || governanceTexts.general.notAvailable;
+                  const subject = need.subject || governanceTexts.general.notAvailable;
+                  const summary = need.summary || need.subject || governanceTexts.general.notAvailable;
+                  const detectedSystem = filters.systemCode || need.systemCode || need.systemName || governanceTexts.general.notAvailable;
+
                   return (
                     <tr key={needId} className="border-t border-border hover:bg-muted/30 transition-colors">
+                      <td className="p-4 text-sm font-medium">{protocol}</td>
+                      <td className="p-4 text-sm text-muted-foreground">{subject}</td>
                       <td className="p-4 text-sm text-muted-foreground">
-                        {need.systemName?.trim() || need.systemCode?.trim() || governanceTexts.general.notAvailable}
+                        <div className="line-clamp-2">{summary}</div>
                       </td>
+                      <td className="p-4 text-sm text-muted-foreground">{detectedSystem}</td>
                       <td className="p-4">
                         <StatusBadge status={need.status || 'OPEN'} />
                       </td>
-                      <td className="p-4">
-                        <StatusBadge status={need.severity || 'LOW'} />
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">{formatWindow(need)}</td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {occurrences ?? governanceTexts.general.notAvailable}
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {formatDate(need.lastOccurrenceAt || need.updatedAt || need.createdAt)}
-                      </td>
-                      <td className="p-4">
-                        <div className="line-clamp-2 text-sm text-muted-foreground">
-                          {need.reason?.trim() || governanceTexts.needs.list.noReason}
-                        </div>
-                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">{formatDate(need.createdAt)}</td>
                       <td className="p-4">
                         <div className="flex flex-col items-start gap-2">
                           <Button variant="outline" size="sm" onClick={() => openDetail(needId)}>
@@ -441,7 +469,7 @@ export default function NeedsPage() {
                               rel="noreferrer"
                               className="text-xs text-primary hover:underline"
                             >
-                              {governanceTexts.needs.list.linkLabel}
+                              Link Movidesk
                             </a>
                           )}
                         </div>

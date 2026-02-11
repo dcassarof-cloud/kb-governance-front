@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, CalendarClock, RefreshCw, UserPlus } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CalendarClock, Download, RefreshCw, UserPlus } from 'lucide-react';
 
 import { MetricCard } from '@/components/shared/MetricCard';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
@@ -22,6 +22,8 @@ interface GovernanceMetricsProps {
   systemRows: GovernanceOverviewSystemDto[];
   onRetryOverview: () => void;
   onSystemClick: (systemCode: string) => void;
+  onGenerateReport: () => void;
+  generatingReport: boolean;
 }
 
 const iconMap = {
@@ -38,6 +40,8 @@ export function GovernanceMetrics({
   systemRows,
   onRetryOverview,
   onSystemClick,
+  onGenerateReport,
+  generatingReport,
 }: GovernanceMetricsProps) {
   return (
     <>
@@ -93,6 +97,10 @@ export function GovernanceMetrics({
             <h3 className="font-semibold">{governanceTexts.governance.systems.title}</h3>
             <p className="text-sm text-muted-foreground">{governanceTexts.governance.systems.subtitle}</p>
           </div>
+          <Button size="sm" variant="outline" onClick={onGenerateReport} disabled={generatingReport}>
+            <Download className="h-4 w-4 mr-2" />
+            {generatingReport ? 'Gerando...' : 'Gerar relatório'}
+          </Button>
         </div>
 
         {overviewLoading ? (

@@ -41,22 +41,37 @@ const normalizeSyncMode = (raw: unknown): SyncModeLabel => {
       return raw;
     }
 
+    if (raw && typeof raw === 'object') {
+      const obj = raw as Record<string, unknown>;
+      const code = obj.code;
+      if (typeof code === 'string' && code.trim()) {
+        return code;
+      }
+    }
+
     const normalized = normalizeEnum(raw);
     return normalized || null;
   })();
 
   const normalized = rawMode?.trim().toUpperCase();
 
-  if (normalized === 'DELTA_WINDOW' || normalized === 'INCREMENTAL' || normalized === 'DELTA') {
+  if (normalized === 'DELTA_WINDOW') {
+    return 'DELTA_WINDOW';
+  }
+
+  if (normalized === 'INCREMENTAL' || normalized === 'DELTA') {
     return 'DELTA';
   }
+
   if (normalized === 'FULL') {
     return 'FULL';
   }
-  if (import.meta.env.DEV && rawMode !== null) {
-    console.error('[sync] SyncMode desconhecido recebido do backend.', raw);
+
+  if (rawMode !== null) {
+    console.warn('[sync] SyncMode desconhecido recebido do backend. Aplicando fallback DELTA_WINDOW.', raw);
   }
-  return 'DESCONHECIDO';
+
+  return 'DELTA_WINDOW';
 };
 
 export const normalizeSyncRun = (raw: unknown): SyncRun => {
@@ -66,7 +81,7 @@ export const normalizeSyncRun = (raw: unknown): SyncRun => {
       startedAt: '',
       finishedAt: null,
       status: 'RUNNING',
-      mode: 'DESCONHECIDO',
+      mode: 'DELTA_WINDOW',
       note: '',
       stats: { articlesProcessed: 0, articlesCreated: 0, articlesUpdated: 0, errors: 0 },
     };
@@ -135,11 +150,14 @@ function normalizeSyncConfig(response: unknown): SyncConfig {
   const obj = response as Record<string, unknown>;
 
   const normalizedMode = normalizeSyncMode(obj.mode);
+  const mode: SyncMode = normalizedMode === 'FULL' || normalizedMode === 'DELTA' || normalizedMode === 'DELTA_WINDOW'
+    ? normalizedMode
+    : defaultConfig.mode;
 
   return {
     id: typeof obj.id === 'string' ? obj.id : defaultConfig.id,
     enabled: typeof obj.enabled === 'boolean' ? obj.enabled : defaultConfig.enabled,
-    mode: normalizedMode === 'DESCONHECIDO' ? defaultConfig.mode : normalizedMode,
+    mode,
     intervalMinutes: typeof obj.intervalMinutes === 'number' ? obj.intervalMinutes : defaultConfig.intervalMinutes,
     daysBack: typeof obj.daysBack === 'number' ? obj.daysBack : defaultConfig.daysBack,
   };
