@@ -39,7 +39,19 @@ class ApiClient {
         status: response.status,
       };
     } catch (error) {
-      throw handleApiError(error);
+      const normalizedError = handleApiError(error);
+
+      if (config.debug) {
+        console.error('[api] Requisição falhou', {
+          endpoint,
+          method,
+          status: normalizedError.status,
+          correlationId: normalizedError.correlationId,
+          code: normalizedError.code,
+        });
+      }
+
+      throw normalizedError;
     }
   }
 

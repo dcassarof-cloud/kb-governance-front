@@ -122,23 +122,24 @@ class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
     const { systemCode, status, start, end, page = 1, size = config.defaultPageSize } = filter;
 
-    const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.NEEDS, {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
         systemCode,
         status,
         start,
         end,
+        page,
+        size,
       },
-      page,
-      size,
     });
 
+    const payload = normalizePaginatedResponse<unknown>(response, page, size);
+
     return {
-      ...response,
-      data: response.data.map((item) => normalizeNeed(item)),
+      ...payload,
+      data: payload.data.map((item) => normalizeNeed(item)),
     };
   }
-
 
   async listNeedsWithMeta(filter: NeedsFilter = {}): Promise<NeedsListResult> {
     const { systemCode, status, start, end, page = 1, size = config.defaultPageSize } = filter;

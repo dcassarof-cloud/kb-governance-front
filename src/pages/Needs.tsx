@@ -27,7 +27,7 @@ import {
 import { needsService, NeedsFilter } from '@/services/needs.service';
 import { systemsService } from '@/services/systems.service';
 import { toast } from '@/hooks/use-toast';
-import { KbSystem, NeedDetail, NeedItem, PaginatedResponse } from '@/types';
+import { ApiError, KbSystem, NeedDetail, NeedItem, PaginatedResponse } from '@/types';
 import { governanceTexts } from '@/governanceTexts';
 
 export default function NeedsPage() {
@@ -79,7 +79,23 @@ export default function NeedsPage() {
 
       setNeedsData(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.needs.errors.loadNeeds;
+      const apiErr = err as ApiError;
+      const isGatewayFailure = apiErr?.status === 500 || apiErr?.status === 502;
+      const message = isGatewayFailure
+        ? 'Não foi possível carregar necessidades agora. Tente novamente em instantes.'
+        : err instanceof Error
+          ? err.message
+          : governanceTexts.needs.errors.loadNeeds;
+
+      setNeedsData((prev) =>
+        prev ?? {
+          data: [],
+          total: 0,
+          page: currentPage,
+          size: 50,
+          totalPages: 0,
+        }
+      );
       setNeedsError(message);
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -338,14 +354,16 @@ export default function NeedsPage() {
         {needsLoading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : needsError ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">{governanceTexts.needs.errors.loadNeeds}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{needsError}</p>
-            <Button onClick={() => fetchNeeds(filters, page)}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {governanceTexts.general.retry}
-            </Button>
+          <div className="rounded-md border border-destructive/20 bg-destructive/5 p-6">
+            <div className="flex flex-col items-center justify-center text-center">
+              <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+              <h3 className="font-semibold text-lg mb-2">{governanceTexts.needs.errors.loadNeeds}</h3>
+              <p className="text-sm text-muted-foreground mb-4">{needsError}</p>
+              <Button onClick={() => fetchNeeds(filters, page)}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {governanceTexts.general.retry}
+              </Button>
+            </div>
           </div>
         ) : sortedNeeds.length === 0 ? (
           <EmptyState
