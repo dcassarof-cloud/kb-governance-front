@@ -45,6 +45,12 @@ export class HttpError extends Error {
 
 let refreshPromise: Promise<boolean> | null = null;
 
+let didLogApiBaseUrl = false;
+if (import.meta.env.DEV && !didLogApiBaseUrl) {
+  didLogApiBaseUrl = true;
+  console.info('[api] Base URL em uso:', API_BASE_URL);
+}
+
 const createCorrelationId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();

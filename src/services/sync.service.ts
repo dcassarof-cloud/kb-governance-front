@@ -35,13 +35,28 @@ function normalizeArrayResponse<T>(response: unknown): T[] {
 }
 
 const normalizeSyncMode = (raw: unknown): SyncModeLabel => {
-  if (raw === 'DELTA_WINDOW' || raw === 'DELTA') {
+  const rawMode = (() => {
+    if (typeof raw === 'string') {
+      return raw;
+    }
+
+    if (raw && typeof raw === 'object' && 'code' in raw) {
+      const code = (raw as { code?: unknown }).code;
+      return typeof code === 'string' ? code : null;
+    }
+
+    return null;
+  })();
+
+  const normalized = rawMode?.trim().toUpperCase();
+
+  if (normalized === 'DELTA_WINDOW' || normalized === 'INCREMENTAL' || normalized === 'DELTA') {
     return 'DELTA';
   }
-  if (raw === 'FULL') {
+  if (normalized === 'FULL') {
     return 'FULL';
   }
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && rawMode !== null) {
     console.error('[sync] SyncMode desconhecido recebido do backend.', raw);
   }
   return 'DESCONHECIDO';
