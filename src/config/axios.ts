@@ -14,6 +14,7 @@ export interface HttpRequestConfig {
 export interface HttpResponse<T> {
   data: T;
   status: number;
+  headers: Headers;
 }
 
 interface HttpErrorPayload {
@@ -27,10 +28,14 @@ interface HttpErrorPayload {
 }
 
 export class HttpError extends Error {
-  response?: { status: number; data: HttpErrorPayload };
+  response?: { status: number; data: HttpErrorPayload; headers: Headers };
   config: HttpRequestConfig;
 
-  constructor(message: string, config: HttpRequestConfig, response?: { status: number; data: HttpErrorPayload }) {
+  constructor(
+    message: string,
+    config: HttpRequestConfig,
+    response?: { status: number; data: HttpErrorPayload; headers: Headers }
+  ) {
     super(message);
     this.name = 'HttpError';
     this.config = config;
@@ -114,11 +119,12 @@ class HttpClient {
       throw new HttpError(payload.message || `HTTP ${response.status}`, config, {
         status: response.status,
         data: payload,
+        headers: response.headers,
       });
     }
 
     const data = await parseJson<T>(response);
-    return { data, status: response.status };
+    return { data, status: response.status, headers: response.headers };
   }
 
   post<T>(url: string, data?: unknown, config?: Omit<HttpRequestConfig, 'url' | 'method' | 'data'>) {
