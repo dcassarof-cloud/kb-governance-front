@@ -62,6 +62,9 @@ const normalizeNeed = (raw: unknown): NeedItem => {
 
   return {
     id: obj.id ? String(obj.id) : (obj.needId as string) ?? (obj.code as string) ?? '',
+    protocol: (obj.protocol as string) ?? (obj.ticketId as string) ?? (obj.movideskId as string) ?? null,
+    subject: (obj.subject as string) ?? (obj.title as string) ?? null,
+    summary: (obj.summary as string) ?? (obj.subject as string) ?? (obj.title as string) ?? null,
     systemCode: (obj.systemCode as string) ?? (obj.system as string) ?? (obj.systemId as string) ?? null,
     systemName: (obj.systemName as string) ?? (obj.systemLabel as string) ?? null,
     status: (obj.status as string) ?? (obj.state as string) ?? null,
