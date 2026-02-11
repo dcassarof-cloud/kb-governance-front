@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertCircle, ClipboardList, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, ClipboardList, Info, Loader2, RefreshCw } from 'lucide-react';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -36,6 +36,7 @@ export default function NeedsPage() {
   const [needsData, setNeedsData] = useState<PaginatedResponse<NeedItem> | null>(null);
   const [needsLoading, setNeedsLoading] = useState(true);
   const [needsError, setNeedsError] = useState<string | null>(null);
+  const [partialFailure, setPartialFailure] = useState(false);
 
   const [systems, setSystems] = useState<KbSystem[]>([]);
   const [filters, setFilters] = useState<NeedsFilter>({
@@ -68,16 +69,22 @@ export default function NeedsPage() {
     setNeedsLoading(true);
     setNeedsError(null);
     try {
-      const result = await needsService.listNeeds({
+      const sortMap: Record<string, string | undefined> = {
+        impact: 'severity,desc',
+        recurrence: 'occurrences,desc',
+      };
+      const result = await needsService.listNeedsWithMeta({
         systemCode: currentFilters.systemCode || undefined,
         status: currentFilters.status || undefined,
-        start: currentFilters.start || undefined,
-        end: currentFilters.end || undefined,
+        periodStart: currentFilters.start || undefined,
+        periodEnd: currentFilters.end || undefined,
+        sort: sortMap[sortOption],
         page: currentPage,
         size: 50,
       });
 
-      setNeedsData(result);
+      setNeedsData(result.payload);
+      setPartialFailure(result.meta.partialFailure);
     } catch (err) {
       const apiErr = err as ApiError;
       const isGatewayFailure = apiErr?.status === 500 || apiErr?.status === 502;
@@ -97,6 +104,7 @@ export default function NeedsPage() {
         }
       );
       setNeedsError(message);
+      setPartialFailure(false);
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
       setNeedsLoading(false);
@@ -343,6 +351,14 @@ export default function NeedsPage() {
         </div>
       </div>
 
+
+      {partialFailure && !needsError && (
+        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center gap-2">
+          <Info className="h-4 w-4" />
+          <span>Dados parciais retornados pela API.</span>
+        </div>
+      )}
+
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{governanceTexts.needs.list.title}</h3>
@@ -393,7 +409,7 @@ export default function NeedsPage() {
                   return (
                     <tr key={needId} className="border-t border-border hover:bg-muted/30 transition-colors">
                       <td className="p-4 text-sm text-muted-foreground">
-                        {need.systemName || need.systemCode || governanceTexts.general.notAvailable}
+                        {need.systemName?.trim() || need.systemCode?.trim() || governanceTexts.general.notAvailable}
                       </td>
                       <td className="p-4">
                         <StatusBadge status={need.status || 'OPEN'} />
@@ -410,7 +426,7 @@ export default function NeedsPage() {
                       </td>
                       <td className="p-4">
                         <div className="line-clamp-2 text-sm text-muted-foreground">
-                          {need.reason || governanceTexts.needs.list.noReason}
+                          {need.reason?.trim() || governanceTexts.needs.list.noReason}
                         </div>
                       </td>
                       <td className="p-4">

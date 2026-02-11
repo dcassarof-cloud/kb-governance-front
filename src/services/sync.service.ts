@@ -6,6 +6,7 @@ import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
 import { authService } from './auth.service';
 import { SyncRun, SyncConfig, SyncMode, SyncModeLabel } from '@/types';
+import { normalizeEnum } from '@/lib/api-normalizers';
 import { mockSyncRuns, mockSyncConfig } from '@/data/mock-data';
 
 export interface TriggerSyncRequest {
@@ -40,12 +41,8 @@ const normalizeSyncMode = (raw: unknown): SyncModeLabel => {
       return raw;
     }
 
-    if (raw && typeof raw === 'object' && 'code' in raw) {
-      const code = (raw as { code?: unknown }).code;
-      return typeof code === 'string' ? code : null;
-    }
-
-    return null;
+    const normalized = normalizeEnum(raw);
+    return normalized || null;
   })();
 
   const normalized = rawMode?.trim().toUpperCase();
@@ -156,7 +153,7 @@ class SyncService {
     }
 
     // Chamada à API real com normalização de resposta
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.SYNC_RUNS_LATEST);
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.SYNC_RUNS);
     const latest = normalizeArrayResponse<unknown>(response);
     if (latest.length > 0) {
       return latest.map((item) => normalizeSyncRun(item));

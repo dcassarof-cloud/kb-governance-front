@@ -26,6 +26,9 @@ export interface NeedsFilter {
   end?: string;
   page?: number;
   size?: number;
+  periodStart?: string;
+  periodEnd?: string;
+  sort?: string;
 }
 
 const toNumber = (value: unknown): number | null =>
@@ -120,15 +123,18 @@ const normalizeNeedDetail = (raw: unknown): NeedDetail => {
 
 class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
-    const { systemCode, status, start, end, page = 1, size = config.defaultPageSize } = filter;
+    const { systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
         systemCode,
         status,
-        start,
-        end,
-        page,
+        start: start ?? periodStart,
+        end: end ?? periodEnd,
+        periodStart: periodStart ?? start,
+        periodEnd: periodEnd ?? end,
+        sort,
+        page: Math.max(page - 1, 0),
         size,
       },
     });
@@ -142,14 +148,19 @@ class NeedsService {
   }
 
   async listNeedsWithMeta(filter: NeedsFilter = {}): Promise<NeedsListResult> {
-    const { systemCode, status, start, end, page = 1, size = config.defaultPageSize } = filter;
+    const { systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
 
     const response = await apiClient.getWithMeta<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
         systemCode,
         status,
-        start,
-        end,
+        start: start ?? periodStart,
+        end: end ?? periodEnd,
+        periodStart: periodStart ?? start,
+        periodEnd: periodEnd ?? end,
+        sort,
+        page: Math.max(page - 1, 0),
+        size,
       },
     });
 
