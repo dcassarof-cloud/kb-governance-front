@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -6,6 +6,7 @@ import {
   RefreshCw,
   UserX,
   ShieldAlert,
+  Info,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
@@ -15,75 +16,134 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { dashboardGovernanceService } from '@/services/dashboardGovernance.service';
 import { dashboardService } from '@/services/dashboard.service';
 import { needsService } from '@/services/needs.service';
 import { hasRole } from '@/services/auth.service';
 import { DashboardGovernanceDto, DashboardSummary, NeedItem } from '@/types';
-import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
 
 const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
 
+interface ApiLikeError {
+  message?: string;
+  correlationId?: string;
+  code?: string;
+}
+
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return fallback;
+};
+
+const extractCorrelationId = (error: unknown) => {
+  if (!error || typeof error !== 'object') return undefined;
+  const apiError = error as ApiLikeError;
+  return apiError.correlationId;
+};
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const isManager = hasRole(['MANAGER', 'ADMIN']);
+
   const [data, setData] = useState<DashboardGovernanceDto | null>(null);
   const [summaryData, setSummaryData] = useState<DashboardSummary | null>(null);
   const [needsData, setNeedsData] = useState<NeedItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [needsLoading, setNeedsLoading] = useState(false);
+
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [needsError, setNeedsError] = useState<string | null>(null);
+
+  const [hasPartialFailure, setHasPartialFailure] = useState(false);
+
+  const reportWidgetError = useCallback((widget: string, error: unknown, fallbackMessage: string) => {
+    const message = extractErrorMessage(error, fallbackMessage);
+    const correlationId = extractCorrelationId(error);
+    console.error(`[Dashboard:${widget}] request failed`, {
+      message,
+      correlationId: correlationId ?? 'n/a',
+      error,
+    });
+
+    return message;
+  }, []);
+
+  const loadGovernance = useCallback(async () => {
+    setDashboardLoading(true);
+    setDashboardError(null);
     try {
-      const [dashboardResult, summaryResult, needsResult] = await Promise.allSettled([
-        dashboardGovernanceService.getDashboard(),
-        dashboardService.getSummary(),
-        needsService.listNeeds({ page: 1, size: 50 }),
-      ]);
-
-      if (dashboardResult.status === 'fulfilled') {
-        setData(dashboardResult.value);
-      }
-
-      if (summaryResult.status === 'fulfilled') {
-        setSummaryData(summaryResult.value);
-      }
-
-      if (needsResult.status === 'fulfilled') {
-        setNeedsData(needsResult.value?.data ?? []);
-      }
-
-      if (
-        dashboardResult.status === 'rejected' &&
-        summaryResult.status === 'rejected' &&
-        needsResult.status === 'rejected'
-      ) {
-        throw dashboardResult.reason ?? summaryResult.reason ?? needsResult.reason;
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.dashboard.errors.loadDashboard;
-      setError(message);
-      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+      const dashboardResult = await dashboardGovernanceService.getDashboard();
+      setData(dashboardResult);
+    } catch (error) {
+      const message = reportWidgetError('governance', error, governanceTexts.dashboard.errors.loadDashboard);
+      setDashboardError(message);
     } finally {
-      setLoading(false);
+      setDashboardLoading(false);
     }
-  };
+  }, [reportWidgetError]);
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const result = await dashboardService.getSummary();
+      setSummaryData(result);
+    } catch (error) {
+      const message = reportWidgetError('summary', error, governanceTexts.dashboard.errors.loadDashboard);
+      setSummaryError(message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [reportWidgetError]);
+
+  const loadNeeds = useCallback(async () => {
+    setNeedsLoading(true);
+    setNeedsError(null);
+    try {
+      const result = await needsService.listNeedsWithMeta({ page: 1, size: 50 });
+      setNeedsData(result.payload?.data ?? []);
+      setHasPartialFailure(result.meta.partialFailure);
+
+      if (result.meta.partialFailure) {
+        console.warn('[Dashboard:needs-recurring] partial data returned', {
+          requestId: result.meta.requestId ?? 'n/a',
+          correlationId: result.meta.correlationId ?? 'n/a',
+        });
+      }
+    } catch (error) {
+      const message = reportWidgetError(
+        'needs-recurring',
+        error,
+        'Recorrência indisponível (Movidesk). Tente novamente.'
+      );
+      setNeedsData([]);
+      setNeedsError(message);
+    } finally {
+      setNeedsLoading(false);
+    }
+  }, [reportWidgetError]);
+
+  const fetchData = useCallback(async () => {
+    await Promise.allSettled([loadGovernance(), loadSummary(), loadNeeds()]);
+  }, [loadGovernance, loadNeeds, loadSummary]);
 
   useEffect(() => {
-    if (isManager) {
-      fetchData();
-      return;
-    }
-    setLoading(false);
-  }, [isManager]);
+    if (!isManager) return;
+    fetchData();
+  }, [fetchData, isManager]);
 
   const summary = data?.summary;
-  const bySystem = summaryData?.bySystem ?? [];
-  const byStatus = summaryData?.byStatus ?? [];
+  const bySystem = useMemo(() => summaryData?.bySystem ?? [], [summaryData]);
+  const byStatus = useMemo(() => summaryData?.byStatus ?? [], [summaryData]);
   const needsOpen = useMemo(() => needsData.filter((need) => need.status === 'OPEN').length, [needsData]);
   const needsRecurring = useMemo(
     () =>
@@ -151,63 +211,11 @@ export default function DashboardPage() {
     );
   }
 
-  if (loading) {
-    return (
-      <MainLayout>
-        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-          {[1, 2, 3, 4].map((i) => (
-            <LoadingSkeleton key={i} variant="card" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {[1, 2].map((i) => (
-            <LoadingSkeleton key={i} variant="card" className="min-h-[260px]" />
-          ))}
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <MainLayout>
-        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
-        <div className="card-metric">
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">{governanceTexts.dashboard.errors.loadDashboard}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <button
-              onClick={fetchData}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              <RefreshCw className="h-4 w-4" />
-              {governanceTexts.general.retry}
-            </button>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (!summary) {
-    return (
-      <MainLayout>
-        <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
-        <EmptyState
-          title={governanceTexts.dashboard.empty.title}
-          description={governanceTexts.dashboard.empty.description}
-        />
-      </MainLayout>
-    );
-  }
-
   const summaryCards = [
     {
       key: 'openIssues',
       title: governanceTexts.dashboard.cards.openIssues,
-      value: formatNumber(summary.openIssues),
+      value: summary ? formatNumber(summary.openIssues) : '—',
       icon: AlertTriangle,
       tone: 'warning',
       action: () => handleNavigate({ status: 'OPEN' }),
@@ -215,7 +223,7 @@ export default function DashboardPage() {
     {
       key: 'overdueIssues',
       title: governanceTexts.dashboard.cards.overdueIssues,
-      value: formatNumber(summary.overdueIssues),
+      value: summary ? formatNumber(summary.overdueIssues) : '—',
       icon: CalendarClock,
       tone: 'error',
       action: () => handleNavigate({ overdue: true }),
@@ -223,24 +231,23 @@ export default function DashboardPage() {
     {
       key: 'unassignedIssues',
       title: governanceTexts.dashboard.cards.unassignedIssues,
-      value: formatNumber(summary.unassignedIssues),
+      value: summary ? formatNumber(summary.unassignedIssues) : '—',
       icon: UserX,
       tone: 'warning',
       action: () => handleNavigate({ unassigned: true }),
     },
-    {
-      key: 'needsOpenRecurring',
-      title: governanceTexts.dashboard.cards.needsOpenRecurring,
-      value: `${formatNumber(needsOpen)} • ${formatNumber(needsRecurring)}`,
-      icon: ShieldAlert,
-      tone: needsRecurring > 0 ? 'error' : needsOpen > 0 ? 'warning' : 'success',
-      action: () => navigate('/needs'),
-    },
-  ];
+  ] as const;
 
   return (
     <MainLayout>
       <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
+
+      {hasPartialFailure && (
+        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center gap-2">
+          <Info className="h-4 w-4" />
+          <span>Dados parciais.</span>
+        </div>
+      )}
 
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
         {summaryCards.map((card) => {
@@ -260,19 +267,63 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                  <p className="text-3xl font-semibold text-foreground mt-2">{card.value}</p>
+                  {dashboardLoading ? (
+                    <LoadingSkeleton variant="text" className="h-9 mt-2 w-20" />
+                  ) : (
+                    <p className="text-3xl font-semibold text-foreground mt-2">{card.value}</p>
+                  )}
                 </div>
                 <div className="h-10 w-10 rounded-full bg-background/60 flex items-center justify-center">
                   <Icon className="h-5 w-5" />
                 </div>
               </div>
-              <span className="text-xs font-medium text-muted-foreground">
-                {governanceTexts.dashboard.cards.cta}
-              </span>
+              <span className="text-xs font-medium text-muted-foreground">{governanceTexts.dashboard.cards.cta}</span>
             </button>
           );
         })}
+
+        <div className="card-metric flex flex-col gap-4 text-left border-l-4 border-primary/40 bg-primary/5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">{governanceTexts.dashboard.cards.needsOpenRecurring}</p>
+              {needsLoading ? (
+                <LoadingSkeleton variant="text" className="h-9 mt-2 w-28" />
+              ) : (
+                <p className="text-3xl font-semibold text-foreground mt-2">
+                  {needsError ? '—' : `${formatNumber(needsOpen)} • ${formatNumber(needsRecurring)}`}
+                </p>
+              )}
+            </div>
+            <div className="h-10 w-10 rounded-full bg-background/60 flex items-center justify-center">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+          </div>
+
+          {needsError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="text-destructive font-medium mb-2">Recorrência indisponível (Movidesk). Tente novamente.</p>
+              <Button type="button" variant="outline" size="sm" onClick={loadNeeds}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tentar novamente
+              </Button>
+            </div>
+          ) : (
+            <Button type="button" variant="ghost" className="justify-start px-0" onClick={() => navigate('/needs')}>
+              {governanceTexts.dashboard.cards.cta}
+            </Button>
+          )}
+        </div>
       </section>
+
+      {dashboardError && (
+        <div className="mb-6 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          <p className="text-destructive mb-2">{dashboardError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={loadGovernance}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            {governanceTexts.general.retry}
+          </Button>
+        </div>
+      )}
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card-metric">
@@ -280,7 +331,18 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold">{governanceTexts.dashboard.charts.issuesBySystem}</h3>
             <Badge variant="secondary">{formatNumber(bySystem.length)}</Badge>
           </div>
-          {systemChartData.length === 0 ? (
+
+          {summaryLoading ? (
+            <LoadingSkeleton variant="card" className="min-h-[220px]" />
+          ) : summaryError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="text-destructive mb-2">{summaryError}</p>
+              <Button type="button" variant="outline" size="sm" onClick={loadSummary}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {governanceTexts.general.retry}
+              </Button>
+            </div>
+          ) : systemChartData.length === 0 ? (
             <EmptyState
               title={governanceTexts.dashboard.charts.emptyTitle}
               description={governanceTexts.dashboard.charts.emptyDescription}
@@ -311,7 +373,18 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold">{governanceTexts.dashboard.charts.issuesByStatus}</h3>
             <Badge variant="secondary">{formatNumber(byStatus.length)}</Badge>
           </div>
-          {statusChartData.length === 0 ? (
+
+          {summaryLoading ? (
+            <LoadingSkeleton variant="card" className="min-h-[220px]" />
+          ) : summaryError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+              <p className="text-destructive mb-2">{summaryError}</p>
+              <Button type="button" variant="outline" size="sm" onClick={loadSummary}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {governanceTexts.general.retry}
+              </Button>
+            </div>
+          ) : statusChartData.length === 0 ? (
             <EmptyState
               title={governanceTexts.dashboard.charts.emptyTitle}
               description={governanceTexts.dashboard.charts.emptyDescription}
@@ -337,6 +410,28 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
+
+      {!dashboardLoading && !summaryLoading && !needsLoading && !summary && !summaryData && !needsData.length && (
+        <div className="mt-6">
+          <EmptyState
+            title={governanceTexts.dashboard.empty.title}
+            description={governanceTexts.dashboard.empty.description}
+          />
+        </div>
+      )}
+
+      {dashboardError && summaryError && needsError && (
+        <div className="mt-6 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            <span>{governanceTexts.dashboard.errors.loadDashboard}</span>
+          </div>
+          <Button onClick={fetchData} type="button" variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            {governanceTexts.general.retry}
+          </Button>
+        </div>
+      )}
     </MainLayout>
   );
 }

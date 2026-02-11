@@ -10,13 +10,19 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
+export interface ApiResponseWithMeta<T> {
+  data: T;
+  headers: Headers;
+  status: number;
+}
+
 class ApiClient {
-  private async request<T>(
+  private async requestWithMeta<T>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     endpoint: string,
     body?: unknown,
     options?: RequestOptions
-  ): Promise<T> {
+  ): Promise<ApiResponseWithMeta<T>> {
     try {
       const response = await apiClient.request<T>({
         method,
@@ -27,14 +33,32 @@ class ApiClient {
         signal: options?.signal,
       });
 
-      return response.data;
+      return {
+        data: response.data,
+        headers: response.headers,
+        status: response.status,
+      };
     } catch (error) {
       throw handleApiError(error);
     }
   }
 
+  private async request<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    endpoint: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T> {
+    const response = await this.requestWithMeta<T>(method, endpoint, body, options);
+    return response.data;
+  }
+
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>('GET', endpoint, undefined, options);
+  }
+
+  async getWithMeta<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponseWithMeta<T>> {
+    return this.requestWithMeta<T>('GET', endpoint, undefined, options);
   }
 
   async getPaginated<T>(

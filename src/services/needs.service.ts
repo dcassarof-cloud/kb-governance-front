@@ -3,9 +3,21 @@
 // =====================================================
 
 import { API_ENDPOINTS, config } from '@/config/app-config';
+import { normalizePaginatedResponse } from '@/lib/api-normalizers';
 import { apiClient } from './api-client.service';
 import { authService } from './auth.service';
 import { IssueSeverity, NeedDetail, NeedItem, NeedTicketExample, PaginatedResponse } from '@/types';
+
+export interface NeedsRequestMeta {
+  partialFailure: boolean;
+  requestId?: string;
+  correlationId?: string;
+}
+
+export interface NeedsListResult {
+  payload: PaginatedResponse<NeedItem>;
+  meta: NeedsRequestMeta;
+}
 
 export interface NeedsFilter {
   systemCode?: string;
@@ -124,6 +136,34 @@ class NeedsService {
     return {
       ...response,
       data: response.data.map((item) => normalizeNeed(item)),
+    };
+  }
+
+
+  async listNeedsWithMeta(filter: NeedsFilter = {}): Promise<NeedsListResult> {
+    const { systemCode, status, start, end, page = 1, size = config.defaultPageSize } = filter;
+
+    const response = await apiClient.getWithMeta<unknown>(API_ENDPOINTS.NEEDS, {
+      params: {
+        systemCode,
+        status,
+        start,
+        end,
+      },
+    });
+
+    const payload = normalizePaginatedResponse<unknown>(response.data, page, size);
+
+    return {
+      payload: {
+        ...payload,
+        data: payload.data.map((item) => normalizeNeed(item)),
+      },
+      meta: {
+        partialFailure: response.headers.get('X-Partial-Failure') === 'true',
+        requestId: response.headers.get('X-Request-Id') ?? undefined,
+        correlationId: response.headers.get('X-Correlation-Id') ?? undefined,
+      },
     };
   }
 
