@@ -38,6 +38,7 @@ export default function GovernancePage() {
     openAssign,
     closeAssign,
     setAssignField,
+    searchResponsibles,
     openStatus,
     closeStatus,
     setStatusField,
@@ -142,6 +143,7 @@ export default function GovernancePage() {
         statusState={state.status}
         suggested={state.suggested}
         onAssignFieldChange={setAssignField}
+        onSearchResponsible={searchResponsibles}
         onStatusFieldChange={setStatusField}
         onAssignSave={handleAssignSave}
         onAssignSuggestion={handleAssignSuggestion}

@@ -24,7 +24,7 @@ import { ApiError } from '@/components/ui/ApiError';
 import { governanceTexts } from '@/governanceTexts';
 import type { GovernanceIssueDto, GovernanceResponsible, IssueSeverity, IssueStatus } from '@/types';
 import { toast } from '@/hooks/use-toast';
-import { ISSUE_STATUS_OPTIONS, ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
+import { ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
 
 interface GovernanceTableProps {
   issues: GovernanceIssueDto[];
@@ -73,6 +73,7 @@ interface GovernanceTableProps {
     alternatives: GovernanceResponsible[];
   };
   onAssignFieldChange: (payload: Partial<GovernanceTableProps['assignState']>) => void;
+  onSearchResponsible: (query: string) => void;
   onStatusFieldChange: (payload: Partial<GovernanceTableProps['statusState']>) => void;
   onAssignSave: (options: { createTicket?: boolean }) => void;
   onAssignSuggestion: () => void;
@@ -109,6 +110,7 @@ export function GovernanceTable({
   onAssignFieldChange,
   onStatusFieldChange,
   onAssignSave,
+  onSearchResponsible,
   onAssignSuggestion,
   onAssignClose,
   onStatusSave,
@@ -292,7 +294,7 @@ export function GovernanceTable({
                               disabled={isActionLoading('status')}
                             >
                               <ClipboardCheck className="h-4 w-4 mr-1" />
-                              {governanceTexts.governance.list.actionStatus}
+                              Revalidar / Ignorar
                             </Button>
                           )}
 
@@ -357,11 +359,8 @@ export function GovernanceTable({
                     <SelectValue placeholder={governanceTexts.governance.statusDialog.statusPlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    {ISSUE_STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {governanceTexts.status.labels[option]}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="OPEN">Revalidar</SelectItem>
+                    <SelectItem value="IGNORED">Ignorar</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -484,7 +483,11 @@ export function GovernanceTable({
                 <Input
                   placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
                   value={assignState.value}
-                  onChange={(event) => onAssignFieldChange({ value: event.target.value })}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    onAssignFieldChange({ value: nextValue, responsibleId: nextValue });
+                    onSearchResponsible(nextValue);
+                  }}
                 />
               </div>
 

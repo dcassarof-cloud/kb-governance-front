@@ -114,6 +114,7 @@ export function useGovernance() {
         q: currentFilters.q?.trim() || undefined,
         overdue: currentFilters.overdue || undefined,
         unassigned: currentFilters.unassigned || undefined,
+        sort: 'createdAt,desc',
         signal: controller.signal,
       });
 
@@ -147,12 +148,12 @@ export function useGovernance() {
     }
   };
 
-  const fetchSuggestedAssignee = async (issue: GovernanceIssueDto) => {
+  const fetchSuggestedAssignee = async (query: string) => {
     dispatch({ type: 'SET_SUGGESTED_LOADING', payload: true });
     dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
     dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
     try {
-      const result = await governanceService.getSuggestedAssignee(issue.id);
+      const result = await governanceService.getSuggestedAssignee(query);
       dispatch({
         type: 'SET_SUGGESTED',
         payload: {
@@ -271,6 +272,16 @@ export function useGovernance() {
   const clearFilters = () => {
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'SET_FILTERS', payload: createInitialFilters(isManager, actorIdentifier) });
+  };
+
+
+  const searchResponsibles = (query: string) => {
+    const trimmed = query.trim();
+    if (!state.assign.target || trimmed.length < 2) {
+      dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
+      return;
+    }
+    fetchSuggestedAssignee(trimmed);
   };
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -498,7 +509,8 @@ export function useGovernance() {
         responsibleId: assignTo ?? state.assign.target.responsibleId ?? fallbackResponsible,
       },
     });
-    fetchSuggestedAssignee(state.assign.target);
+    const baseQuery = (assignTo ?? fallbackResponsible ?? '').trim();
+    fetchSuggestedAssignee(baseQuery);
   }, [state.assign.target, searchParams]);
 
   useEffect(() => {
@@ -585,6 +597,7 @@ export function useGovernance() {
     handleAssign,
     handleStatusChange,
     fetchSuggestedAssignee,
+    searchResponsibles,
     handleFilterChange,
     handleToggleChange,
     handleCriticalToggle,

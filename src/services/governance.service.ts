@@ -6,6 +6,7 @@ import { config, API_ENDPOINTS } from '@/config/app-config';
 import { apiClient } from './api-client.service';
 import { authService } from './auth.service';
 
+import { normalizeEnum } from '@/lib/api-normalizers';
 import {
   GovernanceIssueDto,
   IssueType,
@@ -37,6 +38,7 @@ export interface IssuesFilter {
   q?: string;
   overdue?: boolean;
   unassigned?: boolean;
+  sort?: string;
   signal?: AbortSignal;
 }
 
@@ -205,8 +207,7 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
       (issueData.system as string) ??
       '',
     status:
-      (issueData.status as IssueStatus) ??
-      (issueData.issueStatus as IssueStatus) ??
+      (normalizeEnum(issueData.status ?? issueData.issueStatus) as IssueStatus) ??
       'OPEN',
     createdAt:
       (issueData.createdAt as string) ??
@@ -469,13 +470,15 @@ class GovernanceService {
       q,
       overdue,
       unassigned,
+      sort,
       signal,
     } = filter;
 
     const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
       params: {
-        page,
+        page: Math.max(page - 1, 0),
         size,
+        sort,
         type,
         severity,
         status,
@@ -515,6 +518,13 @@ class GovernanceService {
   }
 
   async changeStatus(id: string, status: IssueStatus, ignoredReason?: string): Promise<GovernanceIssueDto> {
+    if (status === 'IGNORED') {
+      return this.ignoreIssue(id, ignoredReason ?? '');
+    }
+    if (status === 'OPEN') {
+      return this.revalidateIssue(id);
+    }
+
     const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
       status,
       ...(ignoredReason ? { ignoredReason } : {}),
@@ -539,25 +549,33 @@ class GovernanceService {
   }
 
   async ignoreIssue(id: string, reason: string): Promise<GovernanceIssueDto> {
-    const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_STATUS(id), {
-      status: 'IGNORED',
+    const response = await apiClient.patch<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_IGNORE(id), {
       ignoredReason: reason,
+      actor: authService.getActorIdentifier() ?? 'system',
     });
     return normalizeGovernanceIssue(response);
   }
 
-  async getSuggestedAssignee(id: string): Promise<GovernanceSuggestedAssignee> {
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_SUGGESTED_ASSIGNEE(id));
+  async revalidateIssue(id: string): Promise<GovernanceIssueDto> {
+    const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_REVALIDATE(id), {
+      actor: authService.getActorIdentifier() ?? 'system',
+    });
+    return normalizeGovernanceIssue(response);
+  }
+
+  async getSuggestedAssignee(query: string): Promise<GovernanceSuggestedAssignee> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUGGEST, {
+      params: { q: query || undefined },
+    });
+
     if (Array.isArray(response)) {
       return { suggested: normalizeResponsible(response[0]) ?? null, alternatives: normalizeResponsibleList(response) };
     }
 
     const data = response as Record<string, unknown> | null;
-    const suggested =
-      normalizeResponsible(data?.suggestedAssignee ?? data?.suggested ?? data?.assignee ?? data?.data ?? data) ?? null;
-    const alternatives = normalizeResponsibleList(data?.alternatives ?? data?.options ?? data?.others ?? []);
+    const alternatives = normalizeResponsibleList(data?.alternatives ?? data?.options ?? data?.items ?? data?.content ?? data?.data ?? response);
 
-    return { suggested, alternatives };
+    return { suggested: alternatives[0] ?? null, alternatives };
   }
 
   async getResponsiblesSummary(): Promise<GovernanceResponsiblesSummary> {
