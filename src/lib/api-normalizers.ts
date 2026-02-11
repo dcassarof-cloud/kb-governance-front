@@ -16,18 +16,19 @@ const logNormalizationIssue = (message: string, payload: unknown) => {
   }
 };
 
-/**
- * Normaliza respostas paginadas vindas do backend para o formato único do frontend.
- * Formato interno:
- * {
- *   data: [],
- *   page: number,
- *   size: number,
- *   total: number,
- *   totalPages: number
- * }
- */
-export function normalizePaginatedResponse<T>(
+export function normalizeEnum(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const value = obj.code ?? obj.value ?? obj.id ?? obj.key ?? null;
+    if (typeof value === 'string') return value;
+  }
+
+  return '';
+}
+
+export function normalizePage<T>(
   response: unknown,
   fallbackPage: number,
   fallbackSize: number
@@ -54,16 +55,20 @@ export function normalizePaginatedResponse<T>(
     const page =
       (isNumber(obj.page) ? obj.page : null) ??
       (isNumber(obj.pageNumber) ? obj.pageNumber : null) ??
+      (isNumber(obj.number) ? obj.number + 1 : null) ??
       fallbackPage;
+
     const size =
       (isNumber(obj.size) ? obj.size : null) ??
       (isNumber(obj.pageSize) ? obj.pageSize : null) ??
       fallbackSize;
+
     const total =
       (isNumber(obj.total) ? obj.total : null) ??
       (isNumber(obj.totalElements) ? obj.totalElements : null) ??
       (isNumber(obj.totalItems) ? obj.totalItems : null) ??
       data.length;
+
     const totalPages =
       (isNumber(obj.totalPages) ? obj.totalPages : null) ??
       (isNumber(obj.pages) ? obj.pages : null) ??
@@ -87,4 +92,15 @@ export function normalizePaginatedResponse<T>(
     size: fallbackSize,
     totalPages: 0,
   };
+}
+
+/**
+ * Backward-compatible alias.
+ */
+export function normalizePaginatedResponse<T>(
+  response: unknown,
+  fallbackPage: number,
+  fallbackSize: number
+): PaginatedResponse<T> {
+  return normalizePage<T>(response, fallbackPage, fallbackSize);
 }
