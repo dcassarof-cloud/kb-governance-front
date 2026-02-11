@@ -7,6 +7,7 @@ export interface DashboardSummary {
   articlesOk: number;
   articlesWithIssues: number;
   totalIssues: number;
+  duplicatesCount: number;
   bySystem: SystemStats[];
   byStatus: StatusStats[];
 }
@@ -60,12 +61,12 @@ export interface DashboardGovernanceTrend {
 export interface SystemStats {
   systemCode: string;
   systemName: string;
-  count: number;
+  total: number;
 }
 
 export interface StatusStats {
   status: GovernanceStatus;
-  count: number;
+  total: number;
 }
 
 export interface KbArticle {
@@ -132,6 +133,8 @@ export interface GovernanceIssueDto {
   responsibleType?: string | null;
   responsibleName?: string | null;
   dueDate?: string | null;
+  assignedAgentId?: string | null;
+  assignedAgentName?: string | null;
   slaDueAt?: string | null;
   slaDays?: number | null;
   systemName?: string | null;

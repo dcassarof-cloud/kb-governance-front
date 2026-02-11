@@ -252,10 +252,12 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
       (issueData.description as string) ??
       '',
     responsible:
+      (issueData.assignedAgentName as string) ??
       (issueData.responsible as string) ??
       (issueData.assignee as string) ??
       null,
     responsibleId:
+      (issueData.assignedAgentId as string) ??
       (issueData.responsibleId as string) ??
       (issueData.responsible_id as string) ??
       null,
@@ -270,6 +272,17 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
     dueDate:
       (issueData.dueDate as string) ??
       (issueData.due_date as string) ??
+      null,
+    assignedAgentId:
+      (issueData.assignedAgentId as string) ??
+      (issueData.assigned_agent_id as string) ??
+      (issueData.responsibleId as string) ??
+      null,
+    assignedAgentName:
+      (issueData.assignedAgentName as string) ??
+      (issueData.assigned_agent_name as string) ??
+      (issueData.responsibleName as string) ??
+      (issueData.responsible as string) ??
       null,
     slaDueAt:
       (issueData.slaDueAt as string) ??
@@ -509,10 +522,10 @@ class GovernanceService {
 
     const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
       params: {
-        page: Math.max(page - 1, 0),
+        page,
         size,
         sort,
-        type,
+        issueType: type,
         severity,
         status,
         systemCode,
@@ -540,11 +553,9 @@ class GovernanceService {
     const { dueDate, responsibleType, responsibleId, ...restOptions } = options;
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
-    const response = await apiClient.put<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
-      createTicket: restOptions.createTicket ?? null,
-      responsibleType: responsibleType ?? null,
-      responsibleId: responsibleId ?? null,
-      dueDate: formattedDueDate ?? null,
+    const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
+      assignee: responsibleId ?? '',
+      ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
       actor: authService.getActorIdentifier() ?? 'system',
     });
     return normalizeGovernanceIssue(response);
@@ -602,11 +613,23 @@ class GovernanceService {
     });
 
     if (Array.isArray(response)) {
-      return { suggested: normalizeResponsible(response[0]) ?? null, alternatives: normalizeResponsibleList(response) };
+      const alternatives = response.reduce<GovernanceResponsible[]>((acc, item) => {
+        if (!item || typeof item !== 'object') return acc;
+        const obj = item as Record<string, unknown>;
+        const name = typeof obj.name === 'string' ? obj.name : null;
+        if (!name) return acc;
+        const id = obj.id ? String(obj.id) : undefined;
+        acc.push({ id, name, email: null });
+        return acc;
+      }, []);
+
+      return { suggested: alternatives[0] ?? null, alternatives };
     }
 
     const data = response as Record<string, unknown> | null;
-    const alternatives = normalizeResponsibleList(data?.alternatives ?? data?.options ?? data?.items ?? data?.content ?? data?.data ?? response);
+    const alternatives = normalizeResponsibleList(
+      data?.alternatives ?? data?.options ?? data?.items ?? data?.content ?? data?.data ?? response
+    );
 
     return { suggested: alternatives[0] ?? null, alternatives };
   }
@@ -674,7 +697,6 @@ class GovernanceService {
     const url = new URL(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_MANUAL_UPDATES}`);
 
     if (params.systemCode) url.searchParams.set('systemCode', params.systemCode);
-    if (params.status) url.searchParams.set('status', params.status);
     if (params.start) url.searchParams.set('start', params.start);
     if (params.end) url.searchParams.set('end', params.end);
     url.searchParams.set('format', 'csv');
@@ -688,7 +710,19 @@ class GovernanceService {
     });
 
     if (!response.ok) {
-      throw new Error(`Falha ao gerar relatório (HTTP ${response.status}).`);
+      let message = `Falha ao gerar relatório (HTTP ${response.status}).`;
+      try {
+        const body = await response.json() as { message?: string; correlationId?: string };
+        if (body?.message) {
+          message = body.message;
+        }
+        if (body?.correlationId) {
+          message = `${message} CorrelationId: ${body.correlationId}`;
+        }
+      } catch {
+        // noop
+      }
+      throw new Error(message);
     }
 
     return response.blob();

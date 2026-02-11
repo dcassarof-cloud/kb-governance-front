@@ -34,6 +34,11 @@ export interface NeedsFilter {
 const toNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
+const formatDateInput = (value?: string) => {
+  if (!value) return undefined;
+  return value.split('T')[0];
+};
+
 const normalizeNeedExample = (raw: unknown): NeedTicketExample | null => {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
@@ -132,12 +137,10 @@ class NeedsService {
       params: {
         systemCode,
         status,
-        start: start ?? periodStart,
-        end: end ?? periodEnd,
-        periodStart: periodStart ?? start,
-        periodEnd: periodEnd ?? end,
+        start: formatDateInput(start ?? periodStart),
+        end: formatDateInput(end ?? periodEnd),
         sort,
-        page: Math.max(page - 1, 0),
+        page,
         size,
       },
     });
@@ -157,12 +160,10 @@ class NeedsService {
       params: {
         systemCode,
         status,
-        start: start ?? periodStart,
-        end: end ?? periodEnd,
-        periodStart: periodStart ?? start,
-        periodEnd: periodEnd ?? end,
+        start: formatDateInput(start ?? periodStart),
+        end: formatDateInput(end ?? periodEnd),
         sort,
-        page: Math.max(page - 1, 0),
+        page,
         size,
       },
     });
@@ -175,7 +176,7 @@ class NeedsService {
         data: payload.data.map((item) => normalizeNeed(item)),
       },
       meta: {
-        partialFailure: response.headers.get('X-Partial-Failure') === 'true',
+        partialFailure: (response.headers.get('X-Partial-Failure') ?? '').toLowerCase() === 'movidesk_unavailable',
         requestId: response.headers.get('X-Request-Id') ?? undefined,
         correlationId: response.headers.get('X-Correlation-Id') ?? undefined,
       },

@@ -5,12 +5,14 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { Button } from '@/components/ui/button';
 
 import { governanceService } from '@/services/governance.service';
 import { GovernanceIssueDto, GovernanceResponsible, GovernanceResponsiblesSummary } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
+import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 
 const isIssueOpen = (issue: GovernanceIssueDto) => issue.status !== 'RESOLVED' && issue.status !== 'IGNORED';
 
@@ -27,7 +29,17 @@ const isIssueOverdue = (issue: GovernanceIssueDto) => {
 };
 
 const resolveResponsibleKey = (issue: GovernanceIssueDto) =>
-  issue.responsibleName || issue.responsible || issue.responsibleId || '';
+  issue.assignedAgentName || issue.responsibleName || issue.responsible || issue.assignedAgentId || issue.responsibleId || '';
+
+const normalizeWorkloadResponse = (raw: unknown): GovernanceResponsible[] => {
+  if (Array.isArray(raw)) return raw as GovernanceResponsible[];
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const list = obj.data ?? obj.items ?? obj.content ?? [];
+    return Array.isArray(list) ? (list as GovernanceResponsible[]) : [];
+  }
+  return [];
+};
 
 export default function WorkloadPage() {
   const [summary, setSummary] = useState<GovernanceResponsiblesSummary | null>(null);
@@ -45,7 +57,10 @@ export default function WorkloadPage() {
       ]);
 
       if (summaryResult.status === 'fulfilled') {
-        setSummary(summaryResult.value);
+        setSummary({
+          ...summaryResult.value,
+          responsibles: normalizeWorkloadResponse(summaryResult.value.responsibles),
+        });
       }
 
       if (issuesResult.status === 'fulfilled') {
@@ -56,7 +71,8 @@ export default function WorkloadPage() {
         throw summaryResult.reason ?? issuesResult.reason;
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.workload.loadError;
+      const info = toApiErrorInfo(err, governanceTexts.workload.loadError);
+      const message = formatApiErrorInfo(info);
       setError(message);
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -128,20 +144,24 @@ export default function WorkloadPage() {
         {loading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">{governanceTexts.workload.loadError}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {governanceTexts.general.retry}
-            </Button>
-          </div>
+          <>
+            <ApiErrorBanner
+              title="Falha ao carregar carga do time"
+              description={error}
+              onRetry={fetchData}
+            />
+            <EmptyState
+              icon={AlertCircle}
+              title={governanceTexts.workload.loadError}
+              description="Não foi possível carregar os dados de carga."
+              action={{ label: 'Recarregar', onClick: fetchData }}
+            />
+          </>
         ) : responsibles.length === 0 ? (
           <EmptyState
             icon={Users}
             title={governanceTexts.workload.emptyTitle}
-            description={governanceTexts.workload.emptyDescription}
+            description="Nenhuma pendência atribuída ainda. Atribua responsáveis na fila de pendências."
           />
         ) : (
           <div className="table-container overflow-x-auto">

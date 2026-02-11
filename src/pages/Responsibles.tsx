@@ -7,12 +7,14 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { MetricCard } from '@/components/shared/MetricCard';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { Button } from '@/components/ui/button';
 
 import { governanceService } from '@/services/governance.service';
 import { GovernanceResponsiblesSummary, GovernanceResponsible } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
+import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 
 export default function ResponsiblesPage() {
   const navigate = useNavigate();
@@ -27,7 +29,8 @@ export default function ResponsiblesPage() {
       const result = await governanceService.getResponsiblesSummary();
       setSummary(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : governanceTexts.responsibles.loadError;
+      const info = toApiErrorInfo(err, governanceTexts.responsibles.loadError);
+      const message = formatApiErrorInfo(info);
       setError(message);
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
     } finally {
@@ -89,15 +92,17 @@ export default function ResponsiblesPage() {
         </div>
       ) : error ? (
         <div className="card-metric mb-6">
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">{governanceTexts.responsibles.loadError}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {governanceTexts.general.retry}
-            </Button>
-          </div>
+          <ApiErrorBanner
+            title="Falha ao carregar responsáveis"
+            description={error}
+            onRetry={fetchData}
+          />
+          <EmptyState
+            icon={AlertCircle}
+            title={governanceTexts.responsibles.loadError}
+            description="Não foi possível carregar os responsáveis."
+            action={{ label: 'Recarregar', onClick: fetchData }}
+          />
         </div>
       ) : summaryMetrics.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -125,15 +130,19 @@ export default function ResponsiblesPage() {
         {loading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h3 className="font-semibold text-lg mb-2">{governanceTexts.responsibles.loadError}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              {governanceTexts.general.retry}
-            </Button>
-          </div>
+          <>
+            <ApiErrorBanner
+              title="Falha ao carregar responsáveis"
+              description={error}
+              onRetry={fetchData}
+            />
+            <EmptyState
+              icon={AlertCircle}
+              title={governanceTexts.responsibles.loadError}
+              description="Não foi possível carregar os responsáveis."
+              action={{ label: 'Recarregar', onClick: fetchData }}
+            />
+          </>
         ) : responsibles.length === 0 ? (
           <EmptyState
             icon={Users}

@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ApiError } from '@/components/ui/ApiError';
 import { governanceTexts } from '@/governanceTexts';
@@ -142,12 +143,25 @@ export function GovernanceTable({
         {issuesLoading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : issuesError ? (
-          <ApiError
-            title={governanceTexts.governance.list.loadError}
-            description={issuesError}
-            actionLabel={governanceTexts.general.retry}
-            onAction={onRefresh}
-          />
+          <>
+            <ApiErrorBanner
+              title="Falha ao carregar governança"
+              description={issuesError}
+              onRetry={onRefresh}
+            />
+            <ApiError
+              title={governanceTexts.governance.list.loadError}
+              description={issuesError}
+              actionLabel={governanceTexts.general.retry}
+              onAction={onRefresh}
+            />
+            <EmptyState
+              icon={AlertTriangle}
+              title={governanceTexts.governance.list.loadError}
+              description="Não foi possível carregar a fila de pendências."
+              action={{ label: 'Recarregar', onClick: onRefresh }}
+            />
+          </>
         ) : issues.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
@@ -174,7 +188,7 @@ export function GovernanceTable({
                   const manualTitle = issue?.articleTitle || issue?.title || governanceTexts.general.notAvailable;
                   const manualDetails = issue?.message || issue?.details || '';
                   const status = issue?.status || 'OPEN';
-                  const responsible = issue?.responsibleName || issue?.responsible || governanceTexts.general.notAvailable;
+                  const responsible = issue?.assignedAgentName || issue?.responsibleName || issue?.responsible || governanceTexts.general.notAvailable;
                   const slaStatus = getSlaStatus(issue);
                   const dueDate = formatDate(getDueDateValue(issue));
                   const overdueDays = getOverdueDays(issue);
@@ -217,15 +231,14 @@ export function GovernanceTable({
                         </div>
                       </td>
                       <td className="p-4">
-                        {issue.responsible || issue.responsibleName ? (
+                        {issue.assignedAgentName || issue.assignedAgentId || issue.responsible || issue.responsibleName ? (
                           <div className="space-y-1">
                             <span className="text-sm font-medium text-foreground">{responsible}</span>
-                            {issue.responsibleType && issue.responsibleId && (
+                            {(issue.assignedAgentId || (issue.responsibleType && issue.responsibleId)) && (
                               <div className="text-xs text-muted-foreground">
-                                {(governanceTexts.governance.assignDialog.responsibleTypeOptions as Record<string, string>)[
-                                  issue.responsibleType
-                                ] ?? issue.responsibleType}
-                                : {issue.responsibleId}
+                                {issue.assignedAgentId
+                                  ? `ID do agente: ${issue.assignedAgentId}`
+                                  : `${(governanceTexts.governance.assignDialog.responsibleTypeOptions as Record<string, string>)[issue.responsibleType || ''] ?? issue.responsibleType}: ${issue.responsibleId}`}
                               </div>
                             )}
                           </div>
