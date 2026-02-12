@@ -298,7 +298,7 @@ export type IssueType =
   | 'NOT_AI_READY'
   | 'DUPLICATE_CONTENT'
   | 'INCOMPLETE_CONTENT';
-export type IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type IssueSeverity = 'INFO' | 'WARN' | 'ERROR';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type SyncMode = 'FULL' | 'DELTA' | 'DELTA_WINDOW';
