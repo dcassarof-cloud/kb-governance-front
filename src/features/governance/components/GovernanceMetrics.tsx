@@ -80,14 +80,7 @@ export function GovernanceMetrics({
                 );
               })}
             </div>
-          ) : (
-            <div className="card-metric">
-              <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
-                <AlertCircle className="h-10 w-10 mb-2" />
-                <p className="text-sm">{governanceTexts.governance.summary.empty}</p>
-              </div>
-            </div>
-          )}
+          ) : null}
         </div>
       )}
 

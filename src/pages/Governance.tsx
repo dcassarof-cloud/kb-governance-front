@@ -112,17 +112,6 @@ export default function GovernancePage() {
         onRefresh={fetchIssues}
       />
 
-      <GovernanceMetrics
-        overviewLoading={state.overviewLoading}
-        overviewError={state.overviewError}
-        summaryMetrics={summaryMetrics}
-        systemRows={state.systemRows}
-        onRetryOverview={fetchOverview}
-        onSystemClick={(systemCode) => handleFilterChange('systemCode', systemCode)}
-        onGenerateReport={generateSystemsReport}
-        generatingReport={generatingReport}
-      />
-
       <GovernanceTable
         issues={issues}
         issuesLoading={state.issuesLoading}
@@ -159,6 +148,17 @@ export default function GovernancePage() {
         onAssignClose={closeAssign}
         onStatusSave={handleStatusSave}
         onStatusClose={closeStatus}
+      />
+
+      <GovernanceMetrics
+        overviewLoading={state.overviewLoading}
+        overviewError={state.overviewError}
+        summaryMetrics={summaryMetrics}
+        systemRows={state.systemRows}
+        onRetryOverview={fetchOverview}
+        onSystemClick={(systemCode) => handleFilterChange('systemCode', systemCode)}
+        onGenerateReport={generateSystemsReport}
+        generatingReport={generatingReport}
       />
     </MainLayout>
   );

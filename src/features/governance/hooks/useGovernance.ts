@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { createElement, useEffect, useMemo, useReducer, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 
@@ -9,6 +9,7 @@ import { governanceTexts } from '@/governanceTexts';
 import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 import { cleanQueryParams } from '@/lib/clean-query-params';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import type {
   GovernanceIssueDto,
   GovernanceOverviewSystemDto,
@@ -419,25 +420,32 @@ export function useGovernance() {
       const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const blob = await manualUpdatesReportMutation.mutateAsync({
-        systemCode: filters.systemCode || undefined,
+        systemCode: filters.systemCode,
         start,
         end,
       });
 
       const fileUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = fileUrl;
       const startLabel = start.slice(0, 10);
       const endLabel = end.slice(0, 10);
-      link.download = `manual-updates-${filters.systemCode || 'all'}-${startLabel}-${endLabel}.csv`;
+
+      link.href = fileUrl;
+      link.download = `manual-updates-${startLabel}_${endLabel}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(fileUrl);
+
       toast({ title: 'Relatório gerado', description: 'Download CSV iniciado.' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível gerar o relatório CSV.';
-      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+      toast({
+        title: governanceTexts.general.errorTitle,
+        description: message,
+        variant: 'destructive',
+        action: createElement(ToastAction, { altText: governanceTexts.general.retry, onClick: generateSystemsReport }, 'Recarregar'),
+      });
     }
   };
 
