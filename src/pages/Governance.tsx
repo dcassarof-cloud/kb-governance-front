@@ -30,6 +30,8 @@ export default function GovernancePage() {
     generateSystemsReport,
     responsibleOptions,
     responsiblesWarning,
+    responsiblesLoading,
+    fetchResponsibleOptions,
     fetchIssues,
     fetchOverview,
     handleAssign,
@@ -139,7 +141,9 @@ export default function GovernancePage() {
         statusState={state.status}
         suggested={state.suggested}
         responsibleOptions={responsibleOptions}
+        responsiblesLoading={responsiblesLoading}
         responsiblesWarning={responsiblesWarning}
+        onRetryLoadResponsibles={fetchResponsibleOptions}
         onAssignFieldChange={setAssignField}
         onSearchResponsible={searchResponsibles}
         onStatusFieldChange={setStatusField}
