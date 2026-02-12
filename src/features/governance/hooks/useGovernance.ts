@@ -1,4 +1,4 @@
-import { createElement, useEffect, useMemo, useReducer, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 
@@ -68,6 +68,22 @@ const startOfToday = () => {
   return date;
 };
 
+/** Build URLSearchParams from filters + page (no automatic effect). */
+function buildSearchParams(filters: GovernanceFilters, page: number): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.systemCode) params.set('systemCode', filters.systemCode);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.type) params.set('type', filters.type);
+  if (filters.severity) params.set('severity', filters.severity);
+  if (filters.responsibleType) params.set('responsibleType', filters.responsibleType);
+  if (filters.responsibleId) params.set('responsibleId', filters.responsibleId);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.overdue) params.set('overdue', 'true');
+  if (filters.unassigned) params.set('unassigned', 'true');
+  if (page > 1) params.set('page', String(page));
+  return params;
+}
+
 export function useGovernance() {
   const isManager = hasRole(['ADMIN', 'MANAGER']);
   const actorIdentifier = authService.getActorIdentifier() ?? '';
@@ -82,7 +98,19 @@ export function useGovernance() {
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [responsibleOptions, setResponsibleOptions] = useState<ResponsibleOption[]>([]);
   const [responsiblesWarning, setResponsiblesWarning] = useState<string | null>(null);
+  const [responsiblesLoading, setResponsiblesLoading] = useState(false);
   const manualUpdatesReportMutation = useManualUpdatesReport();
+
+  // Ref to track whether the URL-read effect has fired at least once
+  const initialSyncDone = useRef(false);
+
+  /** Push filter+page state into the URL (called only from event handlers). */
+  const syncFiltersToUrl = useCallback(
+    (nextFilters: GovernanceFilters, nextPage: number) => {
+      setSearchParams(buildSearchParams(nextFilters, nextPage), { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const fetchOverview = async () => {
     dispatch({ type: 'SET_OVERVIEW_LOADING', payload: true });
@@ -142,6 +170,7 @@ export function useGovernance() {
 
 
   const fetchResponsibleOptions = async () => {
+    setResponsiblesLoading(true);
     try {
       const result = await governanceService.getResponsiblesOptions();
       setResponsibleOptions(result.options);
@@ -153,6 +182,8 @@ export function useGovernance() {
     } catch {
       setResponsibleOptions([]);
       setResponsiblesWarning('Não foi possível carregar a lista de responsáveis.');
+    } finally {
+      setResponsiblesLoading(false);
     }
   };
 
@@ -278,23 +309,31 @@ export function useGovernance() {
     if (!isManager && (key === 'responsibleId' || key === 'responsibleType')) {
       return;
     }
+    const nextFilters = { ...filters, [key]: value };
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'PATCH_FILTERS', payload: { [key]: value } });
+    syncFiltersToUrl(nextFilters, 1);
   };
 
   const handleToggleChange = (key: 'overdue' | 'unassigned', value: boolean) => {
+    const nextFilters = { ...filters, [key]: value };
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'PATCH_FILTERS', payload: { [key]: value } });
+    syncFiltersToUrl(nextFilters, 1);
   };
 
   const handleCriticalToggle = (value: boolean) => {
+    const nextFilters = { ...filters, severity: value ? 'ERROR' : undefined };
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'PATCH_FILTERS', payload: { severity: value ? 'ERROR' : undefined } });
+    syncFiltersToUrl(nextFilters, 1);
   };
 
   const clearFilters = () => {
+    const nextFilters = createInitialFilters(isManager, actorIdentifier);
     dispatch({ type: 'SET_PAGE', payload: 1 });
-    dispatch({ type: 'SET_FILTERS', payload: createInitialFilters(isManager, actorIdentifier) });
+    dispatch({ type: 'SET_FILTERS', payload: nextFilters });
+    syncFiltersToUrl(nextFilters, 1);
   };
 
 
@@ -465,19 +504,24 @@ export function useGovernance() {
     fetchResponsibleOptions();
   }, []);
 
+  // Read URL → state: runs on mount and when URL changes externally (e.g. Dashboard navigate).
+  // We serialize searchParams to a string so internal setSearchParams calls with the same
+  // effective params don't re-trigger this effect unnecessarily.
+  const searchParamsString = searchParams.toString();
   useEffect(() => {
-    const responsibleId = searchParams.get('responsibleId') ?? searchParams.get('responsible') ?? '';
-    const responsibleType = searchParams.get('responsibleType') ?? '';
-    const assignTo = searchParams.get('assignTo') ?? '';
-    const assignIssueId = searchParams.get('assignIssueId') ?? '';
-    const systemCode = searchParams.get('systemCode') ?? searchParams.get('system') ?? '';
-    const status = searchParams.get('status') ?? '';
-    const type = searchParams.get('type') ?? '';
-    const severity = searchParams.get('severity') ?? '';
-    const q = searchParams.get('q') ?? '';
-    const overdue = searchParams.get('overdue') === 'true';
-    const unassigned = searchParams.get('unassigned') === 'true';
-    const pageParam = Number(searchParams.get('page') ?? '1');
+    const sp = new URLSearchParams(searchParamsString);
+    const responsibleId = sp.get('responsibleId') ?? sp.get('responsible') ?? '';
+    const responsibleType = sp.get('responsibleType') ?? '';
+    const assignTo = sp.get('assignTo') ?? '';
+    const assignIssueId = sp.get('assignIssueId') ?? '';
+    const systemCode = sp.get('systemCode') ?? sp.get('system') ?? '';
+    const status = sp.get('status') ?? '';
+    const type = sp.get('type') ?? '';
+    const severity = sp.get('severity') ?? '';
+    const q = sp.get('q') ?? '';
+    const overdue = sp.get('overdue') === 'true';
+    const unassigned = sp.get('unassigned') === 'true';
+    const pageParam = Number(sp.get('page') ?? '1');
 
     const safeType = isAllowedIssueType(type) ? type : undefined;
     const safeSeverity = isAllowedIssueSeverity(severity) ? severity : undefined;
@@ -514,7 +558,9 @@ export function useGovernance() {
     } else if (!isManager) {
       dispatch({ type: 'CLOSE_ASSIGN' });
     }
-  }, [searchParams, isManager, actorIdentifier]);
+
+    initialSyncDone.current = true;
+  }, [searchParamsString, isManager, actorIdentifier]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -566,23 +612,8 @@ export function useGovernance() {
     dispatch({ type: 'SET_ISSUES_DATA', payload: normalized });
   }, [governanceIssuesQuery.data, page, size]);
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (filters.systemCode) params.set('systemCode', filters.systemCode);
-    if (filters.status) params.set('status', filters.status);
-    if (filters.type) params.set('type', filters.type);
-    if (filters.severity) params.set('severity', filters.severity);
-    if (filters.responsibleType) params.set('responsibleType', filters.responsibleType);
-    if (filters.responsibleId) params.set('responsibleId', filters.responsibleId);
-    if (filters.q) params.set('q', filters.q);
-    if (filters.overdue) params.set('overdue', 'true');
-    if (filters.unassigned) params.set('unassigned', 'true');
-    if (page > 1) params.set('page', String(page));
-
-    if (params.toString() !== searchParams.toString()) {
-      setSearchParams(params, { replace: true });
-    }
-  }, [filters, page, searchParams, setSearchParams]);
+  // REMOVED: automatic state→URL sync effect that caused the filter flicker loop.
+  // URL is now updated ONLY from event handlers (handleFilterChange, handleToggleChange, etc.).
 
   useEffect(() => {
     if (!state.assign.target) {
@@ -690,6 +721,8 @@ export function useGovernance() {
     generateSystemsReport,
     responsibleOptions,
     responsiblesWarning,
+    responsiblesLoading,
+    fetchResponsibleOptions,
     fetchIssues,
     fetchOverview,
     handleAssign,
@@ -700,7 +733,10 @@ export function useGovernance() {
     handleToggleChange,
     handleCriticalToggle,
     clearFilters,
-    setPage: (value: number) => dispatch({ type: 'SET_PAGE', payload: value }),
+    setPage: (value: number) => {
+      dispatch({ type: 'SET_PAGE', payload: value });
+      syncFiltersToUrl(filters, value);
+    },
     openAssign: (issue: GovernanceIssueDto) => dispatch({ type: 'OPEN_ASSIGN', payload: issue }),
     closeAssign: () => dispatch({ type: 'CLOSE_ASSIGN' }),
     setAssignField: (payload: Partial<typeof state.assign>) =>

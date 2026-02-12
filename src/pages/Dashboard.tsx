@@ -22,30 +22,11 @@ import { dashboardGovernanceService } from '@/services/dashboardGovernance.servi
 import { dashboardService } from '@/services/dashboard.service';
 import { needsService } from '@/services/needs.service';
 import { hasRole } from '@/services/auth.service';
+import { toApiErrorInfo, formatApiErrorInfo } from '@/lib/api-error-info';
 import { DashboardGovernanceDto, DashboardSummary, NeedItem } from '@/types';
 import { governanceTexts } from '@/governanceTexts';
 
 const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
-
-interface ApiLikeError {
-  message?: string;
-  correlationId?: string;
-  code?: string;
-}
-
-const extractErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-    return error.message;
-  }
-  return fallback;
-};
-
-const extractCorrelationId = (error: unknown) => {
-  if (!error || typeof error !== 'object') return undefined;
-  const apiError = error as ApiLikeError;
-  return apiError.correlationId;
-};
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -66,15 +47,15 @@ export default function DashboardPage() {
   const [hasPartialFailure, setHasPartialFailure] = useState(false);
 
   const reportWidgetError = useCallback((widget: string, error: unknown, fallbackMessage: string) => {
-    const message = extractErrorMessage(error, fallbackMessage);
-    const correlationId = extractCorrelationId(error);
+    const info = toApiErrorInfo(error, fallbackMessage);
+    const formatted = formatApiErrorInfo(info);
     console.error(`[Dashboard:${widget}] request failed`, {
-      message,
-      correlationId: correlationId ?? 'n/a',
+      message: info.message,
+      correlationId: info.correlationId ?? 'n/a',
       error,
     });
 
-    return message;
+    return formatted;
   }, []);
 
   const loadGovernance = useCallback(async () => {

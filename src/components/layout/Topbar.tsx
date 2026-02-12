@@ -72,9 +72,6 @@ export function Topbar() {
             </DropdownMenuLabel>
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem>{governanceTexts.navigation.topbar.profile}</DropdownMenuItem>
-            <DropdownMenuItem>{governanceTexts.navigation.topbar.preferences}</DropdownMenuItem>
-            <DropdownMenuSeparator />
 
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               {governanceTexts.navigation.topbar.logout}

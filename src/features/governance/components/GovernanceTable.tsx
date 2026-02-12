@@ -76,7 +76,9 @@ interface GovernanceTableProps {
     alternatives: GovernanceResponsible[];
   };
   responsibleOptions: ResponsibleOption[];
+  responsiblesLoading?: boolean;
   responsiblesWarning: string | null;
+  onRetryLoadResponsibles?: () => void;
   onAssignFieldChange: (payload: Partial<GovernanceTableProps['assignState']>) => void;
   onSearchResponsible: (query: string) => void;
   onStatusFieldChange: (payload: Partial<GovernanceTableProps['statusState']>) => void;
@@ -114,7 +116,9 @@ export function GovernanceTable({
   statusState,
   suggested,
   responsibleOptions,
+  responsiblesLoading,
   responsiblesWarning,
+  onRetryLoadResponsibles,
   onAssignFieldChange,
   onStatusFieldChange,
   onAssignSave,
@@ -530,41 +534,58 @@ export function GovernanceTable({
 
               <div className="space-y-2">
                 <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
-                <Select
-                  value={assignState.responsibleId || 'NONE'}
-                  onValueChange={(value) => {
-                    if (value === 'NONE') {
-                      onAssignFieldChange({ responsibleId: '' });
-                      return;
-                    }
-                    const selected = responsibleOptions.find((option) => option.value === value);
-                    onAssignFieldChange({
-                      responsibleId: value,
-                      value: selected?.label ?? assignState.value,
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">Selecione um responsável</SelectItem>
-                    {responsibleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {responsiblesWarning && (
-                  <p className="text-xs text-warning">{responsiblesWarning}</p>
-                )}
-                {responsibleOptions.length === 0 && (
+                {responsiblesLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando responsáveis...
+                  </div>
+                ) : responsibleOptions.length > 0 ? (
+                  <Select
+                    value={assignState.responsibleId || 'NONE'}
+                    onValueChange={(value) => {
+                      if (value === 'NONE') {
+                        onAssignFieldChange({ responsibleId: '' });
+                        return;
+                      }
+                      const selected = responsibleOptions.find((option) => option.value === value);
+                      onAssignFieldChange({
+                        responsibleId: value,
+                        value: selected?.label ?? assignState.value,
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Selecione um responsável</SelectItem>
+                      {responsibleOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
                   <Input
                     placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
                     value={assignState.responsibleId}
                     onChange={(event) => onAssignFieldChange({ responsibleId: event.target.value })}
                   />
+                )}
+                {responsiblesWarning && (
+                  <div className="flex items-center gap-2 text-xs text-warning">
+                    <span>{responsiblesWarning}</span>
+                    {onRetryLoadResponsibles && (
+                      <button
+                        type="button"
+                        onClick={onRetryLoadResponsibles}
+                        className="underline hover:no-underline"
+                      >
+                        Tentar novamente
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

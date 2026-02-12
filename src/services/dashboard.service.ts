@@ -31,8 +31,14 @@ function normalizeDashboardSummary(response: unknown): DashboardSummary {
       typeof obj.articlesWithIssues === 'number' ? obj.articlesWithIssues : (obj.issuesCount as number) ?? 0,
     totalIssues: typeof obj.totalIssues === 'number' ? obj.totalIssues : (obj.issuesCount as number) ?? 0,
     duplicatesCount: typeof obj.duplicatesCount === 'number' ? obj.duplicatesCount : 0,
-    bySystem: Array.isArray(obj.bySystem) ? obj.bySystem : [],
-    byStatus: Array.isArray(obj.byStatus) ? obj.byStatus : [],
+    bySystem: Array.isArray(obj.bySystem) ? obj.bySystem
+      : Array.isArray(obj.systemBreakdown) ? obj.systemBreakdown
+      : Array.isArray(obj.systems) ? obj.systems
+      : [],
+    byStatus: Array.isArray(obj.byStatus) ? obj.byStatus
+      : Array.isArray(obj.statusBreakdown) ? obj.statusBreakdown
+      : Array.isArray(obj.statuses) ? obj.statuses
+      : [],
   };
 }
 
