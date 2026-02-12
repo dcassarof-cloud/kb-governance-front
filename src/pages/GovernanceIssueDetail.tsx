@@ -617,7 +617,7 @@ export default function GovernanceIssueDetailPage() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.impactLabel}</p>
-                    <StatusBadge status={issue.severity || 'LOW'} />
+                    <StatusBadge status={issue.severity || 'INFO'} />
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.responsibleLabel}</p>

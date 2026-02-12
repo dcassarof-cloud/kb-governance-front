@@ -25,7 +25,7 @@ import {
 } from '@/features/governance/state/governanceReducer';
 
 const ISSUE_STATUS_FILTER_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
-const ISSUE_SEVERITY_OPTIONS: IssueSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const ISSUE_SEVERITY_OPTIONS: IssueSeverity[] = ['INFO', 'WARN', 'ERROR'];
 const ALLOWED_ISSUE_TYPES: IssueType[] = [
   'REVIEW_REQUIRED',
   'NOT_AI_READY',
@@ -35,6 +35,9 @@ const ALLOWED_ISSUE_TYPES: IssueType[] = [
 
 const isAllowedIssueType = (value: string | null | undefined): value is IssueType =>
   !!value && ALLOWED_ISSUE_TYPES.includes(value as IssueType);
+
+const isAllowedIssueSeverity = (value: string | null | undefined): value is IssueSeverity =>
+  !!value && ISSUE_SEVERITY_OPTIONS.includes(value as IssueSeverity);
 
 export const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 export const ISSUE_TYPE_LABELS: Record<IssueType, string> = governanceTexts.issueTypes;
@@ -303,7 +306,7 @@ export function useGovernance() {
 
   const handleCriticalToggle = (value: boolean) => {
     dispatch({ type: 'SET_PAGE', payload: 1 });
-    dispatch({ type: 'PATCH_FILTERS', payload: { severity: value ? 'CRITICAL' : undefined } });
+    dispatch({ type: 'PATCH_FILTERS', payload: { severity: value ? 'ERROR' : undefined } });
   };
 
   const clearFilters = () => {
@@ -425,7 +428,7 @@ export function useGovernance() {
     return governanceTexts.status.labels[status];
   };
 
-  const getPriorityLevel = (issue: GovernanceIssueDto) => issue.priorityLevel ?? issue.severity ?? 'LOW';
+  const getPriorityLevel = (issue: GovernanceIssueDto) => issue.priorityLevel ?? issue.severity ?? 'INFO';
 
   const generateSystemsReport = async () => {
     setGeneratingReport(true);
@@ -458,10 +461,10 @@ export function useGovernance() {
   };
 
   const getPriorityClasses = (priority: IssueSeverity) => {
-    if (priority === 'CRITICAL') {
+    if (priority === 'ERROR') {
       return 'bg-destructive/15 text-destructive border-destructive/40';
     }
-    if (priority === 'HIGH') {
+    if (priority === 'WARN') {
       return 'bg-warning/20 text-warning border-warning/40';
     }
     return 'bg-muted text-muted-foreground border-border';
@@ -492,6 +495,7 @@ export function useGovernance() {
     const pageParam = Number(searchParams.get('page') ?? '1');
 
     const safeType = isAllowedIssueType(type) ? type : undefined;
+    const safeSeverity = isAllowedIssueSeverity(severity) ? severity : undefined;
 
     dispatch({
       type: 'PATCH_FILTERS',
@@ -501,7 +505,7 @@ export function useGovernance() {
         systemCode,
         status: status ? (status as IssueStatus) : undefined,
         type: safeType,
-        severity: severity ? (severity as IssueSeverity) : undefined,
+        severity: safeSeverity,
         q,
         overdue,
         unassigned,
@@ -711,7 +715,7 @@ function buildSystemRows(
     };
 
     existing.openIssues = (existing.openIssues ?? 0) + 1;
-    if (['HIGH', 'CRITICAL'].includes(issue.severity)) {
+    if (issue.severity === 'ERROR') {
       existing.errorOpen = (existing.errorOpen ?? 0) + 1;
     }
     if (!issue.responsible) {

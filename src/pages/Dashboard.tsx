@@ -234,7 +234,7 @@ export default function DashboardPage() {
       value: summaryData ? formatNumber(summaryData.articlesWithIssues) : '—',
       icon: AlertCircle,
       tone: 'warning',
-      action: () => handleNavigate({ status: 'OPEN' }),
+      action: () => handleNavigate({ type: 'NOT_AI_READY' }),
     },
     {
       key: 'totalIssues',

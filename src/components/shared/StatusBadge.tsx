@@ -14,7 +14,6 @@ const statusMap: Record<string, { variant: BadgeVariant; label: string }> = {
   // Governance Status
   'OK': { variant: 'ok', label: governanceTexts.statusBadge.labels.OK },
   'WARNING': { variant: 'warning', label: governanceTexts.statusBadge.labels.WARNING },
-  'ERROR': { variant: 'error', label: governanceTexts.statusBadge.labels.ERROR },
   'PENDING': { variant: 'info', label: governanceTexts.statusBadge.labels.PENDING },
   
   // Sync Status
@@ -30,10 +29,9 @@ const statusMap: Record<string, { variant: BadgeVariant; label: string }> = {
   'IGNORED': { variant: 'muted', label: governanceTexts.statusBadge.labels.IGNORED },
   
   // Severity
-  'LOW': { variant: 'info', label: governanceTexts.statusBadge.labels.LOW },
-  'MEDIUM': { variant: 'warning', label: governanceTexts.statusBadge.labels.MEDIUM },
-  'HIGH': { variant: 'error', label: governanceTexts.statusBadge.labels.HIGH },
-  'CRITICAL': { variant: 'error', label: governanceTexts.statusBadge.labels.CRITICAL },
+  'INFO': { variant: 'info', label: governanceTexts.statusBadge.labels.INFO },
+  'WARN': { variant: 'warning', label: governanceTexts.statusBadge.labels.WARN },
+  'ERROR': { variant: 'error', label: governanceTexts.statusBadge.labels.ERROR },
   
   // Sync Run Status
   'RUNNING': { variant: 'info', label: governanceTexts.statusBadge.labels.RUNNING },

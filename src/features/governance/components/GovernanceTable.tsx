@@ -226,7 +226,7 @@ export function GovernanceTable({
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col gap-2">
-                          <StatusBadge status={issue.severity || 'LOW'} />
+                          <StatusBadge status={issue.severity || 'INFO'} />
                           <span className="text-xs text-muted-foreground">{situationSummary}</span>
                         </div>
                       </td>

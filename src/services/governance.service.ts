@@ -68,6 +68,16 @@ export interface GovernanceManualFilters {
 /**
  * Helper: Normaliza resposta de array (suporta items, content, data, ou array direto)
  */
+const ALLOWED_ISSUE_SEVERITIES: IssueSeverity[] = ['INFO', 'WARN', 'ERROR'];
+
+const normalizeIssueSeverity = (value: unknown, fallback: IssueSeverity = 'INFO'): IssueSeverity => {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim().toUpperCase();
+  return ALLOWED_ISSUE_SEVERITIES.includes(normalized as IssueSeverity)
+    ? (normalized as IssueSeverity)
+    : fallback;
+};
+
 function normalizeArrayResponse<T>(response: unknown): T[] {
   if (Array.isArray(response)) return response;
 
@@ -190,7 +200,7 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
     return {
       id: '',
       type: 'INCOMPLETE_CONTENT',
-      severity: 'LOW',
+      severity: 'INFO',
       articleId: '',
       articleTitle: '',
       systemCode: '',
@@ -214,16 +224,11 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
       (issueData.type_display_name as string) ??
       (issueData.displayName as string) ??
       null,
-    severity:
-      (issueData.severity as IssueSeverity) ??
-      (issueData.issueSeverity as IssueSeverity) ??
-      'LOW',
-    priorityLevel:
-      (issueData.priorityLevel as IssueSeverity) ??
-      (issueData.priority as IssueSeverity) ??
-      (issueData.severity as IssueSeverity) ??
-      (issueData.issueSeverity as IssueSeverity) ??
-      null,
+    severity: normalizeIssueSeverity(issueData.severity ?? issueData.issueSeverity, 'INFO'),
+    priorityLevel: normalizeIssueSeverity(
+      issueData.priorityLevel ?? issueData.priority ?? issueData.severity ?? issueData.issueSeverity,
+      normalizeIssueSeverity(issueData.severity ?? issueData.issueSeverity, 'INFO')
+    ),
     articleId:
       (issueData.articleId as string) ??
       (issueData.manualId as string) ??

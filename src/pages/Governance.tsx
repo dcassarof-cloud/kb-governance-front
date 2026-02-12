@@ -48,7 +48,7 @@ export default function GovernancePage() {
     setStatusField,
   } = useGovernance();
 
-  const isCriticalOnly = state.filters.severity === 'CRITICAL';
+  const isCriticalOnly = state.filters.severity === 'ERROR';
   const canAssign = isManager;
   const canResolve = isManager;
 
