@@ -707,10 +707,13 @@ class GovernanceService {
     end?: string;
   }): Promise<Blob> {
     const token = authService.getAccessToken();
+    const requestCorrelationId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now());
     const url = new URL(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_MANUAL_UPDATES}`);
 
+    const normalizedSystemCode = params.systemCode?.trim();
     const queryParams = cleanQueryParams({
-      systemCode: params.systemCode,
+      systemCode: normalizedSystemCode,
       status: params.status,
       start: toIsoDateTime(params.start),
       end: toIsoDateTime(params.end),
@@ -724,28 +727,49 @@ class GovernanceService {
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'X-Correlation-Id': typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now()),
+        Accept: 'text/csv',
+        'X-Correlation-Id': requestCorrelationId,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
 
+    const responseCorrelationId =
+      response.headers.get('x-correlation-id') ?? response.headers.get('X-Correlation-Id') ?? requestCorrelationId;
+
     if (!response.ok) {
-      let message = `Falha ao gerar relatório (HTTP ${response.status}).`;
+      let details = `Falha ao gerar relatório (HTTP ${response.status}).`;
+      const contentType = response.headers.get('content-type') ?? '';
+
       try {
-        const body = await response.json() as { message?: string; correlationId?: string };
-        if (body?.message) {
-          message = body.message;
-        }
-        if (body?.correlationId) {
-          message = `${message} CorrelationId: ${body.correlationId}`;
+        if (contentType.includes('application/json')) {
+          const body = (await response.json()) as { message?: string; correlationId?: string; error?: string };
+          details = body.message ?? body.error ?? details;
+          if (body.correlationId) {
+            details = `${details} Ref: ${body.correlationId}`;
+          }
+        } else {
+          const textBody = (await response.text()).trim();
+          if (textBody) {
+            details = textBody;
+          }
         }
       } catch {
-        // noop
+        // ignore parse errors, keep default message
       }
-      throw new Error(message);
+
+      if (!details.includes('Ref:')) {
+        details = `${details} Ref: ${responseCorrelationId}`;
+      }
+
+      throw new Error(details);
     }
 
-    return response.blob();
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error(`Relatório vazio. Ref: ${responseCorrelationId}`);
+    }
+
+    return blob;
   }
 }
 

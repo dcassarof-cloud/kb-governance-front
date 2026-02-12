@@ -1,20 +1,28 @@
 export type QueryParamValue = string | number | boolean | null | undefined;
 
 export const cleanQueryParams = <T extends Record<string, QueryParamValue>>(params: T): Partial<T> => {
-  const cleanedEntries = Object.entries(params).flatMap(([key, value]) => {
-    if (value === null || value === undefined) return [];
+  const cleaned: Partial<T> = {};
+
+  for (const [key, value] of Object.entries(params) as Array<[keyof T, T[keyof T]]>) {
+    if (value === null || value === undefined) continue;
 
     if (typeof value === 'string') {
       const trimmed = value.trim();
-      return trimmed.length > 0 ? [[key, trimmed]] : [];
+      if (trimmed.length > 0) {
+        cleaned[key] = trimmed as T[keyof T];
+      }
+      continue;
     }
 
     if (typeof value === 'boolean') {
-      return value ? [[key, value]] : [];
+      if (value) {
+        cleaned[key] = value as T[keyof T];
+      }
+      continue;
     }
 
-    return [[key, value]];
-  });
+    cleaned[key] = value;
+  }
 
-  return Object.fromEntries(cleanedEntries) as Partial<T>;
+  return cleaned;
 };
