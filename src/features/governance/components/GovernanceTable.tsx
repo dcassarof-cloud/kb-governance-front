@@ -41,6 +41,7 @@ interface GovernanceTableProps {
   onPageChange: (nextPage: number) => void;
   onAssignClick: (issue: GovernanceIssueDto) => void;
   onStatusClick: (issue: GovernanceIssueDto) => void;
+  onClearFilters: () => void;
   getDueDateValue: (issue: GovernanceIssueDto) => string | null;
   getSlaStatus: (issue: GovernanceIssueDto) => {
     label: string;
@@ -99,6 +100,7 @@ export function GovernanceTable({
   onPageChange,
   onAssignClick,
   onStatusClick,
+  onClearFilters,
   getDueDateValue,
   getSlaStatus,
   getOverdueDays,
@@ -167,6 +169,7 @@ export function GovernanceTable({
             icon={AlertTriangle}
             title={governanceTexts.governance.list.emptyTitle}
             description={governanceTexts.governance.list.emptyDescription}
+            action={{ label: 'Limpar filtros', onClick: onClearFilters }}
           />
         ) : (
           <div className="table-container overflow-x-auto">

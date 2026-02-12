@@ -8,6 +8,7 @@ import { authService } from './auth.service';
 
 import { normalizeEnum } from '@/lib/api-normalizers';
 import { governanceTexts } from '@/governanceTexts';
+import { cleanQueryParams } from '@/lib/clean-query-params';
 import {
   GovernanceIssueDto,
   IssueType,
@@ -76,6 +77,13 @@ const normalizeIssueSeverity = (value: unknown, fallback: IssueSeverity = 'INFO'
   return ALLOWED_ISSUE_SEVERITIES.includes(normalized as IssueSeverity)
     ? (normalized as IssueSeverity)
     : fallback;
+};
+
+const toIsoDateTime = (value?: string): string | undefined => {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toISOString();
 };
 
 function normalizeArrayResponse<T>(response: unknown): T[] {
@@ -526,7 +534,7 @@ class GovernanceService {
     } = filter;
 
     const response = await apiClient.getPaginated<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUES, {
-      params: {
+      params: cleanQueryParams({
         page,
         size,
         sort,
@@ -539,7 +547,7 @@ class GovernanceService {
         q,
         overdue,
         unassigned,
-      },
+      }),
       signal,
       page,
       size,
@@ -701,10 +709,17 @@ class GovernanceService {
     const token = authService.getAccessToken();
     const url = new URL(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_MANUAL_UPDATES}`);
 
-    if (params.systemCode) url.searchParams.set('systemCode', params.systemCode);
-    if (params.start) url.searchParams.set('start', params.start);
-    if (params.end) url.searchParams.set('end', params.end);
-    url.searchParams.set('format', 'csv');
+    const queryParams = cleanQueryParams({
+      systemCode: params.systemCode,
+      status: params.status,
+      start: toIsoDateTime(params.start),
+      end: toIsoDateTime(params.end),
+      format: 'csv',
+    });
+
+    Object.entries(queryParams).forEach(([key, value]) => {
+      url.searchParams.set(key, String(value));
+    });
 
     const response = await fetch(url.toString(), {
       method: 'GET',

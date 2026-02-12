@@ -109,7 +109,7 @@ export default function GovernancePage() {
         onToggleChange={handleToggleChange}
         onCriticalToggle={handleCriticalToggle}
         onClearFilters={clearFilters}
-        onRefresh={() => fetchIssues(state.filters, state.page)}
+        onRefresh={fetchIssues}
       />
 
       <GovernanceMetrics
@@ -132,10 +132,11 @@ export default function GovernancePage() {
         canAssign={canAssign}
         canResolve={canResolve}
         actionLoading={state.actionLoading}
-        onRefresh={() => fetchIssues(state.filters, state.page)}
+        onRefresh={fetchIssues}
         onPageChange={setPage}
         onAssignClick={openAssign}
         onStatusClick={openStatus}
+        onClearFilters={clearFilters}
         getDueDateValue={getDueDateValue}
         getSlaStatus={getSlaStatus}
         getOverdueDays={getOverdueDays}
