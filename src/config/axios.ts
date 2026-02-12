@@ -1,5 +1,6 @@
 import { API_BASE_URL, API_ENDPOINTS } from './api';
 import { authService } from '@/services/auth.service';
+import { cleanQueryParams } from '@/lib/clean-query-params';
 
 export interface HttpRequestConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -66,10 +67,9 @@ const buildUrl = (url: string, params?: HttpRequestConfig['params']) => {
   const full = new URL(`${API_BASE_URL}${path}`);
 
   if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
-        full.searchParams.set(key, String(value));
-      }
+    const cleanedParams = cleanQueryParams(params);
+    Object.entries(cleanedParams).forEach(([key, value]) => {
+      full.searchParams.set(key, String(value));
     });
   }
 

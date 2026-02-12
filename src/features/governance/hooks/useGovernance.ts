@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import { systemsService } from '@/services/systems.service';
 import { authService, hasRole } from '@/services/auth.service';
 import { governanceTexts } from '@/governanceTexts';
 import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
+import { cleanQueryParams } from '@/lib/clean-query-params';
 import { toast } from '@/hooks/use-toast';
 import type {
   GovernanceIssueDto,
@@ -23,6 +24,7 @@ import {
   createInitialState,
   governanceReducer,
 } from '@/features/governance/state/governanceReducer';
+import { useGovernanceIssues, useManualUpdatesReport } from '@/features/governance/hooks/useGovernanceQueries';
 
 const ISSUE_STATUS_FILTER_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 const ISSUE_SEVERITY_OPTIONS: IssueSeverity[] = ['INFO', 'WARN', 'ERROR'];
@@ -74,21 +76,13 @@ export function useGovernance() {
     createInitialFilters(isManager, actorIdentifier),
     createInitialState
   );
-  const debounceRef = useRef<number>();
-  const abortRef = useRef<AbortController | null>(null);
   const queryClient = useQueryClient();
-  const [generatingReport, setGeneratingReport] = useState(false);
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [responsibleOptions, setResponsibleOptions] = useState<ResponsibleOption[]>([]);
   const [responsiblesWarning, setResponsiblesWarning] = useState<string | null>(null);
+  const manualUpdatesReportMutation = useManualUpdatesReport();
 
   const { filters, page, size, issuesData, overview, systems } = state;
-
-  const clearAbort = () => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
-  };
 
   const fetchOverview = async () => {
     dispatch({ type: 'SET_OVERVIEW_LOADING', payload: true });
@@ -106,55 +100,44 @@ export function useGovernance() {
     }
   };
 
-  const fetchIssues = async (currentFilters = filters, currentPage = page) => {
-    dispatch({ type: 'SET_ISSUES_LOADING', payload: true });
-    dispatch({ type: 'SET_ISSUES_ERROR', payload: null });
-    clearAbort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const effectiveResponsibleId = isManager ? debouncedFilters.responsibleId : actorIdentifier;
+  const issuesRequestKey = useMemo(
+    () =>
+      JSON.stringify(
+        cleanQueryParams({
+          page,
+          size,
+          systemCode: debouncedFilters.systemCode,
+          status: debouncedFilters.status,
+          type: isAllowedIssueType(debouncedFilters.type) ? debouncedFilters.type : undefined,
+          severity: debouncedFilters.severity,
+          responsibleType: debouncedFilters.responsibleType,
+          responsibleId: effectiveResponsibleId,
+          q: debouncedFilters.q,
+          overdue: debouncedFilters.overdue,
+          unassigned: debouncedFilters.unassigned,
+          sort: 'createdAt,desc',
+        })
+      ),
+    [debouncedFilters, effectiveResponsibleId, page, size],
+  );
+  const governanceIssuesQuery = useGovernanceIssues({
+    page,
+    size,
+    systemCode: debouncedFilters.systemCode,
+    status: debouncedFilters.status,
+    type: isAllowedIssueType(debouncedFilters.type) ? debouncedFilters.type : undefined,
+    severity: debouncedFilters.severity,
+    responsibleType: debouncedFilters.responsibleType,
+    responsibleId: effectiveResponsibleId,
+    q: debouncedFilters.q,
+    overdue: debouncedFilters.overdue,
+    unassigned: debouncedFilters.unassigned,
+    sort: 'createdAt,desc',
+  });
 
-    try {
-      const effectiveResponsibleId = isManager ? currentFilters.responsibleId : actorIdentifier;
-      const result = await governanceService.listIssues({
-        page: currentPage,
-        size,
-        systemCode: currentFilters.systemCode || undefined,
-        status: currentFilters.status || undefined,
-        type: isAllowedIssueType(currentFilters.type) ? currentFilters.type : undefined,
-        severity: currentFilters.severity || undefined,
-        responsibleType: currentFilters.responsibleType?.trim() || undefined,
-        responsibleId: effectiveResponsibleId?.trim() || undefined,
-        q: currentFilters.q?.trim() || undefined,
-        overdue: currentFilters.overdue || undefined,
-        unassigned: currentFilters.unassigned || undefined,
-        sort: 'createdAt,desc',
-        signal: controller.signal,
-      });
-
-      const normalized: PaginatedResponse<GovernanceIssueDto> = {
-        data: Array.isArray(result?.data) ? result.data : [],
-        total: result?.total ?? 0,
-        page: result?.page ?? currentPage,
-        size: result?.size ?? size,
-        totalPages: result?.totalPages ?? 0,
-      };
-
-      dispatch({ type: 'SET_ISSUES_DATA', payload: normalized });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return;
-      }
-      const info = toApiErrorInfo(err, governanceTexts.governance.toasts.loadError);
-      const message = formatApiErrorInfo(info);
-      dispatch({ type: 'SET_ISSUES_ERROR', payload: message });
-      toast({
-        title: 'Falha ao carregar governança',
-        description: message,
-        variant: 'destructive',
-      });
-    } finally {
-      dispatch({ type: 'SET_ISSUES_LOADING', payload: false });
-    }
+  const fetchIssues = async () => {
+    await governanceIssuesQuery.refetch();
   };
 
 
@@ -237,7 +220,7 @@ export function useGovernance() {
         responsibleName: updated?.responsibleName ?? options.responsibleName ?? issue.responsibleName,
       });
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
-      await Promise.all([fetchOverview(), fetchIssues(filters, page)]);
+      await Promise.all([fetchOverview(), fetchIssues()]);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governanceIssues'] }),
         queryClient.invalidateQueries({ queryKey: ['responsiblesSummary'] }),
@@ -275,7 +258,7 @@ export function useGovernance() {
           : state.issuesData,
       });
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.statusDialog.success });
-      await Promise.all([fetchOverview(), fetchIssues(filters, page)]);
+      await Promise.all([fetchOverview(), fetchIssues()]);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governanceIssues'] }),
         queryClient.invalidateQueries({ queryKey: ['responsiblesSummary'] }),
@@ -431,13 +414,12 @@ export function useGovernance() {
   const getPriorityLevel = (issue: GovernanceIssueDto) => issue.priorityLevel ?? issue.severity ?? 'INFO';
 
   const generateSystemsReport = async () => {
-    setGeneratingReport(true);
     try {
       const now = new Date();
-      const end = now.toISOString().slice(0, 10);
-      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const end = now.toISOString();
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      const blob = await governanceService.downloadManualUpdatesReport({
+      const blob = await manualUpdatesReportMutation.mutateAsync({
         systemCode: filters.systemCode || undefined,
         start,
         end,
@@ -446,7 +428,9 @@ export function useGovernance() {
       const fileUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = fileUrl;
-      link.download = `manual-updates-${filters.systemCode || 'all'}-${start}-${end}.csv`;
+      const startLabel = start.slice(0, 10);
+      const endLabel = end.slice(0, 10);
+      link.download = `manual-updates-${filters.systemCode || 'all'}-${startLabel}-${endLabel}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -455,8 +439,6 @@ export function useGovernance() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível gerar o relatório CSV.';
       toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
-    } finally {
-      setGeneratingReport(false);
     }
   };
 
@@ -474,11 +456,7 @@ export function useGovernance() {
     fetchOverview();
     fetchSystems();
     fetchResponsibleOptions();
-    fetchIssues(filters, 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => () => clearAbort(), []);
 
   useEffect(() => {
     const responsibleId = searchParams.get('responsibleId') ?? searchParams.get('responsible') ?? '';
@@ -501,7 +479,7 @@ export function useGovernance() {
       type: 'PATCH_FILTERS',
       payload: {
         responsibleId: isManager ? responsibleId : actorIdentifier,
-        responsibleType: isManager ? responsibleType : filters.responsibleType,
+        responsibleType: isManager ? responsibleType : undefined,
         systemCode,
         status: status ? (status as IssueStatus) : undefined,
         type: safeType,
@@ -532,19 +510,54 @@ export function useGovernance() {
   }, [searchParams, isManager, actorIdentifier]);
 
   useEffect(() => {
-    if (debounceRef.current) {
-      window.clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = window.setTimeout(() => {
-      fetchIssues(filters, page);
+    const timeout = window.setTimeout(() => {
+      setDebouncedFilters(filters);
     }, 300);
 
-    return () => {
-      if (debounceRef.current) {
-        window.clearTimeout(debounceRef.current);
-      }
+    return () => window.clearTimeout(timeout);
+  }, [filters]);
+
+  useEffect(() => {
+    dispatch({ type: 'SET_ISSUES_ERROR', payload: null });
+    dispatch({ type: 'SET_ISSUES_DATA', payload: null });
+  }, [issuesRequestKey]);
+
+  useEffect(() => {
+    dispatch({ type: 'SET_ISSUES_LOADING', payload: governanceIssuesQuery.isLoading || governanceIssuesQuery.isFetching });
+  }, [governanceIssuesQuery.isFetching, governanceIssuesQuery.isLoading]);
+
+  useEffect(() => {
+    if (!governanceIssuesQuery.error) {
+      dispatch({ type: 'SET_ISSUES_ERROR', payload: null });
+      return;
+    }
+
+    const info = toApiErrorInfo(governanceIssuesQuery.error, governanceTexts.governance.toasts.loadError);
+    const correlationRef = info.correlationId ?? 'N/A';
+    const message = formatApiErrorInfo(info);
+    const messageWithRef = info.correlationId ? `${message} • Ref: ${info.correlationId}` : message;
+
+    dispatch({ type: 'SET_ISSUES_ERROR', payload: messageWithRef });
+    toast({
+      title: 'Falha ao carregar governança',
+      description: `Falha ao carregar dados. Ref: ${correlationRef}`,
+      variant: 'destructive',
+    });
+  }, [governanceIssuesQuery.error]);
+
+  useEffect(() => {
+    if (!governanceIssuesQuery.data) return;
+
+    const normalized: PaginatedResponse<GovernanceIssueDto> = {
+      data: Array.isArray(governanceIssuesQuery.data?.data) ? governanceIssuesQuery.data.data : [],
+      total: governanceIssuesQuery.data?.total ?? 0,
+      page: governanceIssuesQuery.data?.page ?? page,
+      size: governanceIssuesQuery.data?.size ?? size,
+      totalPages: governanceIssuesQuery.data?.totalPages ?? 0,
     };
-  }, [filters, page]);
+
+    dispatch({ type: 'SET_ISSUES_DATA', payload: normalized });
+  }, [governanceIssuesQuery.data, page, size]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -588,13 +601,12 @@ export function useGovernance() {
     fetchSuggestedAssignee(baseQuery);
   }, [state.assign.target, searchParams]);
 
+  const issues = useMemo(() => issuesData?.data ?? [], [issuesData]);
+
   useEffect(() => {
-    const issues = issuesData?.data ?? [];
     const rows = buildSystemRows(overview?.systems ?? null, issues, systems);
     dispatch({ type: 'SET_SYSTEM_ROWS', payload: rows });
-  }, [overview?.systems, issuesData?.data, systems]);
-
-  const issues = issuesData?.data ?? [];
+  }, [overview?.systems, issues, systems]);
 
   const systemOptions = useMemo(() => {
     if (systems.length > 0) {
@@ -667,7 +679,7 @@ export function useGovernance() {
     getStatusLabel,
     getPriorityLevel,
     getPriorityClasses,
-    generatingReport,
+    generatingReport: manualUpdatesReportMutation.isPending,
     generateSystemsReport,
     responsibleOptions,
     responsiblesWarning,
