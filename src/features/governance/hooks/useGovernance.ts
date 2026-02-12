@@ -33,6 +33,9 @@ const ALLOWED_ISSUE_TYPES: IssueType[] = [
   'INCOMPLETE_CONTENT',
 ];
 
+const isAllowedIssueType = (value: string | null | undefined): value is IssueType =>
+  !!value && ALLOWED_ISSUE_TYPES.includes(value as IssueType);
+
 export const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 export const ISSUE_TYPE_LABELS: Record<IssueType, string> = governanceTexts.issueTypes;
 
@@ -114,7 +117,7 @@ export function useGovernance() {
         size,
         systemCode: currentFilters.systemCode || undefined,
         status: currentFilters.status || undefined,
-        type: currentFilters.type || undefined,
+        type: isAllowedIssueType(currentFilters.type) ? currentFilters.type : undefined,
         severity: currentFilters.severity || undefined,
         responsibleType: currentFilters.responsibleType?.trim() || undefined,
         responsibleId: effectiveResponsibleId?.trim() || undefined,
@@ -141,7 +144,11 @@ export function useGovernance() {
       const info = toApiErrorInfo(err, governanceTexts.governance.toasts.loadError);
       const message = formatApiErrorInfo(info);
       dispatch({ type: 'SET_ISSUES_ERROR', payload: message });
-      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+      toast({
+        title: 'Falha ao carregar governança',
+        description: message,
+        variant: 'destructive',
+      });
     } finally {
       dispatch({ type: 'SET_ISSUES_LOADING', payload: false });
     }
@@ -484,6 +491,8 @@ export function useGovernance() {
     const unassigned = searchParams.get('unassigned') === 'true';
     const pageParam = Number(searchParams.get('page') ?? '1');
 
+    const safeType = isAllowedIssueType(type) ? type : undefined;
+
     dispatch({
       type: 'PATCH_FILTERS',
       payload: {
@@ -491,7 +500,7 @@ export function useGovernance() {
         responsibleType: isManager ? responsibleType : filters.responsibleType,
         systemCode,
         status: status ? (status as IssueStatus) : undefined,
-        type: type ? (type as IssueType) : undefined,
+        type: safeType,
         severity: severity ? (severity as IssueSeverity) : undefined,
         q,
         overdue,
