@@ -76,13 +76,12 @@ export function useGovernance() {
     createInitialFilters(isManager, actorIdentifier),
     createInitialState
   );
+  const { filters, page, size, issuesData, overview, systems } = state;
   const queryClient = useQueryClient();
   const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [responsibleOptions, setResponsibleOptions] = useState<ResponsibleOption[]>([]);
   const [responsiblesWarning, setResponsiblesWarning] = useState<string | null>(null);
   const manualUpdatesReportMutation = useManualUpdatesReport();
-
-  const { filters, page, size, issuesData, overview, systems } = state;
 
   const fetchOverview = async () => {
     dispatch({ type: 'SET_OVERVIEW_LOADING', payload: true });
