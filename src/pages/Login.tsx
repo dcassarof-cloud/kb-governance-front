@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { authService } from '@/services/auth.service';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
+import { ConsisaLogo } from '@/components/brand/ConsisaLogo';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -36,11 +37,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
           <div className="text-center mb-8">
-            <img
-              src="/consisa-logo.png"
-              alt={governanceTexts.login.logoAlt}
-              className="h-12 w-auto mx-auto mb-4"
-            />
+            <div className="mx-auto mb-4 flex justify-center">
+              <ConsisaLogo size={48} />
+            </div>
             <h1 className="text-2xl font-bold">{governanceTexts.login.title}</h1>
             <p className="text-muted-foreground mt-2">{governanceTexts.login.subtitle}</p>
           </div>
