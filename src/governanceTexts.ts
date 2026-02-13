@@ -125,7 +125,7 @@ export const governanceTexts = {
     loadError: 'Erro ao carregar histórico de sincronizações',
     emptyTitle: 'Nenhuma sincronização encontrada',
     emptyDescription: 'Ainda não há histórico de sincronizações. Execute uma sincronização manual.',
-    table: {git
+    table: {
       startedAt: 'Início',
       status: 'Situação',
       mode: 'Modo',
