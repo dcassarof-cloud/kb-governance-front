@@ -1,5 +1,5 @@
 import { useTheme } from '@/context/ThemeContext';
-import { BRAND, BrandTheme } from '@/config/brand';
+import { BRAND, resolveBrandTheme } from '@/config/brand';
 
 type ConsisaLogoProps = {
   size?: number;
@@ -8,7 +8,7 @@ type ConsisaLogoProps = {
 
 export function ConsisaLogo({ size = 30, showText = true }: ConsisaLogoProps) {
   const { theme } = useTheme();
-  const currentTheme = (theme ?? 'dark') as BrandTheme;
+  const currentTheme = resolveBrandTheme(theme);
 
   const logoHeight = { height: size };
   const symbolSize = { height: size, width: size };
@@ -24,7 +24,7 @@ export function ConsisaLogo({ size = 30, showText = true }: ConsisaLogoProps) {
         style={showText ? logoHeight : symbolSize}
       />
 
-      {showText && (
+      {showText && BRAND.moduleName && (
         <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sidebar-foreground/80 truncate">
           {BRAND.moduleName}
         </span>
