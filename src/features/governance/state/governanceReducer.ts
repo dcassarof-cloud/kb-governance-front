@@ -40,9 +40,9 @@ export interface GovernanceState {
   filters: GovernanceFilters;
   assign: {
     target: GovernanceIssueDto | null;
-    value: string;
     responsibleType: string;
     responsibleId: string;
+    responsibleName: string;
     dueDate: string;
   };
   status: {
@@ -96,9 +96,9 @@ export const createInitialState = (filters: GovernanceFilters): GovernanceState 
   filters,
   assign: {
     target: null,
-    value: '',
     responsibleType: 'USER',
     responsibleId: '',
+    responsibleName: '',
     dueDate: '',
   },
   status: {
@@ -145,9 +145,9 @@ export function governanceReducer(state: GovernanceState, action: GovernanceActi
         ...state,
         assign: {
           target: null,
-          value: '',
           responsibleType: 'USER',
           responsibleId: '',
+          responsibleName: '',
           dueDate: '',
         },
         suggested: {
