@@ -22,6 +22,7 @@ export function ConsisaBrand({ collapsed = false }: ConsisaBrandProps) {
           <span className="block text-sm font-semibold text-sidebar-foreground truncate">
             {BRAND.appName}
           </span>
+
           {BRAND.moduleName && (
             <span className="block text-[0.65rem] uppercase tracking-[0.2em] text-sidebar-foreground/70 truncate">
               {BRAND.moduleName}

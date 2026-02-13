@@ -21,14 +21,18 @@ export default function LoginPage() {
     setLoading(true);
 
     const result = await authService.login(email, password);
-    
+
     if (result.success) {
       toast({ title: governanceTexts.login.success });
       navigate('/dashboard');
     } else {
-      toast({ title: governanceTexts.login.errorTitle, description: result.message, variant: 'destructive' });
+      toast({
+        title: governanceTexts.login.errorTitle,
+        description: result.message,
+        variant: 'destructive',
+      });
     }
-    
+
     setLoading(false);
   };
 
@@ -36,8 +40,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
-          <div className="mb-10 flex justify-center">
-            <ConsisaLogo size={84} />
+          <div className="text-center mb-8">
+            <div className="mx-auto mb-4 flex justify-center">
+              <ConsisaLogo size={72} />
+            </div>
+            <h1 className="text-2xl font-bold">{governanceTexts.login.title}</h1>
+            <p className="text-muted-foreground mt-2">{governanceTexts.login.subtitle}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -75,7 +83,13 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? governanceTexts.login.submitting : <><LogIn className="h-4 w-4 mr-2" /> {governanceTexts.login.submit}</>}
+              {loading ? (
+                governanceTexts.login.submitting
+              ) : (
+                <>
+                  <LogIn className="h-4 w-4 mr-2" /> {governanceTexts.login.submit}
+                </>
+              )}
             </Button>
           </form>
 
