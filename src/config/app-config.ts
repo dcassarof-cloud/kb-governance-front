@@ -5,7 +5,7 @@ export { API_BASE_URL, API_ENDPOINT, API_ENDPOINTS };
 export const config = {
   apiBaseUrl: API_BASE_URL,
   useMockData: false,
-  appName: 'Consisa KB Governance',
+  appName: 'Consisa Organisa',
   appVersion: '1.0.0',
   tokenKey: 'kb_governance_token',
   refreshTokenKey: 'kb_governance_refresh_token',
