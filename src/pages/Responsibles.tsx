@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, RefreshCw, UserCheck, AlertTriangle, Users } from 'lucide-react';
+import { AlertCircle, Plus, RefreshCw, UserCheck, AlertTriangle, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -11,6 +11,7 @@ import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { Button } from '@/components/ui/button';
 
 import { governanceService } from '@/services/governance.service';
+import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
 import { GovernanceResponsiblesSummary, GovernanceResponsible } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
@@ -21,6 +22,8 @@ export default function ResponsiblesPage() {
   const [summary, setSummary] = useState<GovernanceResponsiblesSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [prefilledAgentId, setPrefilledAgentId] = useState<string>('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,10 +124,22 @@ export default function ResponsiblesPage() {
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{governanceTexts.responsibles.table.title}</h3>
-          <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {governanceTexts.general.update}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                setPrefilledAgentId('');
+                setManualDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              ➕ Solicitar manual
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchData}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {governanceTexts.general.update}
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -146,8 +161,9 @@ export default function ResponsiblesPage() {
         ) : responsibles.length === 0 ? (
           <EmptyState
             icon={Users}
-            title={governanceTexts.responsibles.table.emptyTitle}
+            title="Nenhum responsável encontrado"
             description={governanceTexts.responsibles.table.emptyDescription}
+            action={{ label: 'Recarregar', onClick: fetchData }}
           />
         ) : (
           <div className="table-container overflow-x-auto">
@@ -194,6 +210,16 @@ export default function ResponsiblesPage() {
                           <Button size="sm" onClick={() => handleQuickAssign(responsible)}>
                             {governanceTexts.responsibles.table.actions.quickAssign}
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setPrefilledAgentId(responsible.id ?? '');
+                              setManualDialogOpen(true);
+                            }}
+                          >
+                            Solicitar manual
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -204,6 +230,13 @@ export default function ResponsiblesPage() {
           </div>
         )}
       </div>
+
+      <CreateManualAssignmentDialog
+        open={manualDialogOpen}
+        onOpenChange={setManualDialogOpen}
+        prefilledAgentId={prefilledAgentId}
+        onCreated={fetchData}
+      />
     </MainLayout>
   );
 }

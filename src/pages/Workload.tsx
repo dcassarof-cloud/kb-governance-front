@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, RefreshCw, Users } from 'lucide-react';
+import { AlertCircle, Plus, RefreshCw, Users } from 'lucide-react';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -9,6 +9,7 @@ import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { Button } from '@/components/ui/button';
 
 import { governanceService } from '@/services/governance.service';
+import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
 import { GovernanceIssueDto, GovernanceResponsible, GovernanceResponsiblesSummary } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
@@ -46,6 +47,8 @@ export default function WorkloadPage() {
   const [issues, setIssues] = useState<GovernanceIssueDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [prefilledAgentId, setPrefilledAgentId] = useState<string>('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -135,10 +138,22 @@ export default function WorkloadPage() {
       <div className="card-metric">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{governanceTexts.workload.title}</h3>
-          <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {governanceTexts.general.update}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                setPrefilledAgentId('');
+                setManualDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              ➕ Solicitar manual
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchData}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              {governanceTexts.general.update}
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -160,8 +175,9 @@ export default function WorkloadPage() {
         ) : responsibles.length === 0 ? (
           <EmptyState
             icon={Users}
-            title={governanceTexts.workload.emptyTitle}
+            title="Nenhum responsável encontrado"
             description="Nenhuma pendência atribuída ainda. Atribua responsáveis na fila de pendências."
+            action={{ label: 'Recarregar', onClick: fetchData }}
           />
         ) : (
           <div className="table-container overflow-x-auto">
@@ -181,7 +197,7 @@ export default function WorkloadPage() {
                   const overdue = responsible.overdueIssues ?? 0;
 
                   return (
-                    <tr key={key} className="border-t border-border hover:bg-muted/30 transition-colors">
+                    <tr key={key} className="border-t border-border hover:bg-muted/30 transition-colors" onClick={() => setPrefilledAgentId(responsible.id ?? '')}>
                       <td className="p-4 font-medium">
                         <div>{responsible.name}</div>
                         {responsible.email && (
@@ -199,6 +215,13 @@ export default function WorkloadPage() {
           </div>
         )}
       </div>
+
+      <CreateManualAssignmentDialog
+        open={manualDialogOpen}
+        onOpenChange={setManualDialogOpen}
+        prefilledAgentId={prefilledAgentId}
+        onCreated={fetchData}
+      />
     </MainLayout>
   );
 }

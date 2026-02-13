@@ -54,6 +54,28 @@ export interface ResponsiblesOptionsResult {
   options: ResponsibleOption[];
   usedFallback: boolean;
 }
+
+export interface GovernanceAgentOption {
+  id: string;
+  name: string;
+  email?: string | null;
+}
+
+export interface ManualAssignmentPayload {
+  articleId: number;
+  agentId: string;
+  reason: string;
+  priority: string;
+  dueDate?: string;
+  description?: string;
+  createTicket?: boolean;
+}
+
+export interface ManualAssignmentResult {
+  id?: string;
+  ticketUrl?: string | null;
+  ticketCreated?: boolean | null;
+}
 /**
  * ✅ Filtros alinhados com o endpoint atual do backend:
  * GET /api/v1/governance/manuals?page=1&size=10&system=&status=&q=
@@ -103,7 +125,10 @@ const normalizeResponsible = (response: unknown): GovernanceResponsible | null =
   const obj = response as Record<string, unknown>;
   const name =
     (obj.name as string) ||
+    (obj.responsibleName as string) ||
+    (obj.responsible_name as string) ||
     (obj.responsible as string) ||
+    (obj.responsibleDisplayName as string) ||
     (obj.assignee as string) ||
     (obj.user as string) ||
     (obj.email as string) ||
@@ -113,13 +138,14 @@ const normalizeResponsible = (response: unknown): GovernanceResponsible | null =
   const toNumber = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
   return {
-    id: obj.id ? String(obj.id) : undefined,
+    id: obj.id ? String(obj.id) : obj.responsibleId ? String(obj.responsibleId) : undefined,
     name,
     email: (obj.email as string) ?? (obj.userEmail as string) ?? null,
     pendingIssues: toNumber(obj.pendingIssues ?? obj.pending ?? obj.openIssues ?? obj.issuesOpen),
     openIssues: toNumber(obj.openIssues ?? obj.issuesOpen ?? obj.totalOpen),
     overdueIssues: toNumber(obj.overdueIssues ?? obj.overdue ?? obj.overdueTotal),
     avgSlaDays: toNumber(obj.avgSlaDays ?? obj.slaAvgDays ?? obj.avgSla ?? obj.slaDays),
+    responsibleType: (obj.responsibleType as string) ?? null,
   };
 };
 
@@ -563,15 +589,61 @@ class GovernanceService {
     id: string,
     options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string } = {}
   ): Promise<GovernanceIssueDto> {
-    const { dueDate, responsibleType, responsibleId, ...restOptions } = options;
+    const { dueDate, responsibleType, responsibleId, createTicket } = options;
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
-    const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
+    const basePayload = {
       assignee: responsibleId ?? '',
       ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
+      ...(responsibleType ? { responsibleType } : {}),
+      actor: authService.getActorIdentifier() ?? 'system',
+    };
+
+    try {
+      const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
+        ...basePayload,
+        ...(createTicket ? { createTicket: true } : {}),
+      });
+      return normalizeGovernanceIssue(response);
+    } catch (error) {
+      if (!createTicket) throw error;
+      const fallbackResponse = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), basePayload);
+      const normalized = normalizeGovernanceIssue(fallbackResponse);
+      return {
+        ...normalized,
+        metadata: {
+          ...(normalized.metadata ?? {}),
+          ticketNotCreated: true,
+        },
+      };
+    }
+  }
+
+  async listAgents(): Promise<GovernanceAgentOption[]> {
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES);
+    return normalizeArrayResponse<unknown>(response)
+      .map((item) => normalizeResponsibleOption(item))
+      .filter((item): item is ResponsibleOption => Boolean(item))
+      .map((item) => ({ id: item.value, name: item.label }));
+  }
+
+  async createManualAssignment(payload: ManualAssignmentPayload): Promise<ManualAssignmentResult> {
+    const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(payload.articleId), {
+      responsible: payload.agentId,
+      reason: payload.reason,
+      priority: payload.priority,
+      dueDate: payload.dueDate,
+      description: payload.description,
+      createTicket: Boolean(payload.createTicket),
       actor: authService.getActorIdentifier() ?? 'system',
     });
-    return normalizeGovernanceIssue(response);
+
+    const data = response as Record<string, unknown> | null;
+    return {
+      id: data?.id ? String(data.id) : undefined,
+      ticketUrl: (data?.ticketUrl as string) ?? (data?.movideskTicketUrl as string) ?? null,
+      ticketCreated: (data?.ticketCreated as boolean) ?? null,
+    };
   }
 
   async changeStatus(id: string, status: IssueStatus, ignoredReason?: string): Promise<GovernanceIssueDto> {
