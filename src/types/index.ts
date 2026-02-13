@@ -169,6 +169,7 @@ export interface GovernanceResponsible {
   id?: string;
   name: string;
   email?: string | null;
+  responsibleType?: string | null;
   pendingIssues?: number | null;
   openIssues?: number | null;
   overdueIssues?: number | null;
