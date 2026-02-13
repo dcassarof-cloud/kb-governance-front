@@ -250,12 +250,15 @@ export function useGovernance() {
         responsibleType: updated?.responsibleType ?? options.responsibleType ?? issue.responsibleType,
         responsibleName: updated?.responsibleName ?? options.responsibleName ?? issue.responsibleName,
       });
-      toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
+      if (options.createTicket && updated?.metadata?.ticketNotCreated) {
+        toast({ title: governanceTexts.general.attentionTitle, description: 'Atribuição salva, ticket não criado.' });
+      } else {
+        toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
+      }
       await Promise.all([fetchOverview(), fetchIssues()]);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['governanceIssues'] }),
-        queryClient.invalidateQueries({ queryKey: ['responsiblesSummary'] }),
-        queryClient.invalidateQueries({ queryKey: ['responsiblesWorkload'] }),
+        queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
       ]);
     } catch (err) {
       const info = toApiErrorInfo(err, governanceTexts.governance.toasts.assignError);
@@ -291,9 +294,8 @@ export function useGovernance() {
       toast({ title: governanceTexts.general.update, description: governanceTexts.governance.statusDialog.success });
       await Promise.all([fetchOverview(), fetchIssues()]);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['governanceIssues'] }),
-        queryClient.invalidateQueries({ queryKey: ['responsiblesSummary'] }),
-        queryClient.invalidateQueries({ queryKey: ['responsiblesWorkload'] }),
+        queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
       ]);
     } catch (err) {
       const info = toApiErrorInfo(err, governanceTexts.governance.toasts.statusError);
