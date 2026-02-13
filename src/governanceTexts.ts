@@ -159,7 +159,7 @@ export const governanceTexts = {
     },
   },
   login: {
-    title: 'KB Governance',
+    title: 'Consisa Organisa',
     subtitle: 'Faça login para continuar',
     logoAlt: 'Consisa Sistemas',
     emailLabel: 'E-mail',
@@ -182,7 +182,7 @@ export const governanceTexts = {
     description: 'Acesse o menu lateral para começar.',
   },
   navigation: {
-    appTitle: 'Consisa / KB Governance',
+    appTitle: 'Consisa Organisa',
     routes: {
       dashboard: 'Painel',
       articles: 'Manuais',
@@ -194,7 +194,7 @@ export const governanceTexts = {
       settings: 'Configurações',
     },
     sidebar: {
-      brandAria: 'Consisa Sistemas - KB Governance',
+      brandAria: 'Consisa Organisa',
       brandTitle: 'Consisa Sistemas',
       expand: 'Expandir menu',
       collapse: 'Recolher menu',
