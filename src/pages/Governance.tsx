@@ -58,9 +58,9 @@ export default function GovernancePage() {
     if (!state.assign.target) return;
 
     const responsibleId = state.assign.responsibleId.trim();
-    const responsibleName = state.assign.value.trim() || state.assign.responsibleId.trim();
+    const responsibleName = state.assign.responsibleName.trim();
 
-    if (!responsibleId) return;
+    if (!responsibleId || !responsibleName) return;
 
     handleAssign(state.assign.target, {
       dueDate: state.assign.dueDate || undefined,
@@ -78,7 +78,7 @@ export default function GovernancePage() {
     const responsibleId = suggested.id ?? suggested.name;
     handleAssign(state.assign.target, {
       dueDate: state.assign.dueDate || undefined,
-      responsibleType: state.assign.responsibleType,
+      responsibleType: suggested.responsibleType ?? state.assign.responsibleType,
       responsibleId,
       responsibleName: suggested.name,
     });
@@ -143,7 +143,7 @@ export default function GovernancePage() {
         responsibleOptions={responsibleOptions}
         responsiblesLoading={responsiblesLoading}
         responsiblesWarning={responsiblesWarning}
-        onRetryLoadResponsibles={fetchResponsibleOptions}
+        onRetryLoadResponsibles={() => fetchResponsibleOptions({ responsibleType: state.assign.responsibleType })}
         onAssignFieldChange={setAssignField}
         onSearchResponsible={searchResponsibles}
         onStatusFieldChange={setStatusField}
