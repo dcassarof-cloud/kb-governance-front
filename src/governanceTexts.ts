@@ -125,7 +125,7 @@ export const governanceTexts = {
     loadError: 'Erro ao carregar histórico de sincronizações',
     emptyTitle: 'Nenhuma sincronização encontrada',
     emptyDescription: 'Ainda não há histórico de sincronizações. Execute uma sincronização manual.',
-    table: {
+    table: {git
       startedAt: 'Início',
       status: 'Situação',
       mode: 'Modo',
@@ -163,14 +163,13 @@ export const governanceTexts = {
     subtitle: 'Faça login para continuar',
     logoAlt: 'Consisa Sistemas',
     emailLabel: 'E-mail',
-    emailPlaceholder: 'seu@email.com',
+    emailPlaceholder: 'seu@consisa.com.br',
     passwordLabel: 'Senha',
     passwordPlaceholder: '••••••••',
     submit: 'Entrar',
     submitting: 'Entrando...',
     success: 'Login realizado com sucesso!',
     errorTitle: 'Erro',
-    demo: 'Use suas credenciais Consisa. Em DEV pode existir demo via .env.',
   },
   notFound: {
     title: '404',
