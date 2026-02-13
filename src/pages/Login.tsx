@@ -36,8 +36,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
-          <div className="mb-8 flex justify-center">
-            <ConsisaLogo size={64} />
+          <div className="mb-10 flex justify-center">
+            <ConsisaLogo size={84} />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
