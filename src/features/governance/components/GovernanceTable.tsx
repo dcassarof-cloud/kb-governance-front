@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -59,9 +59,9 @@ interface GovernanceTableProps {
   formatInputDate: (date: Date) => string;
   assignState: {
     target: GovernanceIssueDto | null;
-    value: string;
     responsibleType: string;
     responsibleId: string;
+    responsibleName: string;
     dueDate: string;
   };
   statusState: {
@@ -80,7 +80,7 @@ interface GovernanceTableProps {
   responsiblesWarning: string | null;
   onRetryLoadResponsibles?: () => void;
   onAssignFieldChange: (payload: Partial<GovernanceTableProps['assignState']>) => void;
-  onSearchResponsible: (query: string) => void;
+  onSearchResponsible: (query: string, responsibleType?: string) => void;
   onStatusFieldChange: (payload: Partial<GovernanceTableProps['statusState']>) => void;
   onAssignSave: (options: { createTicket?: boolean }) => void;
   onAssignSuggestion: () => void;
@@ -371,6 +371,7 @@ export function GovernanceTable({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
+              <DialogDescription>Atualize o status da pendência selecionada.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -445,6 +446,7 @@ export function GovernanceTable({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
+              <DialogDescription>Selecione um responsável da lista sugerida para manter identificador e tipo consistentes.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -455,7 +457,19 @@ export function GovernanceTable({
                 </div>
 
                 {suggested.error ? (
-                  <div className="text-sm text-destructive">{suggested.error}</div>
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                    <div className="font-medium">Falha ao carregar responsáveis</div>
+                    <div>{suggested.error}</div>
+                    {onRetryLoadResponsibles && (
+                      <button
+                        type="button"
+                        onClick={onRetryLoadResponsibles}
+                        className="mt-1 underline hover:no-underline"
+                      >
+                        Recarregar
+                      </button>
+                    )}
+                  </div>
                 ) : suggested.loading ? (
                   <div className="text-sm text-muted-foreground">{governanceTexts.governance.assignDialog.suggestionLoading}</div>
                 ) : suggested.assignee ? (
@@ -485,7 +499,7 @@ export function GovernanceTable({
                             key={`${option.name}-${index}`}
                             type="button"
                             onClick={() => {
-                              onAssignFieldChange({ value: option.name, responsibleId: option.id ?? option.name });
+                              onAssignFieldChange({ responsibleId: option.id ?? option.name, responsibleName: option.name });
                             }}
                             className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition"
                           >
@@ -504,23 +518,13 @@ export function GovernanceTable({
               </div>
 
               <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.responsibleLabel}</Label>
-                <Input
-                  placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
-                  value={assignState.value}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    onAssignFieldChange({ value: nextValue, responsibleId: nextValue });
-                    onSearchResponsible(nextValue);
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
                 <Select
                   value={assignState.responsibleType}
-                  onValueChange={(value) => onAssignFieldChange({ responsibleType: value })}
+                  onValueChange={(value) => {
+                    onAssignFieldChange({ responsibleType: value, responsibleId: '', responsibleName: '' });
+                    onSearchResponsible('', value);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
@@ -544,13 +548,14 @@ export function GovernanceTable({
                     value={assignState.responsibleId || 'NONE'}
                     onValueChange={(value) => {
                       if (value === 'NONE') {
-                        onAssignFieldChange({ responsibleId: '' });
+                        onAssignFieldChange({ responsibleId: '', responsibleName: '' });
                         return;
                       }
                       const selected = responsibleOptions.find((option) => option.value === value);
                       onAssignFieldChange({
                         responsibleId: value,
-                        value: selected?.label ?? assignState.value,
+                        responsibleName: selected?.label ?? '',
+                        responsibleType: selected?.responsibleType ?? assignState.responsibleType,
                       });
                     }}
                   >
@@ -567,22 +572,19 @@ export function GovernanceTable({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input
-                    placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
-                    value={assignState.responsibleId}
-                    onChange={(event) => onAssignFieldChange({ responsibleId: event.target.value })}
-                  />
+                  <div className="text-sm text-muted-foreground">Nenhum responsável disponível para o filtro selecionado.</div>
                 )}
                 {responsiblesWarning && (
-                  <div className="flex items-center gap-2 text-xs text-warning">
-                    <span>{responsiblesWarning}</span>
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                    <div className="font-medium">Falha ao carregar responsáveis</div>
+                    <div>{responsiblesWarning}</div>
                     {onRetryLoadResponsibles && (
                       <button
                         type="button"
                         onClick={onRetryLoadResponsibles}
-                        className="underline hover:no-underline"
+                        className="mt-1 underline hover:no-underline"
                       >
-                        Tentar novamente
+                        Recarregar
                       </button>
                     )}
                   </div>
@@ -640,7 +642,7 @@ export function GovernanceTable({
 
               <Button
                 onClick={() => {
-                  if (!assignState.responsibleId.trim()) {
+                  if (!assignState.responsibleId.trim() || !assignState.responsibleName.trim()) {
                     toast({
                       title: governanceTexts.general.attentionTitle,
                       description: governanceTexts.governance.assignDialog.missingResponsibleId,
@@ -664,7 +666,7 @@ export function GovernanceTable({
               <Button
                 variant="secondary"
                 onClick={() => {
-                  if (!assignState.responsibleId.trim()) {
+                  if (!assignState.responsibleId.trim() || !assignState.responsibleName.trim()) {
                     toast({
                       title: governanceTexts.general.attentionTitle,
                       description: governanceTexts.governance.assignDialog.missingResponsibleId,

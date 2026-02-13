@@ -48,6 +48,8 @@ export interface IssuesFilter {
 export interface ResponsibleOption {
   value: string;
   label: string;
+  responsibleType?: string | null;
+  email?: string | null;
 }
 
 export interface ResponsiblesOptionsResult {
@@ -172,6 +174,8 @@ const normalizeResponsibleOption = (response: unknown): ResponsibleOption | null
   return {
     value: String(value),
     label: displayName,
+    responsibleType: (obj.responsibleType as string) ?? (obj.type as string) ?? null,
+    email: (obj.email as string) ?? (obj.userEmail as string) ?? null,
   };
 };
 
@@ -604,7 +608,15 @@ class GovernanceService {
         ...basePayload,
         ...(createTicket ? { createTicket: true } : {}),
       });
-      return normalizeGovernanceIssue(response);
+      const normalized = normalizeGovernanceIssue(response);
+      const data = response as Record<string, unknown> | null;
+      return {
+        ...normalized,
+        metadata: {
+          ...(normalized.metadata ?? {}),
+          ticketUrl: (data?.ticketUrl as string) ?? (data?.movideskTicketUrl as string) ?? null,
+        },
+      };
     } catch (error) {
       if (!createTicket) throw error;
       const fallbackResponse = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), basePayload);
@@ -692,9 +704,9 @@ class GovernanceService {
     return normalizeGovernanceIssue(response);
   }
 
-  async getSuggestedAssignee(query: string): Promise<GovernanceSuggestedAssignee> {
+  async getSuggestedAssignee(query: string, responsibleType?: string): Promise<GovernanceSuggestedAssignee> {
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUGGEST, {
-      params: { q: query || undefined },
+      params: { q: query || undefined, responsibleType: responsibleType || undefined },
     });
 
     if (Array.isArray(response)) {
@@ -763,6 +775,8 @@ class GovernanceService {
       const options = (summary.responsibles ?? []).map((responsible) => ({
         value: responsible.id ?? responsible.email ?? responsible.name,
         label: responsible.name || responsible.email || governanceTexts.general.notAvailable,
+        responsibleType: responsible.responsibleType ?? null,
+        email: responsible.email ?? null,
       }));
 
       return {

@@ -169,11 +169,27 @@ export function useGovernance() {
   };
 
 
-  const fetchResponsibleOptions = async () => {
+  const fetchResponsibleOptions = async (params?: { query?: string; responsibleType?: string }) => {
     setResponsiblesLoading(true);
+    setResponsiblesWarning(null);
     try {
       const result = await governanceService.getResponsiblesOptions();
-      setResponsibleOptions(result.options);
+      const normalizedType = params?.responsibleType?.trim().toUpperCase();
+      const normalizedQuery = params?.query?.trim().toLowerCase();
+      const options = result.options.filter((option) => {
+        const matchType =
+          !normalizedType ||
+          normalizedType.length === 0 ||
+          !option.responsibleType ||
+          option.responsibleType.toUpperCase() === normalizedType;
+        const matchQuery =
+          !normalizedQuery ||
+          normalizedQuery.length === 0 ||
+          option.label.toLowerCase().includes(normalizedQuery) ||
+          option.value.toLowerCase().includes(normalizedQuery);
+        return matchType && matchQuery;
+      });
+      setResponsibleOptions(options);
       setResponsiblesWarning(
         result.usedFallback
           ? 'Endpoint /users/responsibles indisponível. Usando fallback resumido de responsáveis.'
@@ -181,7 +197,7 @@ export function useGovernance() {
       );
     } catch {
       setResponsibleOptions([]);
-      setResponsiblesWarning('Não foi possível carregar a lista de responsáveis.');
+      setResponsiblesWarning('Falha ao carregar responsáveis.');
     } finally {
       setResponsiblesLoading(false);
     }
@@ -196,12 +212,12 @@ export function useGovernance() {
     }
   };
 
-  const fetchSuggestedAssignee = async (query: string) => {
+  const fetchSuggestedAssignee = async (query: string, responsibleType?: string) => {
     dispatch({ type: 'SET_SUGGESTED_LOADING', payload: true });
     dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
     dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
     try {
-      const result = await governanceService.getSuggestedAssignee(query);
+      const result = await governanceService.getSuggestedAssignee(query, responsibleType);
       dispatch({
         type: 'SET_SUGGESTED',
         payload: {
@@ -250,8 +266,18 @@ export function useGovernance() {
         responsibleType: updated?.responsibleType ?? options.responsibleType ?? issue.responsibleType,
         responsibleName: updated?.responsibleName ?? options.responsibleName ?? issue.responsibleName,
       });
+      const ticketUrl =
+        (updated?.metadata?.ticketUrl as string | undefined) ??
+        (updated?.metadata?.movideskTicketUrl as string | undefined) ??
+        null;
       if (options.createTicket && updated?.metadata?.ticketNotCreated) {
         toast({ title: governanceTexts.general.attentionTitle, description: 'Atribuição salva, ticket não criado.' });
+      } else if (ticketUrl) {
+        toast({
+          title: governanceTexts.general.update,
+          description: governanceTexts.governance.assignDialog.success,
+          action: createElement(ToastAction, { altText: 'Abrir ticket', onClick: () => window.open(ticketUrl, '_blank', 'noopener,noreferrer') }, 'Abrir ticket'),
+        });
       } else {
         toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
       }
@@ -259,6 +285,7 @@ export function useGovernance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
+        queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
       ]);
     } catch (err) {
       const info = toApiErrorInfo(err, governanceTexts.governance.toasts.assignError);
@@ -296,6 +323,7 @@ export function useGovernance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
+        queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
       ]);
     } catch (err) {
       const info = toApiErrorInfo(err, governanceTexts.governance.toasts.statusError);
@@ -339,13 +367,14 @@ export function useGovernance() {
   };
 
 
-  const searchResponsibles = (query: string) => {
+  const searchResponsibles = (query: string, responsibleType?: string) => {
     const trimmed = query.trim();
-    if (!state.assign.target || trimmed.length < 2) {
+    if (!state.assign.target) {
       dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
       return;
     }
-    fetchSuggestedAssignee(trimmed);
+    fetchSuggestedAssignee(trimmed, responsibleType);
+    fetchResponsibleOptions({ query: trimmed, responsibleType });
   };
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -545,7 +574,7 @@ export function useGovernance() {
     dispatch({ type: 'SET_PAGE', payload: Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1 });
 
     if (assignTo && isManager) {
-      dispatch({ type: 'SET_ASSIGN_FIELD', payload: { value: assignTo, responsibleId: assignTo } });
+      dispatch({ type: 'SET_ASSIGN_FIELD', payload: { responsibleId: assignTo } });
     }
 
     if (assignIssueId && isManager) {
@@ -621,7 +650,7 @@ export function useGovernance() {
     if (!state.assign.target) {
       dispatch({
         type: 'SET_ASSIGN_FIELD',
-        payload: { value: '', responsibleId: '', responsibleType: 'USER', dueDate: '' },
+        payload: { responsibleId: '', responsibleName: '', responsibleType: 'USER', dueDate: '' },
       });
       dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
       dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
@@ -633,13 +662,14 @@ export function useGovernance() {
     dispatch({
       type: 'SET_ASSIGN_FIELD',
       payload: {
-        value: assignTo ?? fallbackResponsible,
-        responsibleId: assignTo ?? state.assign.target.responsibleId ?? fallbackResponsible,
+        responsibleId: assignTo ?? state.assign.target.responsibleId ?? '',
+        responsibleName: fallbackResponsible,
       },
     });
     const baseQuery = (assignTo ?? fallbackResponsible ?? '').trim();
-    fetchSuggestedAssignee(baseQuery);
-  }, [state.assign.target, searchParams]);
+    fetchSuggestedAssignee(baseQuery, state.assign.responsibleType);
+    fetchResponsibleOptions({ query: baseQuery, responsibleType: state.assign.responsibleType });
+  }, [state.assign.target, searchParams, state.assign.responsibleType]);
 
   const issues = useMemo(() => issuesData?.data ?? [], [issuesData]);
 
