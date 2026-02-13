@@ -1,32 +1,32 @@
+import { useTheme } from '@/context/ThemeContext';
+import { BRAND, resolveBrandTheme } from '@/config/brand';
+
 type ConsisaLogoProps = {
   size?: number;
   showText?: boolean;
 };
 
 export function ConsisaLogo({ size = 30, showText = true }: ConsisaLogoProps) {
+  const { theme } = useTheme();
+  const currentTheme = resolveBrandTheme(theme);
+
   const logoHeight = { height: size };
   const symbolSize = { height: size, width: size };
 
+  const src = showText ? BRAND.logos[currentTheme] : BRAND.symbols[currentTheme];
+
   return (
     <div className="flex items-center gap-3 min-w-0">
-      {showText ? (
-        <img
-          src="/consisa-logo.png"
-          alt="Consisa Sistemas"
-          className="shrink-0"
-          style={logoHeight}
-        />
-      ) : (
-        <img
-          src="/consisa-symbol.png"
-          alt="Consisa Sistemas"
-          className="shrink-0"
-          style={symbolSize}
-        />
-      )}
-      {showText && (
+      <img
+        src={src}
+        alt={BRAND.appName}
+        className="shrink-0"
+        style={showText ? logoHeight : symbolSize}
+      />
+
+      {showText && BRAND.moduleName && (
         <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sidebar-foreground/80 truncate">
-          KB Governance
+          {BRAND.moduleName}
         </span>
       )}
     </div>
