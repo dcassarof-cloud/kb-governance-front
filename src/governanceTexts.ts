@@ -159,7 +159,6 @@ export const governanceTexts = {
     },
   },
   login: {
-    title: 'Consisa Organisa',
     subtitle: 'Faça login para continuar',
     logoAlt: 'Consisa Sistemas',
     emailLabel: 'E-mail',

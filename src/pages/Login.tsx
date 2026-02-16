@@ -42,7 +42,7 @@ export default function LoginPage() {
         <div className="bg-card rounded-2xl shadow-lg border border-border p-8">
           <div className="text-center mb-8">
             <div className="mx-auto mb-4 flex justify-center">
-              <ConsisaLogo size={72} />
+              <ConsisaLogo size={148} />
             </div>
             <h1 className="text-2xl font-bold">{governanceTexts.login.title}</h1>
             <p className="text-muted-foreground mt-2">{governanceTexts.login.subtitle}</p>

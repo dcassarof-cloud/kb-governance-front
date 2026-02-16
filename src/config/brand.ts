@@ -8,7 +8,6 @@ export type BrandTheme = 'light' | 'dark';
  */
 export const BRAND = {
   appName: 'Consisa Organisa',
-  moduleName: 'KB Governance',
 
   logos: {
     dark: '/consisa-logo.png',
@@ -17,7 +16,7 @@ export const BRAND = {
 
   symbols: {
     dark: '/consisa-symbol.png',
-    light: '/consisa-symbol-temaClaro.png',
+    light: '/consisa-symbol.png',
   },
 } as const;
 
