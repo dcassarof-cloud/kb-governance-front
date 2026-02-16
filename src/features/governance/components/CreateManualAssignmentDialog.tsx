@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 
 interface CreateManualAssignmentDialogProps {
@@ -127,6 +128,7 @@ export function CreateManualAssignmentDialog({
       queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
       queryClient.invalidateQueries({ queryKey: ['governance-overview'] }),
       queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
+      queryClient.invalidateQueries({ queryKey: ['governance-issue-detail'] }),
     ]);
   };
 
@@ -136,12 +138,12 @@ export function CreateManualAssignmentDialog({
       return;
     }
 
-    if (!reason) {
+    if (!issueId && !reason) {
       toast({ title: governanceTexts.general.attentionTitle, description: 'Selecione o motivo da solicitação.' });
       return;
     }
 
-    if (!priority) {
+    if (!issueId && !priority) {
       toast({ title: governanceTexts.general.attentionTitle, description: 'Selecione a prioridade.' });
       return;
     }
@@ -166,7 +168,15 @@ export function CreateManualAssignmentDialog({
         if (createTicket && result?.metadata?.ticketNotCreated) {
           toast({ title: governanceTexts.general.attentionTitle, description: 'Atribuição salva, ticket não criado.' });
         } else if (ticketLink) {
-          toast({ title: governanceTexts.general.update, description: 'Atribuição salva. Use o botão para abrir o ticket.' });
+          toast({
+            title: governanceTexts.general.update,
+            description: governanceTexts.governance.assignDialog.success,
+            action: (
+              <ToastAction altText="Abrir ticket" onClick={() => window.open(ticketLink, '_blank', 'noopener,noreferrer')}>
+                Abrir ticket
+              </ToastAction>
+            ),
+          });
         } else {
           toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
         }

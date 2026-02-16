@@ -49,7 +49,7 @@ class ApiClient {
 
       return {
         data: response.data,
-        headers: new Headers(response.headers as Record<string, string>),
+        headers: new Headers(response.headers as unknown as Record<string, string>),
         status: response.status,
       };
     } catch (error) {
