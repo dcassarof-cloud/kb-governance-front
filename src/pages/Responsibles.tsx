@@ -162,7 +162,7 @@ export default function ResponsiblesPage() {
           <EmptyState
             icon={Users}
             title="Nenhum responsável encontrado"
-            description={governanceTexts.responsibles.table.emptyDescription}
+            description="Nenhum responsável encontrado. Verifique se existem issues com responsável ou se a sincronização de agentes está ativa."
             action={{ label: 'Recarregar', onClick: fetchData }}
           />
         ) : (

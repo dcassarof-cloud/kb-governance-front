@@ -166,7 +166,7 @@ export function GovernanceFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">{governanceTexts.general.all}</SelectItem>
-              <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+              <SelectItem value="AGENT">{governanceTexts.governance.assignDialog.responsibleTypeOptions.AGENT}</SelectItem>
               <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
             </SelectContent>
           </Select>

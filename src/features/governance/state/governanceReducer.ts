@@ -96,7 +96,7 @@ export const createInitialState = (filters: GovernanceFilters): GovernanceState 
   filters,
   assign: {
     target: null,
-    responsibleType: 'USER',
+    responsibleType: 'AGENT',
     responsibleId: '',
     responsibleName: '',
     dueDate: '',
@@ -145,7 +145,7 @@ export function governanceReducer(state: GovernanceState, action: GovernanceActi
         ...state,
         assign: {
           target: null,
-          responsibleType: 'USER',
+          responsibleType: 'AGENT',
           responsibleId: '',
           responsibleName: '',
           dueDate: '',

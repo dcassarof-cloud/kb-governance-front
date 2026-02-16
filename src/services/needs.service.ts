@@ -97,6 +97,11 @@ const normalizeNeed = (raw: unknown): NeedItem => {
       (obj.url as string) ??
       (obj.ticketUrl as string) ??
       null,
+    ticketUrl:
+      (obj.ticketUrl as string) ??
+      (obj.link as string) ??
+      (obj.url as string) ??
+      null,
     reason:
       (obj.reason as string) ??
       (obj.generatedReason as string) ??
@@ -106,6 +111,20 @@ const normalizeNeed = (raw: unknown): NeedItem => {
     quantity: toNumber(obj.quantity ?? obj.count ?? obj.total) ?? null,
     createdAt: (obj.createdAt as string) ?? (obj.created_at as string) ?? null,
     updatedAt: (obj.updatedAt as string) ?? (obj.updated_at as string) ?? null,
+    sourceType: (() => {
+      const rawType = ((obj.sourceType as string) ?? (obj.origin as string) ?? '').toUpperCase();
+      if (rawType.includes('DETECTED')) return 'DETECTED';
+      if (obj.detectedNeedId || obj.needRecordId) return 'DETECTED';
+      return 'RECURRING';
+    })(),
+    canCreateMasterTicket: (() => {
+      if (typeof obj.canCreateMasterTicket === 'boolean') return obj.canCreateMasterTicket;
+      const rawType = ((obj.sourceType as string) ?? (obj.origin as string) ?? '').toUpperCase();
+      if (rawType.includes('DETECTED')) return true;
+      if (obj.detectedNeedId || obj.needRecordId) return true;
+      return false;
+    })(),
+
   };
 };
 
