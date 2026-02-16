@@ -56,7 +56,7 @@ export default function WorkloadPage() {
     try {
       const [summaryResult, issuesResult] = await Promise.allSettled([
         governanceService.getResponsiblesSummary(),
-        governanceService.listIssues({ page: 1, size: 200 }),
+        governanceService.listIssues({ page: 1, size: 200, responsibleType: 'AGENT' }),
       ]);
 
       if (summaryResult.status === 'fulfilled') {
@@ -191,15 +191,19 @@ export default function WorkloadPage() {
                 <tr>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.workload.table.headers.responsible}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.workload.table.headers.open}</th>
+                  <th className="text-left p-4 font-semibold text-sm">Pendentes</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.workload.table.headers.overdue}</th>
+                  <th className="text-left p-4 font-semibold text-sm">Time</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.workload.table.headers.systems}</th>
                 </tr>
               </thead>
               <tbody>
                 {responsibles.map((responsible, index) => {
                   const key = responsible.id ?? `${responsible.name}-${index}`;
-                  const openIssues = responsible.openIssues ?? responsible.pendingIssues ?? 0;
+                  const openIssues = responsible.openIssues ?? 0;
+                  const pendingIssues = responsible.pendingIssues ?? responsible.openIssues ?? 0;
                   const overdue = responsible.overdueIssues ?? 0;
+                  const teamName = responsible.teamName ?? governanceTexts.general.notAvailable;
 
                   return (
                     <tr key={key} className="border-t border-border hover:bg-muted/30 transition-colors" onClick={() => setPrefilledAgentId(responsible.id ?? '')}>
@@ -208,9 +212,14 @@ export default function WorkloadPage() {
                         {responsible.email && (
                           <div className="text-xs text-muted-foreground">{responsible.email}</div>
                         )}
+                        {responsible.teamName && (
+                          <div className="text-xs text-muted-foreground">Time: {responsible.teamName}</div>
+                        )}
                       </td>
                       <td className="p-4 text-muted-foreground">{openIssues}</td>
+                      <td className="p-4 text-muted-foreground">{pendingIssues}</td>
                       <td className="p-4 text-muted-foreground">{overdue}</td>
+                      <td className="p-4 text-muted-foreground">{teamName}</td>
                       <td className="p-4 text-muted-foreground">{renderSystems(responsible)}</td>
                     </tr>
                   );
