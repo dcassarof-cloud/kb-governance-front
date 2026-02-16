@@ -27,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { governanceTexts } from '@/governanceTexts';
+import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
 
 const ISSUE_TYPE_LABELS: Record<string, string> = governanceTexts.issueTypes;
 const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
@@ -220,10 +221,6 @@ export default function GovernanceIssueDetailPage() {
 
   // States para ações (atribuição e status)
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignValue, setAssignValue] = useState('');
-  const [assignResponsibleType, setAssignResponsibleType] = useState('AGENT');
-  const [assignResponsibleId, setAssignResponsibleId] = useState('');
-  const [assignDueDate, setAssignDueDate] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
@@ -317,58 +314,6 @@ export default function GovernanceIssueDetailPage() {
       className: 'bg-success text-success-foreground',
       icon: 'check' as const,
     };
-  };
-
-  const formatInputDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const handleAssign = async () => {
-    if (!issue) return;
-    const trimmedId = assignResponsibleId.trim();
-    const trimmedName = assignValue.trim();
-    if (!trimmedId) {
-      toast({
-        title: governanceTexts.general.attentionTitle,
-        description: governanceTexts.governance.assignDialog.missingResponsibleId,
-      });
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      const updated = await governanceService.assignIssue(issue.id, {
-        dueDate: assignDueDate || undefined,
-        responsibleType: assignResponsibleType,
-        responsibleId: trimmedId,
-      });
-      setIssue((prev) => prev ? {
-        ...prev,
-        responsible: updated?.responsible ?? (trimmedName || trimmedId),
-        responsibleId: updated?.responsibleId ?? trimmedId,
-        responsibleType: updated?.responsibleType ?? assignResponsibleType,
-        responsibleName: updated?.responsibleName ?? trimmedName,
-      } : prev);
-      toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
-      setAssignDialogOpen(false);
-      setAssignValue('');
-      setAssignResponsibleId('');
-      setAssignDueDate('');
-      // Recarregar histórico
-      const newHistory = await governanceService.getIssueHistory(issue.id);
-      setHistory(newHistory);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : (err as { message?: string })?.message || governanceTexts.governance.toasts.assignError;
-      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
   };
 
   const handleStatusChange = async () => {
@@ -488,7 +433,8 @@ export default function GovernanceIssueDetailPage() {
 
   const severityOrder: Record<IssueSeverity, string> = governanceTexts.severity.shortLabels;
   const metadataDescription = issue?.description || issue?.details || null;
-  const metadataRecommendation = issue?.recommendation || issue?.message || null;
+  const metadataRecommendation = issue?.recommendation || null;
+  const metadataMessage = issue?.message?.trim() || null;
   const isAssignedToUser = useMemo(() => {
     if (!issue || !actorIdentifier) return false;
     const actor = actorIdentifier.toLowerCase();
@@ -514,33 +460,11 @@ export default function GovernanceIssueDetailPage() {
                   <Button
                     variant="default"
                     onClick={() => {
-                      setAssignValue(issue.responsibleName || issue.responsible || '');
-                      setAssignResponsibleId(issue.responsibleId || '');
-                      setAssignResponsibleType(issue.responsibleType || 'AGENT');
                       setAssignDialogOpen(true);
                     }}
                   >
                     <UserPlus className="h-4 w-4 mr-2" />
                     {governanceTexts.governance.list.actionAssign}
-                  </Button>
-                )}
-                {canAssign && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const dueDateValue = issue.slaDueAt ?? issue.dueDate ?? '';
-                      if (dueDateValue) {
-                        const date = new Date(dueDateValue);
-                        if (!Number.isNaN(date.getTime())) {
-                          const formatted = `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
-                          setAssignDueDate(formatted);
-                        }
-                      }
-                      setAssignDialogOpen(true);
-                    }}
-                  >
-                    <CalendarClock className="h-4 w-4 mr-2" />
-                    {governanceTexts.governance.list.actionDueDate}
                   </Button>
                 )}
                 {canResolve && (
@@ -609,7 +533,7 @@ export default function GovernanceIssueDetailPage() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.manualLabel}</p>
-                    <p className="font-medium">{issue.articleTitle || issue.title || governanceTexts.general.notAvailable}</p>
+                    <p className="font-medium">{issue.articleTitle?.trim() || (issue.articleId != null ? `Artigo #${issue.articleId}` : governanceTexts.general.notAvailable)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.statusLabel}</p>
@@ -667,7 +591,7 @@ export default function GovernanceIssueDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {(metadataDescription || metadataRecommendation) && (
+            {(metadataDescription || metadataRecommendation || metadataMessage) && (
               <div className="card-metric space-y-4">
                 {metadataDescription && (
                   <div>
@@ -679,6 +603,12 @@ export default function GovernanceIssueDetailPage() {
                   <div>
                     <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.howToResolveTitle}</h4>
                     <p className="text-sm text-muted-foreground mt-1">{metadataRecommendation}</p>
+                  </div>
+                )}
+                {metadataMessage && (
+                  <div>
+                    <h4 className="text-sm font-semibold">Mensagem</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{metadataMessage}</p>
                   </div>
                 )}
               </div>
@@ -788,103 +718,21 @@ export default function GovernanceIssueDetailPage() {
         </div>
       )}
 
-      {/* Dialog de Atribuição */}
-      {canAssign && (
-        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.responsibleLabel}</Label>
-                <Input
-                  placeholder={governanceTexts.governance.assignDialog.responsiblePlaceholder}
-                  value={assignValue}
-                  onChange={(e) => setAssignValue(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
-                <Select value={assignResponsibleType} onValueChange={setAssignResponsibleType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AGENT">{governanceTexts.governance.assignDialog.responsibleTypeOptions.AGENT}</SelectItem>
-                    <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
-                <Input
-                  placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder}
-                  value={assignResponsibleId}
-                  onChange={(e) => setAssignResponsibleId(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.dueDateLabel}</Label>
-                <Input
-                  type="date"
-                  value={assignDueDate}
-                  onChange={(e) => setAssignDueDate(e.target.value)}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setAssignDueDate(formatInputDate(new Date()))}>
-                    {governanceTexts.governance.assignDialog.quickDateToday}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const date = new Date();
-                      date.setDate(date.getDate() + 3);
-                      setAssignDueDate(formatInputDate(date));
-                    }}
-                  >
-                    {governanceTexts.governance.assignDialog.quickDateThreeDays}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const date = new Date();
-                      date.setDate(date.getDate() + 7);
-                      setAssignDueDate(formatInputDate(date));
-                    }}
-                  >
-                    {governanceTexts.governance.assignDialog.quickDateSevenDays}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
-                {governanceTexts.governance.assignDialog.cancel}
-              </Button>
-              <Button onClick={handleAssign} disabled={actionLoading}>
-                {actionLoading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {governanceTexts.governance.assignDialog.saving}
-                  </span>
-                ) : (
-                  governanceTexts.governance.assignDialog.save
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <CreateManualAssignmentDialog
+        open={canAssign && assignDialogOpen}
+        onOpenChange={setAssignDialogOpen}
+        issueId={issue?.id}
+        initialArticleId={issue?.articleId != null ? String(issue.articleId) : ''}
+        onCreated={async () => {
+          if (!id) return;
+          const [nextIssue, nextHistory] = await Promise.all([
+            governanceService.getIssueById(id),
+            governanceService.getIssueHistory(id),
+          ]);
+          setIssue(nextIssue);
+          setHistory(nextHistory);
+        }}
+      />
 
       {/* Dialog de Status */}
       {canResolve && (

@@ -122,8 +122,8 @@ export interface GovernanceIssueDto {
   typeDisplayName?: string | null;
   severity: IssueSeverity;
   priorityLevel?: IssueSeverity | null;
-  articleId: string;
-  articleTitle: string;
+  articleId?: number | null;
+  articleTitle?: string | null;
   systemCode: string;
   status: IssueStatus;
   createdAt: string;

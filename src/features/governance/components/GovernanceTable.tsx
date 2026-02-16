@@ -169,8 +169,9 @@ export function GovernanceTable({
                 {issues.map((issue, index) => {
                   const issueId = issue?.id || `issue-${index}`;
                   const system = issue?.systemName || issue?.systemCode || governanceTexts.general.notAvailable;
-                  const manualTitle = issue?.articleTitle || issue?.title || governanceTexts.general.notAvailable;
-                  const manualDetails = issue?.message || issue?.details || '';
+                  const manualId = issue?.articleId != null ? String(issue.articleId).trim() : '';
+                  const manualTitle = issue?.articleTitle?.trim() || (manualId ? `Artigo #${manualId}` : governanceTexts.general.notAvailable);
+                  const manualDetails = issue?.message?.trim() || '';
                   const status = issue?.status || 'OPEN';
                   const responsible = issue?.assignedAgentName || issue?.responsibleName || issue?.responsible || governanceTexts.general.notAvailable;
                   const slaStatus = getSlaStatus(issue);
@@ -203,6 +204,7 @@ export function GovernanceTable({
                           </span>
                           <div className="text-sm text-muted-foreground">{system}</div>
                           <div className="font-medium">{manualTitle}</div>
+                          {manualId && <div className="text-xs text-muted-foreground">ID: {manualId}</div>}
                           {manualDetails && (
                             <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{manualDetails}</div>
                           )}
@@ -400,7 +402,7 @@ export function GovernanceTable({
           }
         }}
         issueId={assignState.target?.id}
-        initialArticleId={assignState.target?.articleId ?? ''}
+        initialArticleId={assignState.target?.articleId != null ? String(assignState.target.articleId) : ''}
       />
     </>
   );

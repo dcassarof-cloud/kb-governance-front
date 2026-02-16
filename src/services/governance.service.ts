@@ -238,14 +238,26 @@ const normalizeDuplicateGroup = (raw: unknown): DuplicateGroup | null => {
   return null;
 };
 
+
+const normalizeArticleId = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
 export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto => {
   if (!response || typeof response !== 'object') {
     return {
       id: '',
       type: 'INCOMPLETE_CONTENT',
       severity: 'INFO',
-      articleId: '',
-      articleTitle: '',
+      articleId: null,
+      articleTitle: null,
       systemCode: '',
       status: 'OPEN',
       createdAt: '',
@@ -272,16 +284,12 @@ export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto 
       issueData.priorityLevel ?? issueData.priority ?? issueData.severity ?? issueData.issueSeverity,
       normalizeIssueSeverity(issueData.severity ?? issueData.issueSeverity, 'INFO')
     ),
-    articleId:
-      (issueData.articleId as string) ??
-      (issueData.manualId as string) ??
-      (issueData.article_id as string) ??
-      '',
+    articleId: normalizeArticleId(issueData.articleId ?? issueData.manualId ?? issueData.article_id),
     articleTitle:
       (issueData.articleTitle as string) ??
       (issueData.title as string) ??
       (issueData.article_title as string) ??
-      '',
+      null,
     systemCode:
       (issueData.systemCode as string) ??
       (issueData.system_code as string) ??
