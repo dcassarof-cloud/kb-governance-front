@@ -591,44 +591,50 @@ class GovernanceService {
 
   async assignIssue(
     id: string,
-    options: { dueDate?: string; createTicket?: boolean; responsibleType?: string; responsibleId?: string } = {}
+    options: {
+      dueDate?: string;
+      createTicket?: boolean;
+      responsibleType?: string;
+      responsibleId?: string;
+      responsibleName?: string;
+    } = {}
   ): Promise<GovernanceIssueDto> {
-    const { dueDate, responsibleType, responsibleId, createTicket } = options;
+    const { dueDate, responsibleType, responsibleId, responsibleName, createTicket } = options;
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
-    const basePayload = {
+    const payload = {
+      responsibleType: responsibleType ?? 'USER',
+      responsibleId,
+      responsibleName,
       assignee: responsibleId ?? '',
       ...(formattedDueDate ? { dueDate: formattedDueDate } : {}),
-      ...(responsibleType ? { responsibleType } : {}),
+      createTicket: Boolean(createTicket),
       actor: authService.getActorIdentifier() ?? 'system',
     };
 
-    try {
-      const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), {
-        ...basePayload,
-        ...(createTicket ? { createTicket: true } : {}),
-      });
-      const normalized = normalizeGovernanceIssue(response);
-      const data = response as Record<string, unknown> | null;
-      return {
-        ...normalized,
-        metadata: {
-          ...(normalized.metadata ?? {}),
-          ticketUrl: (data?.ticketUrl as string) ?? (data?.movideskTicketUrl as string) ?? null,
-        },
-      };
-    } catch (error) {
-      if (!createTicket) throw error;
-      const fallbackResponse = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), basePayload);
-      const normalized = normalizeGovernanceIssue(fallbackResponse);
-      return {
-        ...normalized,
-        metadata: {
-          ...(normalized.metadata ?? {}),
-          ticketNotCreated: true,
-        },
-      };
-    }
+    const response = await apiClient.postWithMeta<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), payload);
+    const normalized = normalizeGovernanceIssue(response.data);
+
+    const getHeader = (name: string) => {
+      if (typeof response.headers.get === 'function') {
+        return response.headers.get(name) ?? response.headers.get(name.toLowerCase()) ?? undefined;
+      }
+
+      const headers = response.headers as Record<string, string | undefined>;
+      return headers[name] ?? headers[name.toLowerCase()] ?? undefined;
+    };
+
+    const ticketUrl = getHeader('X-Ticket-Url') ?? null;
+    const partialFailure = getHeader('X-Partial-Failure');
+
+    return {
+      ...normalized,
+      metadata: {
+        ...(normalized.metadata ?? {}),
+        ticketUrl,
+        ticketNotCreated: Boolean(createTicket && partialFailure),
+      },
+    };
   }
 
   async listAgents(): Promise<GovernanceAgentOption[]> {
