@@ -144,11 +144,17 @@ const normalizeResponsible = (response: unknown): GovernanceResponsible | null =
     id: obj.id ? String(obj.id) : obj.responsibleId ? String(obj.responsibleId) : undefined,
     name,
     email: (obj.email as string) ?? (obj.userEmail as string) ?? null,
+    teamName:
+      (obj.teamName as string) ??
+      (obj.timeName as string) ??
+      (obj.team_name as string) ??
+      (obj.time_name as string) ??
+      null,
     pendingIssues: toNumber(obj.pendingIssues ?? obj.pending ?? obj.openIssues ?? obj.issuesOpen),
     openIssues: toNumber(obj.openIssues ?? obj.issuesOpen ?? obj.totalOpen),
     overdueIssues: toNumber(obj.overdueIssues ?? obj.overdue ?? obj.overdueTotal),
     avgSlaDays: toNumber(obj.avgSlaDays ?? obj.slaAvgDays ?? obj.avgSla ?? obj.slaDays),
-    responsibleType: (obj.responsibleType as string) ?? null,
+    responsibleType: ((obj.responsibleType as string) ?? (obj.type as string) ?? 'AGENT').toUpperCase(),
   };
 };
 
@@ -771,7 +777,9 @@ class GovernanceService {
   }
 
   async getResponsiblesSummary(): Promise<GovernanceResponsiblesSummary> {
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUMMARY);
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUMMARY, {
+      params: cleanQueryParams({ responsibleType: 'AGENT', type: 'AGENT' }),
+    });
     const data = response as Record<string, unknown> | null;
     const responsibles = normalizeResponsibleList(
       data?.responsibles ?? data?.data ?? data?.items ?? data?.content ?? response
