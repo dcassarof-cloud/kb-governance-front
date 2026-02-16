@@ -502,7 +502,7 @@ export function GovernanceTable({
                               onAssignFieldChange({
                                 responsibleId: option.id ?? option.name,
                                 responsibleName: option.name,
-                                responsibleType: 'USER',
+                                responsibleType: 'AGENT',
                               });
                             }}
                             className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition"
@@ -510,9 +510,16 @@ export function GovernanceTable({
                             <div className="flex items-center justify-between">
                               <span className="font-medium">{option.name}</span>
                               {typeof pending === 'number' && (
-                                <span className="text-xs text-muted-foreground">{pending} pendências</span>
+                                <span className="text-xs text-muted-foreground">Carga: {pending}</span>
                               )}
                             </div>
+                            {(option.email || typeof pending === 'number') && (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                {option.email ? option.email : null}
+                                {option.email && typeof pending === 'number' ? ' • ' : ''}
+                                {typeof pending === 'number' ? `Carga: ${pending}` : ''}
+                              </div>
+                            )}
                           </button>
                         );
                       })}
@@ -534,7 +541,7 @@ export function GovernanceTable({
                     <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+                    <SelectItem value="AGENT">{governanceTexts.governance.assignDialog.responsibleTypeOptions.AGENT}</SelectItem>
                     <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -559,7 +566,7 @@ export function GovernanceTable({
                       onAssignFieldChange({
                         responsibleId: value,
                         responsibleName: selected?.label ?? '',
-                        responsibleType: 'USER',
+                        responsibleType: 'AGENT',
                       });
                     }}
                   >
@@ -570,7 +577,16 @@ export function GovernanceTable({
                       <SelectItem value="NONE">Selecione um responsável</SelectItem>
                       {responsibleOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                          <div className="flex flex-col">
+                            <span>{option.label}</span>
+                            {(option.email || typeof option.workload === 'number') && (
+                              <span className="text-xs text-muted-foreground">
+                                {option.email ? option.email : null}
+                                {option.email && typeof option.workload === 'number' ? ' • ' : ''}
+                                {typeof option.workload === 'number' ? `Carga: ${option.workload}` : ''}
+                              </span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>

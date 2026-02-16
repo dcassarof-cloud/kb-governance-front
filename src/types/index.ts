@@ -276,6 +276,9 @@ export interface NeedItem {
   quantity?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  sourceType?: 'RECURRING' | 'DETECTED';
+  ticketUrl?: string | null;
+  canCreateMasterTicket?: boolean;
 }
 
 export interface NeedTicketExample {

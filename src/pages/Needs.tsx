@@ -113,7 +113,7 @@ export default function NeedsPage() {
     }
   };
 
-  const openDetail = async (needId: string) => {
+  const openDetailById = async (needId: string) => {
     setDetailId(needId);
     setDetailLoading(true);
     setDetailError(null);
@@ -130,8 +130,38 @@ export default function NeedsPage() {
     }
   };
 
+  const openDetail = async (need: NeedItem) => {
+    const detailKey = need.id || need.protocol || `need-${Date.now()}`;
+    setDetailId(detailKey);
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetailData(null);
+
+    const shouldLoadNeedDetail = Boolean(need.canCreateMasterTicket && need.id);
+    if (!shouldLoadNeedDetail) {
+      setDetailData({
+        ...need,
+        description: need.reason ?? null,
+        examples: [],
+      });
+      setDetailLoading(false);
+      return;
+    }
+
+    try {
+      const detail = await needsService.getNeed(need.id);
+      setDetailData(detail);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : governanceTexts.needs.detail.error;
+      setDetailError(message);
+      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const handleAction = async (action: 'task' | 'ticket') => {
-    if (!detailId) return;
+    if (!detailId || !detailData?.canCreateMasterTicket) return;
     setActionLoading(action);
     try {
       if (action === 'task') {
@@ -168,7 +198,7 @@ export default function NeedsPage() {
 
   useEffect(() => {
     if (id) {
-      openDetail(id);
+      openDetailById(id);
     }
   }, [id]);
 
@@ -448,18 +478,19 @@ export default function NeedsPage() {
                       <td className="p-4 text-sm text-muted-foreground">{formatDate(need.createdAt)}</td>
                       <td className="p-4">
                         <div className="flex flex-col items-start gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openDetail(needId)}>
+                          <Button variant="outline" size="sm" onClick={() => openDetail(need)}>
                             {governanceTexts.governance.list.actionDetail}
                           </Button>
-                          {need.link && (
-                            <a
-                              href={need.link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-primary hover:underline"
-                            >
-                              Link Movidesk
-                            </a>
+                          {(need.ticketUrl || need.link) && (
+                            <Button variant="ghost" size="sm" asChild className="px-0 h-auto text-primary">
+                              <a
+                                href={need.ticketUrl || need.link || '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Abrir ticket
+                              </a>
+                            </Button>
                           )}
                         </div>
                       </td>
@@ -503,7 +534,7 @@ export default function NeedsPage() {
             setDetailData(null);
             setDetailError(null);
             setPendingAction(null);
-          }
+                  }
         }}
       >
         <DialogContent className="max-w-3xl">
@@ -554,6 +585,19 @@ export default function NeedsPage() {
                 </p>
               </div>
 
+
+              {!detailData.canCreateMasterTicket && (
+                <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-foreground">
+                  Este item é de recorrência (Movidesk). Use "Abrir ticket" para tratar no atendimento.
+                </div>
+              )}
+
+              {(detailData.ticketUrl || detailData.link) && (
+                <Button variant="outline" asChild>
+                  <a href={detailData.ticketUrl || detailData.link || '#'} target="_blank" rel="noreferrer">Abrir ticket</a>
+                </Button>
+              )}
+
               <div className="space-y-2">
                 <p className="text-sm font-semibold">{governanceTexts.needs.detail.examplesTitle}</p>
                 {detailData.examples && detailData.examples.length > 0 ? (
@@ -594,13 +638,13 @@ export default function NeedsPage() {
             <Button
               variant="secondary"
               onClick={() => setPendingAction('task')}
-              disabled={detailLoading || !detailData}
+              disabled={detailLoading || !detailData || !detailData.canCreateMasterTicket}
             >
               {governanceTexts.needs.actions.createTask}
             </Button>
             <Button
               onClick={() => setPendingAction('ticket')}
-              disabled={detailLoading || !detailData}
+              disabled={detailLoading || !detailData || !detailData.canCreateMasterTicket}
             >
               {governanceTexts.needs.actions.createTicket}
             </Button>

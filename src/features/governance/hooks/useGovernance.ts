@@ -173,7 +173,7 @@ export function useGovernance() {
     setResponsiblesLoading(true);
     setResponsiblesWarning(null);
     try {
-      const result = await governanceService.getResponsiblesOptions();
+      const result = await governanceService.getResponsiblesOptions(params);
       const normalizedType = params?.responsibleType?.trim().toUpperCase();
       const normalizedQuery = params?.query?.trim().toLowerCase();
       const options = result.options.filter((option) => {
@@ -217,7 +217,7 @@ export function useGovernance() {
     dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
     dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
     try {
-      const result = await governanceService.getSuggestedAssignee(query, responsibleType);
+      const result = await governanceService.getSuggestedAssignee(query, responsibleType ?? 'AGENT');
       dispatch({
         type: 'SET_SUGGESTED',
         payload: {
@@ -285,6 +285,7 @@ export function useGovernance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
+        queryClient.invalidateQueries({ queryKey: ['governance-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
       ]);
     } catch (err) {
@@ -323,6 +324,7 @@ export function useGovernance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
+        queryClient.invalidateQueries({ queryKey: ['governance-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
       ]);
     } catch (err) {
@@ -373,8 +375,9 @@ export function useGovernance() {
       dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
       return;
     }
-    fetchSuggestedAssignee(trimmed, responsibleType);
-    fetchResponsibleOptions({ query: trimmed, responsibleType });
+    const resolvedType = responsibleType ?? 'AGENT';
+    fetchSuggestedAssignee(trimmed, resolvedType);
+    fetchResponsibleOptions({ query: trimmed, responsibleType: resolvedType });
   };
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -532,7 +535,7 @@ export function useGovernance() {
   useEffect(() => {
     fetchOverview();
     fetchSystems();
-    fetchResponsibleOptions();
+    fetchResponsibleOptions({ responsibleType: 'AGENT' });
   }, []);
 
   // Read URL → state: runs on mount and when URL changes externally (e.g. Dashboard navigate).
@@ -650,7 +653,7 @@ export function useGovernance() {
     if (!state.assign.target) {
       dispatch({
         type: 'SET_ASSIGN_FIELD',
-        payload: { responsibleId: '', responsibleName: '', responsibleType: 'USER', dueDate: '' },
+        payload: { responsibleId: '', responsibleName: '', responsibleType: 'AGENT', dueDate: '' },
       });
       dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
       dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
@@ -667,8 +670,9 @@ export function useGovernance() {
       },
     });
     const baseQuery = (assignTo ?? fallbackResponsible ?? '').trim();
-    fetchSuggestedAssignee(baseQuery, state.assign.responsibleType);
-    fetchResponsibleOptions({ query: baseQuery, responsibleType: state.assign.responsibleType });
+    const resolvedType = state.assign.responsibleType || 'AGENT';
+    fetchSuggestedAssignee(baseQuery, resolvedType);
+    fetchResponsibleOptions({ query: baseQuery, responsibleType: resolvedType });
   }, [state.assign.target, searchParams, state.assign.responsibleType]);
 
   const issues = useMemo(() => issuesData?.data ?? [], [issuesData]);

@@ -129,7 +129,7 @@ const humanizeHistoryValue = (value: string | null | undefined, field?: string |
   }
 
   // Responsible types
-  if (['USER', 'TEAM', 'ROLE'].includes(value)) {
+  if (['AGENT', 'USER', 'TEAM', 'ROLE'].includes(value)) {
     const types: Record<string, string> = governanceTexts.governance.assignDialog.responsibleTypeOptions;
     return types[value] || value;
   }
@@ -221,7 +221,7 @@ export default function GovernanceIssueDetailPage() {
   // States para ações (atribuição e status)
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignValue, setAssignValue] = useState('');
-  const [assignResponsibleType, setAssignResponsibleType] = useState('USER');
+  const [assignResponsibleType, setAssignResponsibleType] = useState('AGENT');
   const [assignResponsibleId, setAssignResponsibleId] = useState('');
   const [assignDueDate, setAssignDueDate] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -516,7 +516,7 @@ export default function GovernanceIssueDetailPage() {
                     onClick={() => {
                       setAssignValue(issue.responsibleName || issue.responsible || '');
                       setAssignResponsibleId(issue.responsibleId || '');
-                      setAssignResponsibleType(issue.responsibleType || 'USER');
+                      setAssignResponsibleType(issue.responsibleType || 'AGENT');
                       setAssignDialogOpen(true);
                     }}
                   >
@@ -813,7 +813,7 @@ export default function GovernanceIssueDetailPage() {
                     <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+                    <SelectItem value="AGENT">{governanceTexts.governance.assignDialog.responsibleTypeOptions.AGENT}</SelectItem>
                     <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
                   </SelectContent>
                 </Select>

@@ -176,7 +176,7 @@ export default function WorkloadPage() {
           <EmptyState
             icon={Users}
             title="Nenhum responsável encontrado"
-            description="Nenhuma pendência atribuída ainda. Atribua responsáveis na fila de pendências."
+            description="Nenhum responsável encontrado. Verifique se existem issues com responsável ou se a sincronização de agentes está ativa."
             action={{ label: 'Recarregar', onClick: fetchData }}
           />
         ) : (
