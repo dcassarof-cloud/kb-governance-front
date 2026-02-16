@@ -95,24 +95,6 @@ export const governanceTexts = {
       invalidMetrics: 'Algumas métricas vieram inválidas e foram ajustadas para 0.',
     },
   },
-  articles: {
-    title: 'Manuais',
-    description: 'Gerencie os artigos da base de conhecimento',
-    searchPlaceholder: 'Buscar manuais...',
-    emptyTitle: 'Nenhum manual encontrado',
-    emptyDescription: 'Tente ajustar os filtros de busca',
-    loadError: 'Erro ao carregar manuais',
-    loadErrorCard: 'Erro ao carregar dados',
-    table: {
-      title: 'Título',
-      system: 'Sistema',
-      status: 'Situação',
-      updatedAt: 'Atualizado',
-      actions: 'Ações',
-    },
-    actionOpen: 'Abrir manual',
-    titleUnavailable: 'Título não disponível',
-  },
   sync: {
     title: 'Sincronização',
     description: 'Histórico de sincronizações com Movidesk',
@@ -184,7 +166,6 @@ export const governanceTexts = {
     appTitle: 'Consisa Organisa',
     routes: {
       dashboard: 'Painel',
-      articles: 'Manuais',
       governance: 'Governança',
       needs: 'Necessidades',
       responsibles: 'Responsáveis',

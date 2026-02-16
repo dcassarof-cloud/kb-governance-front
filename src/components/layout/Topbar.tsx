@@ -19,7 +19,6 @@ export function Topbar() {
   const pageTitle = (() => {
     const pathname = location.pathname;
     if (pathname === '/dashboard') return governanceTexts.navigation.routes.dashboard;
-    if (pathname.startsWith('/articles')) return governanceTexts.navigation.routes.articles;
     if (pathname.startsWith('/governance')) return governanceTexts.navigation.routes.governance;
     if (pathname.startsWith('/needs')) return governanceTexts.navigation.routes.needs;
     if (pathname.startsWith('/responsibles') || pathname.startsWith('/responsaveis')) return governanceTexts.navigation.routes.responsibles;
