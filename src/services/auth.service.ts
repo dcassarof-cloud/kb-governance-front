@@ -15,6 +15,15 @@ interface AuthPayload {
 
 const REFRESH_EARLY_MS = 2 * 60 * 1000;
 
+/**
+ * Serviço central de autenticação/sessão da aplicação.
+ *
+ * Responsabilidades:
+ * - normalizar payloads de login/refresh;
+ * - persistir sessão no localStorage;
+ * - extrair roles de user + JWT para RBAC na UX;
+ * - renovar token de forma antecipada e segura.
+ */
 class AuthService {
   private state: AuthState = {
     user: null,
@@ -159,6 +168,7 @@ class AuthService {
     return this.state.isAuthenticated;
   }
 
+  /** Retorna o conjunto efetivo de roles (perfil salvo + claims do token). */
   getRoles(): AuthRole[] {
     const roles = new Set<AuthRole>();
     if (this.state.user?.role) {
@@ -172,6 +182,10 @@ class AuthService {
   }
 
 
+  /**
+   * Resolve o identificador do ator para ações auditáveis (email > id).
+   * TODO: alinhar com contrato único de backend quando houver campo canônico explícito.
+   */
   getActorIdentifier(): string | null {
     if (this.state.user?.email) return this.state.user.email;
     if (this.state.user?.id) return this.state.user.id;
@@ -247,6 +261,11 @@ class AuthService {
     }
   }
 
+  /**
+   * Executa refresh com deduplicação de chamadas concorrentes.
+   *
+   * @returns `true` quando token foi renovado com sucesso.
+   */
   async refreshTokens(): Promise<boolean> {
     if (this.refreshPromise) return this.refreshPromise;
     if (!this.state.refreshToken) return false;

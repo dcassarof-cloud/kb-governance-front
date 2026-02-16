@@ -26,6 +26,12 @@ interface GovernanceFiltersProps {
   onRefresh: () => void;
 }
 
+/**
+ * Bloco de filtros da fila de governança.
+ *
+ * Observação: os eventos disparam atualização de estado que posteriormente
+ * sincroniza com URLSearchParams (fonte de verdade para filtros compartilháveis).
+ */
 export function GovernanceFilters({
   filters,
   isManager,

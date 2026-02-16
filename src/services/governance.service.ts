@@ -463,6 +463,12 @@ const normalizeIssueHistory = (response: unknown): GovernanceIssueHistoryDto[] =
   }));
 };
 
+/**
+ * Service de domínio da Governança.
+ *
+ * Centraliza acesso aos endpoints de governança e normaliza payloads heterogêneos
+ * para contratos estáveis consumidos pelos hooks/telas.
+ */
 class GovernanceService {
   private formatDueDateForAssign(dueDate?: string): string | undefined {
     if (!dueDate) return undefined;
@@ -551,6 +557,12 @@ class GovernanceService {
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id), { actor });
   }
 
+  /**
+   * Lista issues com suporte a filtros da fila operacional.
+   *
+   * Observação: filtros vazios são removidos via `cleanQueryParams` para evitar
+   * querystring ruidosa e chaves de cache divergentes no React Query.
+   */
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssueDto>> {
     const {
       page = 1,
