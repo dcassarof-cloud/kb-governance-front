@@ -499,7 +499,11 @@ export function GovernanceTable({
                             key={`${option.name}-${index}`}
                             type="button"
                             onClick={() => {
-                              onAssignFieldChange({ responsibleId: option.id ?? option.name, responsibleName: option.name });
+                              onAssignFieldChange({
+                                responsibleId: option.id ?? option.name,
+                                responsibleName: option.name,
+                                responsibleType: 'USER',
+                              });
                             }}
                             className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition"
                           >
@@ -555,7 +559,7 @@ export function GovernanceTable({
                       onAssignFieldChange({
                         responsibleId: value,
                         responsibleName: selected?.label ?? '',
-                        responsibleType: selected?.responsibleType ?? assignState.responsibleType,
+                        responsibleType: 'USER',
                       });
                     }}
                   >
