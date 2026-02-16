@@ -156,6 +156,11 @@ export default function WorkloadPage() {
           </div>
         </div>
 
+
+        <div className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          Consolidado por time (em breve). Exibindo carga por agente.
+        </div>
+
         {loading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : error ? (
