@@ -3,7 +3,6 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
-  FileText,
   Shield,
   Users,
   ClipboardList,
@@ -21,7 +20,6 @@ import { governanceTexts } from '@/governanceTexts';
 
 const menuItems = [
   { path: '/dashboard', label: governanceTexts.navigation.routes.dashboard, icon: LayoutDashboard },
-  { path: '/articles', label: governanceTexts.navigation.routes.articles, icon: FileText },
   { path: '/governance', label: governanceTexts.navigation.routes.governance, icon: Shield },
   { path: '/needs', label: governanceTexts.navigation.routes.needs, icon: ClipboardList },
   { path: '/responsibles', label: governanceTexts.navigation.routes.responsibles, icon: Users },
