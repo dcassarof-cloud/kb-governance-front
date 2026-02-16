@@ -73,6 +73,15 @@ interface GovernanceTableProps {
   onStatusClose: () => void;
 }
 
+/**
+ * Tabela principal de issues de governança.
+ *
+ * Fluxo de UX:
+ * - loading: skeleton da tabela;
+ * - erro: banner + detalhe + empty state com ação de recarga;
+ * - vazio: orientação para limpar filtros;
+ * - sucesso: tabela com ações por item (atribuir, atualizar status, detalhar).
+ */
 export function GovernanceTable({
   issues,
   issuesLoading,

@@ -68,7 +68,12 @@ const startOfToday = () => {
   return date;
 };
 
-/** Build URLSearchParams from filters + page (no automatic effect). */
+/**
+ * Constrói query params da tela de governança.
+ *
+ * Fonte de verdade de filtros: URL.
+ * Motivo: compartilhamento de contexto entre usuários, persistência em refresh e navegabilidade.
+ */
 function buildSearchParams(filters: GovernanceFilters, page: number): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.systemCode) params.set('systemCode', filters.systemCode);
@@ -84,6 +89,12 @@ function buildSearchParams(filters: GovernanceFilters, page: number): URLSearchP
   return params;
 }
 
+/**
+ * Hook orquestrador da tela de Governança.
+ *
+ * Estados cobertos: loading/empty/error/sucesso para overview e lista de issues,
+ * além de ações de atribuição, mudança de status e exportação.
+ */
 export function useGovernance() {
   const isManager = hasRole(['ADMIN', 'MANAGER']);
   const actorIdentifier = authService.getActorIdentifier() ?? '';
@@ -101,10 +112,13 @@ export function useGovernance() {
   const [responsiblesLoading, setResponsiblesLoading] = useState(false);
   const manualUpdatesReportMutation = useManualUpdatesReport();
 
-  // Ref to track whether the URL-read effect has fired at least once
+  // Garante leitura inicial única da URL para evitar sobrescrever filtros ao montar a tela.
   const initialSyncDone = useRef(false);
 
-  /** Push filter+page state into the URL (called only from event handlers). */
+  /**
+   * Atualiza URL após interação do usuário (sem efeito colateral automático).
+   * Isso evita loops entre estado local e `searchParams`.
+   */
   const syncFiltersToUrl = useCallback(
     (nextFilters: GovernanceFilters, nextPage: number) => {
       setSearchParams(buildSearchParams(nextFilters, nextPage), { replace: true });

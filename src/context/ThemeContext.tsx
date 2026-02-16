@@ -36,6 +36,9 @@ const getInitialTheme = (): Theme => {
   return 'light';
 };
 
+/**
+ * Provider de tema (light/dark) com persistência em localStorage.
+ */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
 
@@ -66,6 +69,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+/** Hook de acesso ao ThemeContext com fail-fast fora do provider. */
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (!context) {
