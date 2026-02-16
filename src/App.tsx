@@ -19,6 +19,12 @@ import { authService, hasRole } from "./services/auth.service";
 
 const queryClient = new QueryClient();
 
+/**
+ * Guard de rota com autenticação + RBAC no frontend.
+ *
+ * Sem sessão: envia para login.
+ * Sem role necessária: volta para dashboard.
+ */
 const RequireRole = ({ roles, children }: { roles: string[]; children: JSX.Element }) => {
   if (!authService.isAuthenticated()) {
     return <Navigate to="/login" replace />;

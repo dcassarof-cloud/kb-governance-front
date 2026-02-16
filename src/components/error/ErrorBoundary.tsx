@@ -9,6 +9,12 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
+/**
+ * Boundary global para erros de renderização React não tratados.
+ *
+ * Não captura falhas assíncronas de eventos/requisições; nesses casos a UI deve
+ * tratar via estados de erro e componentes de feedback.
+ */
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
@@ -19,7 +25,11 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo): void {
-    console.error('ErrorBoundary capturou um erro inesperado:', error, info.componentStack);
+    // Evita logs com dados sensíveis: registrar somente contexto técnico mínimo.
+    console.error('ErrorBoundary capturou erro inesperado de renderização', {
+      error,
+      componentStack: info.componentStack,
+    });
   }
 
   render(): React.ReactNode {

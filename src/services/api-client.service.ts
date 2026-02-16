@@ -16,7 +16,21 @@ export interface ApiResponseWithMeta<T> {
   status: number;
 }
 
+/**
+ * Cliente HTTP tipado usado pelos services de domínio.
+ *
+ * Contrato:
+ * - centraliza chamadas GET/POST/PUT/PATCH/DELETE;
+ * - normaliza erros via `handleApiError`;
+ * - expõe métodos com e sem metadados de response;
+ * - normaliza respostas paginadas heterogêneas do backend.
+ */
 class ApiClient {
+  /**
+   * Executa uma chamada HTTP e devolve payload + metadados da resposta.
+   *
+   * @throws ApiError normalizado com status/code/correlationId quando disponível.
+   */
   private async requestWithMeta<T>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     endpoint: string,
@@ -73,6 +87,12 @@ class ApiClient {
     return this.requestWithMeta<T>('GET', endpoint, undefined, options);
   }
 
+  /**
+   * Busca lista paginada aceitando formatos de paginação diferentes.
+   *
+   * Usa `page` e `size` de fallback para manter consistência de paginação
+   * na UI mesmo quando o backend retorna envelope parcial.
+   */
   async getPaginated<T>(
     endpoint: string,
     options?: RequestOptions & { page?: number; size?: number }

@@ -156,6 +156,11 @@ export default function WorkloadPage() {
           </div>
         </div>
 
+
+        <div className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          Consolidado por time (em breve). Exibindo carga por agente.
+        </div>
+
         {loading ? (
           <LoadingSkeleton variant="table" rows={5} />
         ) : error ? (
@@ -176,7 +181,7 @@ export default function WorkloadPage() {
           <EmptyState
             icon={Users}
             title="Nenhum responsável encontrado"
-            description="Nenhuma pendência atribuída ainda. Atribua responsáveis na fila de pendências."
+            description="Nenhum responsável encontrado. Verifique se existem issues com responsável ou se a sincronização de agentes está ativa."
             action={{ label: 'Recarregar', onClick: fetchData }}
           />
         ) : (

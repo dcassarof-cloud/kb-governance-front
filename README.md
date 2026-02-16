@@ -1,73 +1,155 @@
-# Welcome to your Lovable project
+# Consisa Organisa — KB Governance Frontend
 
-## Project info
+Frontend React do módulo **KB Governance** da plataforma Consisa Organisa. Este projeto concentra a experiência de monitoramento de qualidade de manuais/artigos, distribuição de responsabilidade, acompanhamento de pendências e operação de sincronização.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 1) Visão do produto e escopo
 
-## How can I edit this code?
+O KB Governance apoia times de conteúdo e governança em três frentes:
 
-There are several ways of editing your application.
+- **Visibilidade operacional**: dashboard com indicadores de artigos, pendências e status de governança.
+- **Tratativa de inconsistências**: fila de issues com filtros, atribuição de responsável (agente/time/usuário app_user), atualização de status e histórico.
+- **Operação contínua**: telas de sincronização, necessidades recorrentes, responsáveis, carga de trabalho e configurações administrativas.
 
-**Use Lovable**
+### Principais telas
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- `Dashboard`
+- `Artigos`
+- `Governança` + `Detalhe da issue`
+- `Necessidades`
+- `Responsáveis`
+- `Workload` (restrito por RBAC)
+- `Sync` (restrito por RBAC)
+- `Settings` (restrito por RBAC)
+- `Login`
 
-Changes made via Lovable will be committed automatically to this repo.
+## 2) Stack e padrões adotados
 
-**Use your preferred IDE**
+- **React 18 + TypeScript + Vite 5**
+- **React Router v6** para rotas
+- **TanStack React Query v5** para cache e sincronização de dados remotos
+- **Tailwind CSS + shadcn/ui (Radix UI)** para UI
+- **Fetch client customizado** com tratamento de JWT/refresh, `X-Correlation-Id` e normalização de erro
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Padrões de projeto:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Camada de serviços em `src/services/*`
+- Hooks de domínio em `src/features/**/hooks`
+- Estado de tela complexo com `useReducer` quando necessário
+- Componentes de layout e UI compartilhados em `src/components/*`
 
-Follow these steps:
+## 3) Executar localmente
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Requisitos
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- **Node.js 20 LTS** (recomendado)
+- npm 10+
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Passos
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Build de produção:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm run build
+```
 
-**Use GitHub Codespaces**
+Checks úteis:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+npm run typecheck
+npm run test
+```
 
-## What technologies are used for this project?
+## 4) Variáveis de ambiente (`.env`)
 
-This project is built with:
+Este frontend usa variáveis `VITE_*` lidas em tempo de build.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Crie um arquivo `.env.local`:
 
-## How can I deploy this project?
+```env
+VITE_API_BASE_URL=https://seu-backend/api/v1
+VITE_GOVERNANCE_DUE_DATE_FORMAT=offset-datetime
+```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Chaves atualmente usadas no código
 
-## Can I connect a custom domain to my Lovable project?
+- `VITE_API_BASE_URL` (**obrigatória**)  
+  Base URL da API. O app faz fail-fast se ausente ou fora do padrão `/api/v1`.
+- `VITE_GOVERNANCE_DUE_DATE_FORMAT` (opcional)  
+  Formato de interpretação de due date na governança (`offset-datetime` padrão, ou `local-date`).
 
-Yes, you can!
+## 5) Configuração de API e autenticação
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- Base URL centralizada em `src/config/api.ts`.
+- Endpoints mapeados em `API_ENDPOINTS` (sem hardcode em páginas).
+- Cliente HTTP em `src/config/axios.ts` / `src/services/api-client.service.ts`.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### JWT + refresh
+
+- `accessToken`, `refreshToken` e `user` são persistidos em `localStorage` (`kb_governance_*`).
+- O `AuthService` agenda refresh antecipado (2 min antes do `exp` do JWT).
+- Em `401` fora de endpoint de auth, o cliente tenta refresh uma vez e repete a requisição.
+- Se refresh falhar, a sessão é limpa e o usuário é redirecionado para `/login`.
+
+## 6) RBAC na UX
+
+Proteção de rotas é feita no `App.tsx` via `RequireRole`:
+
+- `workload`, `sync`: `ADMIN` ou `MANAGER`
+- `settings`: `ADMIN`
+
+Sem autenticação: redireciona para `/login`.  
+Sem role necessária: redireciona para `/dashboard`.
+
+## 7) Tratamento de erros e estados de tela
+
+### Error Boundary global
+
+- `src/main.tsx` envolve o app com `ErrorBoundary`.
+- Falhas inesperadas de renderização exibem fallback com ações de recarregar e voltar para dashboard.
+
+### Erros de API
+
+- Erros são normalizados (status, code, message, correlationId, details).
+- Páginas utilizam `toast`, `ApiErrorBanner` e/ou `ApiError` para feedback.
+
+### Estados vazios e recuperação
+
+- Listas exibem `EmptyState` quando não há dados.
+- Em falha de carregamento, o padrão é mostrar ação explícita de **“Recarregar”**.
+
+## 8) Logs e observabilidade no cliente
+
+- Cada requisição inclui `X-Correlation-Id` gerado no frontend.
+- Se backend retornar `correlationId`, ele é preservado na normalização de erro.
+- Em ambiente de desenvolvimento, logs técnicos são habilitados (`config.debug`).
+
+Boas práticas:
+
+- Não logar tokens, payloads sensíveis ou dados pessoais desnecessários.
+- Registrar apenas metadados de diagnóstico (endpoint, método, status, code, correlationId).
+
+## 9) Estrutura resumida
+
+```text
+src/
+  components/      # UI compartilhada, layout, fallback/error
+  context/         # providers (ex.: tema)
+  features/        # domínio por feature (governance)
+  hooks/           # hooks utilitários
+  services/        # integração com API
+  pages/           # telas roteáveis
+  config/          # config global (API, app)
+  lib/             # utilitários e normalizadores
+```
+
+## 10) Documentação complementar
+
+- `docs/architecture.md`
+- `docs/auth.md`
+- `docs/ui-standards.md`
+- `docs/frontend-api-contract-governance.md`

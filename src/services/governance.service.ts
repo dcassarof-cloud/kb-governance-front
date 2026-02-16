@@ -50,6 +50,7 @@ export interface ResponsibleOption {
   label: string;
   responsibleType?: string | null;
   email?: string | null;
+  workload?: number | null;
 }
 
 export interface ResponsiblesOptionsResult {
@@ -176,6 +177,10 @@ const normalizeResponsibleOption = (response: unknown): ResponsibleOption | null
     label: displayName,
     responsibleType: (obj.responsibleType as string) ?? (obj.type as string) ?? null,
     email: (obj.email as string) ?? (obj.userEmail as string) ?? null,
+    workload:
+      (typeof obj.workload === 'number' ? obj.workload : null) ??
+      (typeof obj.pendingIssues === 'number' ? obj.pendingIssues : null) ??
+      (typeof obj.openIssues === 'number' ? obj.openIssues : null),
   };
 };
 
@@ -458,6 +463,12 @@ const normalizeIssueHistory = (response: unknown): GovernanceIssueHistoryDto[] =
   }));
 };
 
+/**
+ * Service de domínio da Governança.
+ *
+ * Centraliza acesso aos endpoints de governança e normaliza payloads heterogêneos
+ * para contratos estáveis consumidos pelos hooks/telas.
+ */
 class GovernanceService {
   private formatDueDateForAssign(dueDate?: string): string | undefined {
     if (!dueDate) return undefined;
@@ -546,6 +557,12 @@ class GovernanceService {
     await apiClient.post(API_ENDPOINTS.GOVERNANCE_MANUAL_IGNORE(id), { actor });
   }
 
+  /**
+   * Lista issues com suporte a filtros da fila operacional.
+   *
+   * Observação: filtros vazios são removidos via `cleanQueryParams` para evitar
+   * querystring ruidosa e chaves de cache divergentes no React Query.
+   */
   async listIssues(filter: IssuesFilter = {}): Promise<PaginatedResponse<GovernanceIssueDto>> {
     const {
       page = 1,
@@ -603,7 +620,7 @@ class GovernanceService {
     const formattedDueDate = this.formatDueDateForAssign(dueDate);
 
     const payload = {
-      responsibleType: responsibleType ?? 'USER',
+      responsibleType: responsibleType ?? 'AGENT',
       responsibleId,
       responsibleName,
       assignee: responsibleId ?? '',
@@ -620,7 +637,7 @@ class GovernanceService {
         return response.headers.get(name) ?? response.headers.get(name.toLowerCase()) ?? undefined;
       }
 
-      const headers = response.headers as Record<string, string | undefined>;
+      const headers = response.headers as unknown as Record<string, string | undefined>;
       return headers[name] ?? headers[name.toLowerCase()] ?? undefined;
     };
 
@@ -638,7 +655,9 @@ class GovernanceService {
   }
 
   async listAgents(): Promise<GovernanceAgentOption[]> {
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES);
+    const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES, {
+      params: cleanQueryParams({ responsibleType: 'AGENT', type: 'AGENT' }),
+    });
     return normalizeArrayResponse<unknown>(response)
       .map((item) => normalizeResponsibleOption(item))
       .filter((item): item is ResponsibleOption => Boolean(item))
@@ -710,9 +729,14 @@ class GovernanceService {
     return normalizeGovernanceIssue(response);
   }
 
-  async getSuggestedAssignee(query: string, responsibleType?: string): Promise<GovernanceSuggestedAssignee> {
+  async getSuggestedAssignee(query: string, _responsibleType?: string): Promise<GovernanceSuggestedAssignee> {
+    const normalizedResponsibleType = 'AGENT';
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUGGEST, {
-      params: { q: query || undefined, responsibleType: responsibleType || undefined },
+      params: cleanQueryParams({
+        q: query || undefined,
+        responsibleType: normalizedResponsibleType,
+        type: normalizedResponsibleType,
+      }),
     });
 
     if (Array.isArray(response)) {
@@ -722,7 +746,8 @@ class GovernanceService {
         const name = typeof obj.name === 'string' ? obj.name : null;
         if (!name) return acc;
         const id = obj.id ? String(obj.id) : undefined;
-        acc.push({ id, name, email: null });
+        const workload = typeof obj.workload === 'number' ? obj.workload : typeof obj.pendingIssues === 'number' ? obj.pendingIssues : typeof obj.openIssues === 'number' ? obj.openIssues : null;
+        acc.push({ id, name, email: (obj.email as string) ?? null, pendingIssues: workload, openIssues: workload });
         return acc;
       }, []);
 
@@ -765,9 +790,16 @@ class GovernanceService {
     };
   }
 
-  async getResponsiblesOptions(): Promise<ResponsiblesOptionsResult> {
+  async getResponsiblesOptions(params?: { query?: string; responsibleType?: string }): Promise<ResponsiblesOptionsResult> {
     try {
-      const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES);
+      const normalizedType = params?.responsibleType?.trim().toUpperCase() || 'AGENT';
+      const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES, {
+        params: cleanQueryParams({
+          q: params?.query?.trim() || undefined,
+          responsibleType: normalizedType || undefined,
+          type: normalizedType || undefined,
+        }),
+      });
       const options = normalizeArrayResponse<unknown>(response)
         .map((item) => normalizeResponsibleOption(item))
         .filter((item): item is ResponsibleOption => Boolean(item));
@@ -799,6 +831,14 @@ class GovernanceService {
     end?: string;
   }): Promise<Blob> {
     const token = authService.getAccessToken();
+    if (!token) {
+      authService.clearToken();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+      throw new Error('Sessão expirada, faça login novamente.');
+    }
+
     const requestCorrelationId =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now());
     const url = new URL(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_MANUAL_UPDATES}`);
@@ -821,7 +861,7 @@ class GovernanceService {
       headers: {
         Accept: 'text/csv',
         'X-Correlation-Id': requestCorrelationId,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
     });
 

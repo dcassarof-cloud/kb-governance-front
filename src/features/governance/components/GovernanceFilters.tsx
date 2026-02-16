@@ -26,6 +26,12 @@ interface GovernanceFiltersProps {
   onRefresh: () => void;
 }
 
+/**
+ * Bloco de filtros da fila de governança.
+ *
+ * Observação: os eventos disparam atualização de estado que posteriormente
+ * sincroniza com URLSearchParams (fonte de verdade para filtros compartilháveis).
+ */
 export function GovernanceFilters({
   filters,
   isManager,
@@ -166,7 +172,7 @@ export function GovernanceFilters({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">{governanceTexts.general.all}</SelectItem>
-              <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
+              <SelectItem value="AGENT">{governanceTexts.governance.assignDialog.responsibleTypeOptions.AGENT}</SelectItem>
               <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
             </SelectContent>
           </Select>

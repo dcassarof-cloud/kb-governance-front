@@ -7,7 +7,6 @@ import {
   Eye,
   Loader2,
   UserPlus,
-  CalendarClock,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,10 +22,10 @@ import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ApiError } from '@/components/ui/ApiError';
 import { governanceTexts } from '@/governanceTexts';
-import type { GovernanceIssueDto, GovernanceResponsible, IssueSeverity, IssueStatus } from '@/types';
-import type { ResponsibleOption } from '@/services/governance.service';
-import { toast } from '@/hooks/use-toast';
+import type { GovernanceIssueDto, IssueSeverity, IssueStatus } from '@/types';
 import { ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
+import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
+import { toast } from '@/hooks/use-toast';
 
 interface GovernanceTableProps {
   issues: GovernanceIssueDto[];
@@ -56,7 +55,6 @@ interface GovernanceTableProps {
   getPriorityLevel: (issue: GovernanceIssueDto) => IssueSeverity;
   getPriorityClasses: (priority: IssueSeverity) => string;
   formatDate: (dateStr: string | null | undefined) => string;
-  formatInputDate: (date: Date) => string;
   assignState: {
     target: GovernanceIssueDto | null;
     responsibleType: string;
@@ -69,26 +67,21 @@ interface GovernanceTableProps {
     value: IssueStatus;
     ignoredReason: string;
   };
-  suggested: {
-    loading: boolean;
-    error: string | null;
-    assignee: GovernanceResponsible | null;
-    alternatives: GovernanceResponsible[];
-  };
-  responsibleOptions: ResponsibleOption[];
-  responsiblesLoading?: boolean;
-  responsiblesWarning: string | null;
-  onRetryLoadResponsibles?: () => void;
-  onAssignFieldChange: (payload: Partial<GovernanceTableProps['assignState']>) => void;
-  onSearchResponsible: (query: string, responsibleType?: string) => void;
   onStatusFieldChange: (payload: Partial<GovernanceTableProps['statusState']>) => void;
-  onAssignSave: (options: { createTicket?: boolean }) => void;
-  onAssignSuggestion: () => void;
   onAssignClose: () => void;
   onStatusSave: () => void;
   onStatusClose: () => void;
 }
 
+/**
+ * Tabela principal de issues de governança.
+ *
+ * Fluxo de UX:
+ * - loading: skeleton da tabela;
+ * - erro: banner + detalhe + empty state com ação de recarga;
+ * - vazio: orientação para limpar filtros;
+ * - sucesso: tabela com ações por item (atribuir, atualizar status, detalhar).
+ */
 export function GovernanceTable({
   issues,
   issuesLoading,
@@ -111,30 +104,14 @@ export function GovernanceTable({
   getPriorityLevel,
   getPriorityClasses,
   formatDate,
-  formatInputDate,
   assignState,
   statusState,
-  suggested,
-  responsibleOptions,
-  responsiblesLoading,
-  responsiblesWarning,
-  onRetryLoadResponsibles,
-  onAssignFieldChange,
   onStatusFieldChange,
-  onAssignSave,
-  onSearchResponsible,
-  onAssignSuggestion,
   onAssignClose,
   onStatusSave,
   onStatusClose,
 }: GovernanceTableProps) {
   const navigate = useNavigate();
-
-  const renderResponsibleLabel = (responsible: GovernanceResponsible | null) => {
-    if (!responsible) return '';
-    const pending = responsible.pendingIssues ?? responsible.openIssues;
-    return typeof pending === 'number' ? governanceTexts.governance.list.count(pending) : '';
-  };
 
   return (
     <>
@@ -291,25 +268,6 @@ export function GovernanceTable({
                             </Button>
                           )}
 
-                          {canAssign && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const dueDateValue = getDueDateValue(issue);
-                                onAssignClick(issue);
-                                if (dueDateValue) {
-                                  const parsed = new Date(dueDateValue);
-                                  if (!Number.isNaN(parsed.getTime())) {
-                                    onAssignFieldChange({ dueDate: formatInputDate(parsed) });
-                                  }
-                                }
-                              }}
-                            >
-                              <CalendarClock className="h-4 w-4 mr-1" />
-                              {governanceTexts.governance.list.actionDueDate}
-                            </Button>
-                          )}
 
                           {canResolve && (
                             <Button
@@ -434,259 +392,16 @@ export function GovernanceTable({
         </Dialog>
       )}
 
-      {canAssign && (
-        <Dialog
-          open={Boolean(assignState.target)}
-          onOpenChange={(open) => {
-            if (!open) {
-              onAssignClose();
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{governanceTexts.governance.assignDialog.title}</DialogTitle>
-              <DialogDescription>Selecione um responsável da lista sugerida para manter identificador e tipo consistentes.</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">{governanceTexts.governance.assignDialog.suggestionTitle}</h4>
-                  {suggested.loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                </div>
-
-                {suggested.error ? (
-                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-                    <div className="font-medium">Falha ao carregar responsáveis</div>
-                    <div>{suggested.error}</div>
-                    {onRetryLoadResponsibles && (
-                      <button
-                        type="button"
-                        onClick={onRetryLoadResponsibles}
-                        className="mt-1 underline hover:no-underline"
-                      >
-                        Recarregar
-                      </button>
-                    )}
-                  </div>
-                ) : suggested.loading ? (
-                  <div className="text-sm text-muted-foreground">{governanceTexts.governance.assignDialog.suggestionLoading}</div>
-                ) : suggested.assignee ? (
-                  <Button
-                    className="w-full justify-between text-base"
-                    onClick={onAssignSuggestion}
-                  >
-                    <span>{governanceTexts.governance.assignDialog.assignTo(suggested.assignee.name)}</span>
-                    {renderResponsibleLabel(suggested.assignee) && (
-                      <span className="text-xs opacity-80">{renderResponsibleLabel(suggested.assignee)}</span>
-                    )}
-                  </Button>
-                ) : (
-                  <div className="text-sm text-muted-foreground">{governanceTexts.governance.assignDialog.suggestionEmpty}</div>
-                )}
-
-                {!suggested.loading && suggested.alternatives.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {governanceTexts.governance.assignDialog.alternativesTitle}
-                    </p>
-                    <div className="space-y-2">
-                      {suggested.alternatives.slice(0, 3).map((option, index) => {
-                        const pending = option.pendingIssues ?? option.openIssues ?? null;
-                        return (
-                          <button
-                            key={`${option.name}-${index}`}
-                            type="button"
-                            onClick={() => {
-                              onAssignFieldChange({
-                                responsibleId: option.id ?? option.name,
-                                responsibleName: option.name,
-                                responsibleType: 'USER',
-                              });
-                            }}
-                            className="w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/50 transition"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{option.name}</span>
-                              {typeof pending === 'number' && (
-                                <span className="text-xs text-muted-foreground">{pending} pendências</span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
-                <Select
-                  value={assignState.responsibleType}
-                  onValueChange={(value) => {
-                    onAssignFieldChange({ responsibleType: value, responsibleId: '', responsibleName: '' });
-                    onSearchResponsible('', value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USER">{governanceTexts.governance.assignDialog.responsibleTypeOptions.USER}</SelectItem>
-                    <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.responsibleIdLabel}</Label>
-                {responsiblesLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Carregando responsáveis...
-                  </div>
-                ) : responsibleOptions.length > 0 ? (
-                  <Select
-                    value={assignState.responsibleId || 'NONE'}
-                    onValueChange={(value) => {
-                      if (value === 'NONE') {
-                        onAssignFieldChange({ responsibleId: '', responsibleName: '' });
-                        return;
-                      }
-                      const selected = responsibleOptions.find((option) => option.value === value);
-                      onAssignFieldChange({
-                        responsibleId: value,
-                        responsibleName: selected?.label ?? '',
-                        responsibleType: 'USER',
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleIdPlaceholder} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NONE">Selecione um responsável</SelectItem>
-                      {responsibleOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Nenhum responsável disponível para o filtro selecionado.</div>
-                )}
-                {responsiblesWarning && (
-                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-                    <div className="font-medium">Falha ao carregar responsáveis</div>
-                    <div>{responsiblesWarning}</div>
-                    {onRetryLoadResponsibles && (
-                      <button
-                        type="button"
-                        onClick={onRetryLoadResponsibles}
-                        className="mt-1 underline hover:no-underline"
-                      >
-                        Recarregar
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>{governanceTexts.governance.assignDialog.dueDateLabel}</Label>
-                <Input
-                  type="date"
-                  value={assignState.dueDate}
-                  onChange={(event) => onAssignFieldChange({ dueDate: event.target.value })}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAssignFieldChange({ dueDate: formatInputDate(new Date()) })}
-                  >
-                    {governanceTexts.governance.assignDialog.quickDateToday}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const date = new Date();
-                      date.setDate(date.getDate() + 3);
-                      onAssignFieldChange({ dueDate: formatInputDate(date) });
-                    }}
-                  >
-                    {governanceTexts.governance.assignDialog.quickDateThreeDays}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const date = new Date();
-                      date.setDate(date.getDate() + 7);
-                      onAssignFieldChange({ dueDate: formatInputDate(date) });
-                    }}
-                  >
-                    {governanceTexts.governance.assignDialog.quickDateSevenDays}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={onAssignClose}>
-                {governanceTexts.governance.assignDialog.cancel}
-              </Button>
-
-              <Button
-                onClick={() => {
-                  if (!assignState.responsibleId.trim() || !assignState.responsibleName.trim()) {
-                    toast({
-                      title: governanceTexts.general.attentionTitle,
-                      description: governanceTexts.governance.assignDialog.missingResponsibleId,
-                    });
-                    return;
-                  }
-                  onAssignSave({ createTicket: false });
-                }}
-                disabled={Boolean(assignState.target && actionLoading?.action === 'assign')}
-              >
-                {actionLoading?.action === 'assign' ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {governanceTexts.governance.assignDialog.saving}
-                  </span>
-                ) : (
-                  governanceTexts.governance.assignDialog.save
-                )}
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  if (!assignState.responsibleId.trim() || !assignState.responsibleName.trim()) {
-                    toast({
-                      title: governanceTexts.general.attentionTitle,
-                      description: governanceTexts.governance.assignDialog.missingResponsibleId,
-                    });
-                    return;
-                  }
-                  onAssignSave({ createTicket: true });
-                }}
-                disabled={Boolean(assignState.target && actionLoading?.action === 'assign')}
-              >
-                {governanceTexts.governance.assignDialog.saveWithTicket}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <CreateManualAssignmentDialog
+        open={Boolean(assignState.target)}
+        onOpenChange={(open) => {
+          if (!open) {
+            onAssignClose();
+          }
+        }}
+        issueId={assignState.target?.id}
+        initialArticleId={assignState.target?.articleId ?? ''}
+      />
     </>
   );
 }

@@ -3,6 +3,15 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { cleanQueryParams } from '@/lib/clean-query-params';
 import { governanceService, type IssuesFilter } from '@/services/governance.service';
 
+/**
+ * Hook React Query para listagem de issues de governança.
+ *
+ * Contrato:
+ * - input: filtros compatíveis com endpoint `/governance/issues`;
+ * - output: query com loading/error/data/refetch;
+ * - cache key: filtros serializados após limpeza (evita chave com ruído);
+ * - refetch: manual via `refetch` ou invalidation por query key.
+ */
 export const useGovernanceIssues = (filters: IssuesFilter) => {
   const { signal: _signal, ...filtersWithoutSignal } = filters;
   const cleanedFilters = cleanQueryParams(filtersWithoutSignal);
@@ -14,6 +23,11 @@ export const useGovernanceIssues = (filters: IssuesFilter) => {
   });
 };
 
+/**
+ * Mutation para download do relatório CSV de atualizações manuais.
+ *
+ * Não usa cache persistente por ser operação de exportação sob demanda.
+ */
 export const useManualUpdatesReport = () =>
   useMutation({
     mutationKey: ['manualUpdatesReportCsv'],

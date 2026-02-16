@@ -295,6 +295,7 @@ export const governanceTexts = {
       responsibleTypeLabel: 'Tipo de responsável',
       responsibleTypePlaceholder: 'Selecione o tipo',
       responsibleTypeOptions: {
+        AGENT: 'Agente',
         USER: 'Usuário',
         TEAM: 'Time',
         ROLE: 'Papel',

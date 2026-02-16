@@ -68,7 +68,12 @@ const startOfToday = () => {
   return date;
 };
 
-/** Build URLSearchParams from filters + page (no automatic effect). */
+/**
+ * Constrói query params da tela de governança.
+ *
+ * Fonte de verdade de filtros: URL.
+ * Motivo: compartilhamento de contexto entre usuários, persistência em refresh e navegabilidade.
+ */
 function buildSearchParams(filters: GovernanceFilters, page: number): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.systemCode) params.set('systemCode', filters.systemCode);
@@ -84,6 +89,12 @@ function buildSearchParams(filters: GovernanceFilters, page: number): URLSearchP
   return params;
 }
 
+/**
+ * Hook orquestrador da tela de Governança.
+ *
+ * Estados cobertos: loading/empty/error/sucesso para overview e lista de issues,
+ * além de ações de atribuição, mudança de status e exportação.
+ */
 export function useGovernance() {
   const isManager = hasRole(['ADMIN', 'MANAGER']);
   const actorIdentifier = authService.getActorIdentifier() ?? '';
@@ -101,10 +112,13 @@ export function useGovernance() {
   const [responsiblesLoading, setResponsiblesLoading] = useState(false);
   const manualUpdatesReportMutation = useManualUpdatesReport();
 
-  // Ref to track whether the URL-read effect has fired at least once
+  // Garante leitura inicial única da URL para evitar sobrescrever filtros ao montar a tela.
   const initialSyncDone = useRef(false);
 
-  /** Push filter+page state into the URL (called only from event handlers). */
+  /**
+   * Atualiza URL após interação do usuário (sem efeito colateral automático).
+   * Isso evita loops entre estado local e `searchParams`.
+   */
   const syncFiltersToUrl = useCallback(
     (nextFilters: GovernanceFilters, nextPage: number) => {
       setSearchParams(buildSearchParams(nextFilters, nextPage), { replace: true });
@@ -173,7 +187,7 @@ export function useGovernance() {
     setResponsiblesLoading(true);
     setResponsiblesWarning(null);
     try {
-      const result = await governanceService.getResponsiblesOptions();
+      const result = await governanceService.getResponsiblesOptions(params);
       const normalizedType = params?.responsibleType?.trim().toUpperCase();
       const normalizedQuery = params?.query?.trim().toLowerCase();
       const options = result.options.filter((option) => {
@@ -217,7 +231,7 @@ export function useGovernance() {
     dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
     dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
     try {
-      const result = await governanceService.getSuggestedAssignee(query, responsibleType);
+      const result = await governanceService.getSuggestedAssignee(query, responsibleType ?? 'AGENT');
       dispatch({
         type: 'SET_SUGGESTED',
         payload: {
@@ -285,6 +299,7 @@ export function useGovernance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
+        queryClient.invalidateQueries({ queryKey: ['governance-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
       ]);
     } catch (err) {
@@ -323,6 +338,7 @@ export function useGovernance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['governance-issues'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-governance'] }),
+        queryClient.invalidateQueries({ queryKey: ['governance-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['responsibles-summary'] }),
       ]);
     } catch (err) {
@@ -373,8 +389,9 @@ export function useGovernance() {
       dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
       return;
     }
-    fetchSuggestedAssignee(trimmed, responsibleType);
-    fetchResponsibleOptions({ query: trimmed, responsibleType });
+    const resolvedType = responsibleType ?? 'AGENT';
+    fetchSuggestedAssignee(trimmed, resolvedType);
+    fetchResponsibleOptions({ query: trimmed, responsibleType: resolvedType });
   };
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -532,7 +549,7 @@ export function useGovernance() {
   useEffect(() => {
     fetchOverview();
     fetchSystems();
-    fetchResponsibleOptions();
+    fetchResponsibleOptions({ responsibleType: 'AGENT' });
   }, []);
 
   // Read URL → state: runs on mount and when URL changes externally (e.g. Dashboard navigate).
@@ -650,7 +667,7 @@ export function useGovernance() {
     if (!state.assign.target) {
       dispatch({
         type: 'SET_ASSIGN_FIELD',
-        payload: { responsibleId: '', responsibleName: '', responsibleType: 'USER', dueDate: '' },
+        payload: { responsibleId: '', responsibleName: '', responsibleType: 'AGENT', dueDate: '' },
       });
       dispatch({ type: 'SET_SUGGESTED', payload: { assignee: null, alternatives: [] } });
       dispatch({ type: 'SET_SUGGESTED_ERROR', payload: null });
@@ -667,8 +684,9 @@ export function useGovernance() {
       },
     });
     const baseQuery = (assignTo ?? fallbackResponsible ?? '').trim();
-    fetchSuggestedAssignee(baseQuery, state.assign.responsibleType);
-    fetchResponsibleOptions({ query: baseQuery, responsibleType: state.assign.responsibleType });
+    const resolvedType = state.assign.responsibleType || 'AGENT';
+    fetchSuggestedAssignee(baseQuery, resolvedType);
+    fetchResponsibleOptions({ query: baseQuery, responsibleType: resolvedType });
   }, [state.assign.target, searchParams, state.assign.responsibleType]);
 
   const issues = useMemo(() => issuesData?.data ?? [], [issuesData]);
