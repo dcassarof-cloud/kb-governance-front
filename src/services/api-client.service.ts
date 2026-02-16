@@ -35,7 +35,7 @@ class ApiClient {
 
       return {
         data: response.data,
-        headers: response.headers,
+        headers: new Headers(response.headers as Record<string, string>),
         status: response.status,
       };
     } catch (error) {
@@ -95,8 +95,16 @@ class ApiClient {
     return this.request<T>('POST', endpoint, body, options);
   }
 
+  async postWithMeta<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<ApiResponseWithMeta<T>> {
+    return this.requestWithMeta<T>('POST', endpoint, body, options);
+  }
+
   async put<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>('PUT', endpoint, body, options);
+  }
+
+  async putWithMeta<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<ApiResponseWithMeta<T>> {
+    return this.requestWithMeta<T>('PUT', endpoint, body, options);
   }
 
   async patch<T>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T> {

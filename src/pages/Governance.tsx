@@ -78,7 +78,7 @@ export default function GovernancePage() {
     const responsibleId = suggested.id ?? suggested.name;
     handleAssign(state.assign.target, {
       dueDate: state.assign.dueDate || undefined,
-      responsibleType: suggested.responsibleType ?? state.assign.responsibleType,
+      responsibleType: 'USER',
       responsibleId,
       responsibleName: suggested.name,
     });
