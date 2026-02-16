@@ -10,6 +10,7 @@ import { governanceTexts } from '@/governanceTexts';
 import type { IssueSeverity, IssueStatus, IssueType } from '@/types';
 import type { GovernanceFilters } from '@/features/governance/state/governanceReducer';
 import { ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
+import { ManualQuickSearch } from '@/features/governance/components/ManualQuickSearch';
 
 interface GovernanceFiltersProps {
   filters: GovernanceFilters;
@@ -148,6 +149,7 @@ export function GovernanceFilters({
             value={filters.q || ''}
             onChange={(event) => onFilterChange('q', event.target.value)}
           />
+          <ManualQuickSearch systemCode={filters.systemCode || undefined} />
         </div>
 
         <div className="space-y-2">

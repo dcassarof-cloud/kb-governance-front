@@ -21,7 +21,7 @@ import {
   IssueStatus,
   GovernanceResponsible,
 } from '@/types';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -740,6 +740,7 @@ export default function GovernanceIssueDetailPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{governanceTexts.governance.statusDialog.title}</DialogTitle>
+              <DialogDescription>Atualize o status da pendência e informe o motivo quando necessário.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">

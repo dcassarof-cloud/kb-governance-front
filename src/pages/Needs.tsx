@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -540,6 +540,7 @@ export default function NeedsPage() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{governanceTexts.needs.detail.title}</DialogTitle>
+            <DialogDescription className="sr-only">Detalhes completos da necessidade selecionada.</DialogDescription>
           </DialogHeader>
 
           {detailLoading ? (
