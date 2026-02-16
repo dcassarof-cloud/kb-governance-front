@@ -18,7 +18,6 @@ export default function GovernancePage() {
     systemOptions,
     summaryMetrics,
     formatDate,
-    formatInputDate,
     getDueDateValue,
     getSlaStatus,
     getOverdueDays,
@@ -28,13 +27,8 @@ export default function GovernancePage() {
     getPriorityClasses,
     generatingReport,
     generateSystemsReport,
-    responsibleOptions,
-    responsiblesWarning,
-    responsiblesLoading,
-    fetchResponsibleOptions,
     fetchIssues,
     fetchOverview,
-    handleAssign,
     handleStatusChange,
     handleFilterChange,
     handleToggleChange,
@@ -43,8 +37,6 @@ export default function GovernancePage() {
     setPage,
     openAssign,
     closeAssign,
-    setAssignField,
-    searchResponsibles,
     openStatus,
     closeStatus,
     setStatusField,
@@ -53,37 +45,6 @@ export default function GovernancePage() {
   const isCriticalOnly = state.filters.severity === 'ERROR';
   const canAssign = isManager;
   const canResolve = isManager;
-
-  const handleAssignSave = (options: { createTicket?: boolean }) => {
-    if (!state.assign.target) return;
-
-    const responsibleId = state.assign.responsibleId.trim();
-    const responsibleName = state.assign.responsibleName.trim();
-
-    if (!responsibleId || !responsibleName) return;
-
-    handleAssign(state.assign.target, {
-      dueDate: state.assign.dueDate || undefined,
-      createTicket: options.createTicket ?? false,
-      responsibleType: state.assign.responsibleType,
-      responsibleId,
-      responsibleName,
-    });
-    closeAssign();
-  };
-
-  const handleAssignSuggestion = () => {
-    if (!state.assign.target || !state.suggested.assignee) return;
-    const suggested = state.suggested.assignee;
-    const responsibleId = suggested.id ?? suggested.name;
-    handleAssign(state.assign.target, {
-      dueDate: state.assign.dueDate || undefined,
-      responsibleType: 'AGENT',
-      responsibleId,
-      responsibleName: suggested.name,
-    });
-    closeAssign();
-  };
 
   const handleStatusSave = () => {
     if (!state.status.target) return;
@@ -136,19 +97,9 @@ export default function GovernancePage() {
         getPriorityLevel={getPriorityLevel}
         getPriorityClasses={getPriorityClasses}
         formatDate={formatDate}
-        formatInputDate={formatInputDate}
         assignState={state.assign}
         statusState={state.status}
-        suggested={state.suggested}
-        responsibleOptions={responsibleOptions}
-        responsiblesLoading={responsiblesLoading}
-        responsiblesWarning={responsiblesWarning}
-        onRetryLoadResponsibles={() => fetchResponsibleOptions({ responsibleType: state.assign.responsibleType })}
-        onAssignFieldChange={setAssignField}
-        onSearchResponsible={searchResponsibles}
         onStatusFieldChange={setStatusField}
-        onAssignSave={handleAssignSave}
-        onAssignSuggestion={handleAssignSuggestion}
         onAssignClose={closeAssign}
         onStatusSave={handleStatusSave}
         onStatusClose={closeStatus}

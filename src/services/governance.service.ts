@@ -717,8 +717,8 @@ class GovernanceService {
     return normalizeGovernanceIssue(response);
   }
 
-  async getSuggestedAssignee(query: string, responsibleType?: string): Promise<GovernanceSuggestedAssignee> {
-    const normalizedResponsibleType = responsibleType?.trim().toUpperCase() || 'AGENT';
+  async getSuggestedAssignee(query: string, _responsibleType?: string): Promise<GovernanceSuggestedAssignee> {
+    const normalizedResponsibleType = 'AGENT';
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUGGEST, {
       params: cleanQueryParams({
         q: query || undefined,
@@ -780,7 +780,7 @@ class GovernanceService {
 
   async getResponsiblesOptions(params?: { query?: string; responsibleType?: string }): Promise<ResponsiblesOptionsResult> {
     try {
-      const normalizedType = params?.responsibleType?.trim().toUpperCase();
+      const normalizedType = params?.responsibleType?.trim().toUpperCase() || 'AGENT';
       const response = await apiClient.get<unknown>(API_ENDPOINTS.USERS_RESPONSIBLES, {
         params: cleanQueryParams({
           q: params?.query?.trim() || undefined,
