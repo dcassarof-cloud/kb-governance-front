@@ -172,7 +172,9 @@ export default function ResponsiblesPage() {
                 <tr>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.responsible}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.open}</th>
+                  <th className="text-left p-4 font-semibold text-sm">Pendentes</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.overdue}</th>
+                  <th className="text-left p-4 font-semibold text-sm">Time</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.averageSla}</th>
                   <th className="text-left p-4 font-semibold text-sm">{governanceTexts.responsibles.table.headers.actions}</th>
                 </tr>
@@ -180,9 +182,10 @@ export default function ResponsiblesPage() {
               <tbody>
                 {responsibles.map((responsible, index) => {
                   const id = responsible.id ?? `${responsible.name}-${index}`;
-                  const openIssues =
-                    responsible.openIssues ?? responsible.pendingIssues ?? 0;
+                  const openIssues = responsible.openIssues ?? 0;
+                  const pendingIssues = responsible.pendingIssues ?? responsible.openIssues ?? 0;
                   const overdue = responsible.overdueIssues ?? 0;
+                  const teamName = responsible.teamName ?? governanceTexts.general.notAvailable;
                   const sla = responsible.avgSlaDays ?? null;
 
                   return (
@@ -192,9 +195,14 @@ export default function ResponsiblesPage() {
                         {responsible.email && (
                           <div className="text-xs text-muted-foreground">{responsible.email}</div>
                         )}
+                        {responsible.teamName && (
+                          <div className="text-xs text-muted-foreground">Time: {responsible.teamName}</div>
+                        )}
                       </td>
                       <td className="p-4 text-muted-foreground">{openIssues}</td>
+                      <td className="p-4 text-muted-foreground">{pendingIssues}</td>
                       <td className="p-4 text-muted-foreground">{overdue}</td>
+                      <td className="p-4 text-muted-foreground">{teamName}</td>
                       <td className="p-4 text-muted-foreground">
                         {sla !== null ? governanceTexts.responsibles.table.days(sla) : governanceTexts.general.notAvailable}
                       </td>
