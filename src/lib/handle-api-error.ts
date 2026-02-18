@@ -7,18 +7,49 @@ const DEFAULT_API_ERROR: ApiError = {
   details: [],
 };
 
-export function handleApiError(error: unknown): ApiError {
+const readHeader = (headers: Headers | undefined, key: string): string | null => {
+  if (!headers) return null;
+  return headers.get(key) ?? headers.get(key.toLowerCase()) ?? headers.get(key.toUpperCase());
+};
+
+/**
+ * Converte qualquer erro em um contrato único para UI e hooks.
+ *
+ * Prioridade de mensagem:
+ * 1) body.message
+ * 2) body.error
+ * 3) statusText / message padrão da exceção HTTP
+ */
+export function toApiError(error: unknown): ApiError {
   if (error instanceof HttpError) {
-    const payload = error.response?.data;
-    const correlationHeader = error.response?.headers.get('X-Correlation-Id') ?? error.response?.headers.get('X-Request-Id');
+    const payload = (error.response?.data ?? {}) as Record<string, unknown>;
+    const correlationId =
+      readHeader(error.response?.headers, 'X-Correlation-Id') ??
+      readHeader(error.response?.headers, 'X-Correlation-Id'.toLowerCase()) ??
+      (typeof payload.correlationId === 'string' ? payload.correlationId : undefined);
+
+    const requestId =
+      readHeader(error.response?.headers, 'X-Request-Id') ??
+      readHeader(error.response?.headers, 'X-Request-Id'.toLowerCase()) ??
+      (typeof payload.requestId === 'string' ? payload.requestId : undefined);
+
+    const message =
+      (typeof payload.message === 'string' && payload.message.trim()) ||
+      (typeof payload.error === 'string' && payload.error.trim()) ||
+      error.message ||
+      `HTTP ${error.response?.status ?? 'erro'}`;
 
     return {
-      status: payload?.status ?? error.response?.status,
-      code: payload?.errorCode ?? payload?.code ?? 'HTTP_ERROR',
-      message: payload?.message ?? error.message,
-      correlationId: payload?.correlationId ?? correlationHeader ?? undefined,
-      timestamp: payload?.timestamp,
-      details: payload?.details ?? [],
+      status: (typeof payload.status === 'number' ? payload.status : undefined) ?? error.response?.status,
+      code:
+        (typeof payload.code === 'string' ? payload.code : undefined) ??
+        (typeof payload.errorCode === 'string' ? payload.errorCode : undefined) ??
+        'HTTP_ERROR',
+      message,
+      correlationId: correlationId ?? undefined,
+      requestId: requestId ?? undefined,
+      timestamp: typeof payload.timestamp === 'string' ? payload.timestamp : undefined,
+      details: payload.details,
     };
   }
 
@@ -30,4 +61,8 @@ export function handleApiError(error: unknown): ApiError {
   }
 
   return DEFAULT_API_ERROR;
+}
+
+export function handleApiError(error: unknown): ApiError {
+  return toApiError(error);
 }

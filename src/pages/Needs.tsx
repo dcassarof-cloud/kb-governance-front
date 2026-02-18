@@ -35,6 +35,7 @@ import {
   useRunSupportImportMutation,
 } from '@/hooks/useNeedsEnterprise';
 import { toast } from '@/hooks/use-toast';
+import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
 import { hasRole } from '@/services/auth.service';
 import type { NeedItem } from '@/types';
 import type { NeedStatusActionRequest, NeedTriageRequest, NeedsTeamMetricsItem } from '@/types/needs-enterprise';
@@ -82,6 +83,18 @@ const resolveTeamMetricValue = (team: NeedsTeamMetricsItem, field: 'open' | 'ove
   return team.criticalOpen ?? team.criticalTotal ?? 0;
 };
 
+const renderDebugMetric = (
+  query: ReturnType<typeof useNeedsDebugCountsQuery>,
+  value: number | string | null | undefined,
+  options?: { isDate?: boolean }
+) => {
+  if (query.isLoading) return <Skeleton className="h-5 w-16" />;
+  if (query.isError) return <span className="text-sm text-destructive">Erro</span>;
+  if (value === null || value === undefined || value === '') return '—';
+  if (options?.isDate && typeof value === 'string') return formatDate(value);
+  return value;
+};
+
 export default function NeedsPage() {
   const isManager = hasRole(['ADMIN', 'MANAGER']);
   const [selectedTeamId, setSelectedTeamId] = useState<string | number | null>(null);
@@ -89,6 +102,7 @@ export default function NeedsPage() {
   const [historyNeedId, setHistoryNeedId] = useState<number | null>(null);
   const [detailNeedId, setDetailNeedId] = useState<number | null>(null);
   const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
+  const [activeTab, setActiveTab] = useState<'geral' | 'equipe'>('geral');
 
   const needsQuery = useNeedsList(selectedTeamId);
   const metricsQuery = useNeedMetricsSummary();
@@ -109,6 +123,7 @@ export default function NeedsPage() {
 
   const handleViewNeedsByTeam = (teamId: string | number) => {
     setSelectedTeamId(teamId);
+    setActiveTab('geral');
     toast({
       title: 'Filtro por equipe aplicado',
       description: 'A aba Geral foi filtrada para a equipe selecionada.',
@@ -146,6 +161,36 @@ export default function NeedsPage() {
     (debugQuery.data?.clusters ?? 0) > 0 &&
     (debugQuery.data?.tickets ?? 0) > 0 &&
     (debugQuery.data?.needsTotal ?? 0) === 0;
+
+  const needsErrorInfo = needsQuery.isError ? toApiErrorInfo(needsQuery.error, 'Falha ao carregar necessidades.') : null;
+  const metricsErrorInfo = metricsQuery.isError ? toApiErrorInfo(metricsQuery.error, 'Falha ao carregar métricas.') : null;
+  const debugErrorInfo = debugQuery.isError ? toApiErrorInfo(debugQuery.error, 'Falha ao carregar diagnóstico.') : null;
+  const teamErrorInfo = teamMetricsQuery.isError
+    ? toApiErrorInfo(teamMetricsQuery.error, 'Falha ao carregar métricas por equipe.')
+    : null;
+
+  const probableReason = (() => {
+    if (!isManager || !debugQuery.data) return null;
+
+    const tickets = debugQuery.data.tickets ?? 0;
+    const needsTotal = debugQuery.data.needsTotal ?? 0;
+    const rulesActive = debugQuery.data.rulesActive ?? 0;
+    const teamsCount = (teamMetricsQuery.data ?? []).length;
+
+    if (tickets > 0 && needsTotal === 0) {
+      return 'Há tickets importados, mas nenhuma necessidade foi gerada. Causa provável: regras não bateram, cooldown ativo ou dados fora da janela configurada.';
+    }
+
+    if (tickets > 0 && teamsCount === 0) {
+      return 'Não há métricas por equipe. Causa provável: tickets sem ownerTeam/teamId no suporte.';
+    }
+
+    if (rulesActive === 0) {
+      return 'Nenhuma regra ativa foi encontrada. Sem regras, novas necessidades não serão criadas.';
+    }
+
+    return null;
+  })();
 
   return (
     <MainLayout>
@@ -189,14 +234,14 @@ export default function NeedsPage() {
         ) : null}
       </div>
 
-      <Tabs defaultValue="geral" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'geral' | 'equipe')} className="space-y-6">
         <TabsList>
           <TabsTrigger value="geral">Geral</TabsTrigger>
           {isManager ? <TabsTrigger value="equipe">Por equipe</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="geral" className="space-y-6">
-          <NeedsMetricsCards data={metricsQuery.data} isLoading={metricsQuery.isLoading} />
+          <NeedsMetricsCards data={metricsQuery.data} isLoading={metricsQuery.isLoading} isError={metricsQuery.isError} />
 
           {isManager ? (
             <Collapsible className="rounded-lg border">
@@ -207,25 +252,37 @@ export default function NeedsPage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 p-4 pt-0">
                 {debugQuery.isError ? (
-                  <Alert variant="destructive">
-                    <ShieldAlert className="h-4 w-4" />
-                    <AlertTitle>Falha ao carregar diagnóstico</AlertTitle>
-                    <AlertDescription>Tente recarregar a página para buscar os dados novamente.</AlertDescription>
-                  </Alert>
-                ) : null}
+                    <Alert variant="destructive">
+                      <ShieldAlert className="h-4 w-4" />
+                      <AlertTitle>Falha ao carregar diagnóstico</AlertTitle>
+                      <AlertDescription>
+                        {debugErrorInfo
+                          ? formatApiErrorInfo(debugErrorInfo)
+                          : 'Tente recarregar a página para buscar os dados novamente.'}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Card><CardHeader><CardTitle className="text-sm">rulesActive</CardTitle></CardHeader><CardContent>{debugQuery.data?.rulesActive ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">clusters</CardTitle></CardHeader><CardContent>{debugQuery.data?.clusters ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">tickets</CardTitle></CardHeader><CardContent>{debugQuery.data?.tickets ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">ticketsWithoutAssignee</CardTitle></CardHeader><CardContent>{debugQuery.data?.ticketsWithoutAssignee ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">needsTotal</CardTitle></CardHeader><CardContent>{debugQuery.data?.needsTotal ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">minOriginCreatedAt</CardTitle></CardHeader><CardContent>{formatDate(debugQuery.data?.minOriginCreatedAt ?? null)}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">maxOriginCreatedAt</CardTitle></CardHeader><CardContent>{formatDate(debugQuery.data?.maxOriginCreatedAt ?? null)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">rulesActive</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.rulesActive)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">clusters</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.clusters)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">tickets</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.tickets)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">ticketsWithoutAssignee</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.ticketsWithoutAssignee)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">needsTotal</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.needsTotal)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">minOriginCreatedAt</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.minOriginCreatedAt, { isDate: true })}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">maxOriginCreatedAt</CardTitle></CardHeader><CardContent>{renderDebugMetric(debugQuery, debugQuery.data?.maxOriginCreatedAt, { isDate: true })}</CardContent></Card>
                 </div>
 
                 {(debugQuery.data?.ticketsWithoutAssignee ?? 0) > 0 ? (
                   <Badge variant="destructive">Tickets sem responsável detectados.</Badge>
+                ) : null}
+
+                {probableReason ? (
+                  <Alert>
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertTitle>Motivo provável</AlertTitle>
+                    <AlertDescription>{probableReason}</AlertDescription>
+                  </Alert>
                 ) : null}
 
                 {(debugQuery.data?.needsTotal ?? 0) === 0 ? (
@@ -249,7 +306,11 @@ export default function NeedsPage() {
           {needsQuery.isError || metricsQuery.isError ? (
             <EmptyState
               title={needsQuery.isError ? 'Falha ao carregar necessidades.' : 'Falha ao carregar métricas.'}
-              description="Não foi possível obter os dados da API. Tente novamente."
+              description={
+                needsQuery.isError
+                  ? formatApiErrorInfo(needsErrorInfo ?? { message: 'Falha ao carregar necessidades.' })
+                  : formatApiErrorInfo(metricsErrorInfo ?? { message: 'Falha ao carregar métricas.' })
+              }
               action={{ label: 'Recarregar', onClick: handleReload }}
             />
           ) : needsQuery.isLoading ? (
@@ -328,7 +389,7 @@ export default function NeedsPage() {
             {teamMetricsQuery.isError ? (
               <EmptyState
                 title="Falha ao carregar métricas por equipe."
-                description="Não foi possível obter os dados da API. Tente novamente."
+                description={formatApiErrorInfo(teamErrorInfo ?? { message: 'Não foi possível obter os dados da API.' })}
                 action={{ label: 'Recarregar', onClick: handleReload }}
               />
             ) : teamMetricsQuery.isLoading ? (
@@ -337,32 +398,52 @@ export default function NeedsPage() {
                 <Skeleton className="h-44 w-full" />
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {(teamMetricsQuery.data ?? []).map((team) => (
-                  <Card key={String(team.teamId)}>
-                    <CardHeader>
-                      <CardTitle>{team.teamName}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <p>open: <strong>{resolveTeamMetricValue(team, 'open')}</strong></p>
-                      <p>triaged: <strong>{team.triaged ?? 0}</strong></p>
-                      <p>inProgress: <strong>{team.inProgress ?? 0}</strong></p>
-                      <p>blocked: <strong>{team.blocked ?? 0}</strong></p>
-                      <p>overdue: <strong>{resolveTeamMetricValue(team, 'overdue')}</strong></p>
-                      <p>criticalOpen: <strong>{resolveTeamMetricValue(team, 'criticalOpen')}</strong></p>
-                      <Button type="button" variant="outline" onClick={() => void handleViewNeedsByTeam(team.teamId)}>
-                        Ver necessidades
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="space-y-4">
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Equipe</TableHead>
+                        <TableHead>Em aberto</TableHead>
+                        <TableHead>Vencidas</TableHead>
+                        <TableHead>Críticas</TableHead>
+                        <TableHead className="text-right">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(teamMetricsQuery.data ?? []).map((team) => (
+                        <TableRow key={String(team.teamId)}>
+                          <TableCell>{team.teamName || `Equipe ${team.teamId}`}</TableCell>
+                          <TableCell>{resolveTeamMetricValue(team, 'open')}</TableCell>
+                          <TableCell>{resolveTeamMetricValue(team, 'overdue')}</TableCell>
+                          <TableCell>{resolveTeamMetricValue(team, 'criticalOpen')}</TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" type="button" variant="outline" onClick={() => void handleViewNeedsByTeam(team.teamId)}>
+                              Ver necessidades
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
                 {(teamMetricsQuery.data ?? []).length === 0 ? (
-                  <EmptyState
-                    title="Nenhuma equipe encontrada."
-                    description="As métricas por equipe ainda não retornaram resultados."
-                    action={{ label: 'Recarregar', onClick: handleReload }}
-                    className="col-span-full"
-                  />
+                  <>
+                    <EmptyState
+                      title="Ainda não há métricas por equipe."
+                      description="Possíveis motivos: tickets importados sem teamId ou regras ainda não criaram necessidades."
+                      action={{ label: 'Atualizar dados do suporte', onClick: () => runSupportImportMutation.mutate() }}
+                    />
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <Button type="button" variant="outline" onClick={handleReload}>Recarregar</Button>
+                      {DEMO_GENERATE_ENABLED ? (
+                        <Button type="button" variant="outline" onClick={() => generateDemoMutation.mutate(10)} disabled={generateDemoMutation.isPending}>
+                          Gerar demo
+                        </Button>
+                      ) : null}
+                    </div>
+                  </>
                 ) : null}
               </div>
             )}
