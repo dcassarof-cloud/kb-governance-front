@@ -1,3 +1,5 @@
+import type { NeedSeverity as EnterpriseNeedSeverity, NeedSource, NeedStatus as EnterpriseNeedStatus } from './needs-enterprise';
+
 // =====================================================
 // TYPES / MODELS - Consisa KB Governance
 // =====================================================
@@ -267,7 +269,10 @@ export interface NeedItem {
   systemCode?: string | null;
   systemName?: string | null;
   status?: NeedStatus | null;
-  severity?: IssueSeverity | null;
+  severity?: IssueSeverity | EnterpriseNeedSeverity | null;
+  source?: NeedSource | null;
+  dueAt?: string | null;
+  priorityScore?: number | null;
   occurrences?: number | null;
   lastOccurrenceAt?: string | null;
   windowStart?: string | null;
@@ -308,7 +313,7 @@ export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IG
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export type SyncMode = 'FULL' | 'DELTA' | 'DELTA_WINDOW';
 export type SyncModeLabel = SyncMode | 'DESCONHECIDO';
-export type NeedStatus = string;
+export type NeedStatus = EnterpriseNeedStatus;
 
 // Auth
 export interface User {
