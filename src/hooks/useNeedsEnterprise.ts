@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { toast } from '@/hooks/use-toast';
-import { toApiErrorInfo } from '@/lib/api-error-info';
+import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
+import { toApiError } from '@/lib/handle-api-error';
 import {
   blockNeed,
   cancelNeed,
@@ -72,6 +73,22 @@ const showMutationError = (error: unknown) => {
     description: info.message,
     variant: 'destructive',
   });
+};
+
+
+const resolveSupportImportErrorMessage = (error: unknown) => {
+  const apiError = toApiError(error);
+  const code = (apiError.code ?? '').toUpperCase();
+
+  if (code.includes('MOVIEDESK_BAD_QUERY') || code.includes('BAD_QUERY')) {
+    return 'Configuração de consulta do Movidesk inválida. Revise os filtros e tente novamente.';
+  }
+
+  if (code.includes('MOVIEDESK_UNAVAILABLE') || code.includes('UNAVAILABLE')) {
+    return 'Movidesk indisponível no momento. Aguarde alguns minutos e tente novamente.';
+  }
+
+  return apiError.message;
 };
 
 const invalidateNeedQueries = async (queryClient: ReturnType<typeof useQueryClient>, needId: number) => {
@@ -153,13 +170,17 @@ export const useRunSupportImportMutation = () => {
         queryClient.invalidateQueries({ queryKey: ['needsMetricsByTeam'] }),
         queryClient.invalidateQueries({ queryKey: ['needsDebugCounts'] }),
       ]);
-      toast({ title: 'Dados do suporte atualizados com sucesso.' });
+      toast({
+        title: 'Importação do suporte iniciada.',
+        description: 'Os dados serão atualizados conforme o processamento do backend.',
+      });
     },
     onError: (error) => {
       const info = toApiErrorInfo(error, 'Falha ao atualizar dados do suporte.');
+      const friendlyMessage = resolveSupportImportErrorMessage(error);
       toast({
         title: 'Falha ao atualizar dados do suporte',
-        description: info.message,
+        description: formatApiErrorInfo({ ...info, message: friendlyMessage }),
         variant: 'destructive',
       });
     },

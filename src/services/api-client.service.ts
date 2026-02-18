@@ -1,8 +1,8 @@
 import { apiClient } from '@/config/axios';
 import { config } from '@/config/app-config';
 import { normalizePaginatedResponse } from '@/lib/api-normalizers';
-import { handleApiError } from '@/lib/handle-api-error';
-import { PaginatedResponse } from '@/types';
+import { handleApiError, toApiError } from '@/lib/handle-api-error';
+import { ApiError, PaginatedResponse } from '@/types';
 
 export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>;
@@ -139,6 +139,8 @@ class ApiClient {
 export const apiClientService = new ApiClient();
 export const apiClientInstance = apiClientService;
 export { apiClientService as apiClient };
+export type { ApiError };
+export { toApiError };
 
 
 export async function runSupportImport() {

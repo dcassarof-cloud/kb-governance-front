@@ -150,6 +150,28 @@ const normalizeNeed = (raw: unknown): NeedItem => {
   };
 };
 
+
+/**
+ * Normaliza respostas do endpoint /needs para um envelope paginado consistente.
+ *
+ * Formatos aceitos atualmente (variam por ambiente/backend):
+ * 1) Array simples: NeedResponse[]
+ * 2) Paginado com `data`/`items`/`content` (via normalizePaginatedResponse)
+ */
+function coerceToPaginated<T>(raw: unknown, page: number, size: number): PaginatedResponse<T> {
+  if (Array.isArray(raw)) {
+    return {
+      data: raw as T[],
+      page,
+      size,
+      total: raw.length,
+      totalPages: 1,
+    };
+  }
+
+  return normalizePaginatedResponse<T>(raw, page, size);
+}
+
 const normalizeNeedDetail = (raw: unknown): NeedDetail => {
   const base = normalizeNeed(raw);
   if (!raw || typeof raw !== 'object') {
@@ -187,7 +209,7 @@ class NeedsService {
       },
     });
 
-    const payload = normalizePaginatedResponse<unknown>(response, page, size);
+    const payload = coerceToPaginated<unknown>(response, page, size);
 
     return {
       ...payload,
@@ -211,7 +233,7 @@ class NeedsService {
       },
     });
 
-    const payload = normalizePaginatedResponse<unknown>(response.data, page, size);
+    const payload = coerceToPaginated<unknown>(response.data, page, size);
 
     return {
       payload: {

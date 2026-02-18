@@ -1,15 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertCircle } from 'lucide-react';
 
 import type { NeedMetricsSummaryResponse } from '@/types/needs-enterprise';
 
 interface NeedsMetricsCardsProps {
   data?: NeedMetricsSummaryResponse;
   isLoading?: boolean;
+  isError?: boolean;
 }
 
-export const NeedsMetricsCards = ({ data, isLoading = false }: NeedsMetricsCardsProps) => {
+export const NeedsMetricsCards = ({ data, isLoading = false, isError = false }: NeedsMetricsCardsProps) => {
   const cards = [
     { label: 'Em aberto', value: data?.totalOpen ?? 0 },
     { label: 'Triadas', value: data?.triaged ?? 0 },
@@ -27,7 +29,15 @@ export const NeedsMetricsCards = ({ data, isLoading = false }: NeedsMetricsCards
             <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
-            {isLoading ? <Skeleton className="h-8 w-12" /> : <span className="text-2xl font-semibold">{card.value}</span>}
+            {isLoading ? (
+              <Skeleton className="h-8 w-12" />
+            ) : isError ? (
+              <span className="inline-flex items-center gap-1 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" /> Erro
+              </span>
+            ) : (
+              <span className="text-2xl font-semibold">{card.value}</span>
+            )}
             {card.attention ? <Badge variant="destructive">Atenção</Badge> : null}
           </CardContent>
         </Card>

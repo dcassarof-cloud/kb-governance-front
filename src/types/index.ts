@@ -350,9 +350,10 @@ export interface PaginatedResponse<T> {
 
 export interface ApiError {
   status?: number;
-  code: string;
+  code?: string;
   message: string;
   correlationId?: string;
+  requestId?: string;
   timestamp?: string;
-  details?: string[];
+  details?: unknown;
 }
