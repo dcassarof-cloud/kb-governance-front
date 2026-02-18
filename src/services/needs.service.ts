@@ -7,6 +7,12 @@ import { normalizePaginatedResponse } from '@/lib/api-normalizers';
 import { apiClient } from './api-client.service';
 import { authService } from './auth.service';
 import { IssueSeverity, NeedDetail, NeedItem, NeedTicketExample, PaginatedResponse } from '@/types';
+import {
+  NeedHistoryItemResponse,
+  NeedMetricsSummaryResponse,
+  NeedStatusActionRequest,
+  NeedTriageRequest,
+} from '@/types/needs-enterprise';
 
 export interface NeedsRequestMeta {
   partialFailure: boolean;
@@ -33,6 +39,15 @@ export interface NeedsFilter {
 
 const toNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+const toNeedSeverity = (value: unknown): IssueSeverity | NeedTriageRequest['severity'] | null => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.toUpperCase();
+  if (['INFO', 'WARN', 'ERROR', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(normalized)) {
+    return normalized as IssueSeverity | NeedTriageRequest['severity'];
+  }
+  return null;
+};
 
 const formatDateInput = (value?: string) => {
   if (!value) return undefined;
@@ -73,7 +88,10 @@ const normalizeNeed = (raw: unknown): NeedItem => {
     systemCode: (obj.systemCode as string) ?? (obj.system as string) ?? (obj.systemId as string) ?? null,
     systemName: (obj.systemName as string) ?? (obj.systemLabel as string) ?? null,
     status: (obj.status as string) ?? (obj.state as string) ?? null,
-    severity: (obj.severity as IssueSeverity) ?? (obj.priority as IssueSeverity) ?? null,
+    severity: toNeedSeverity(obj.severity ?? obj.priority),
+    source: (obj.source as NeedItem['source']) ?? null,
+    dueAt: (obj.dueAt as string) ?? (obj.dueDate as string) ?? null,
+    priorityScore: toNumber(obj.priorityScore),
     occurrences: toNumber(obj.occurrences ?? obj.recurrence ?? obj.recurringCount ?? obj.quantity ?? obj.count ?? obj.total),
     lastOccurrenceAt:
       (obj.lastOccurrenceAt as string) ??
@@ -207,6 +225,34 @@ class NeedsService {
     return normalizeNeedDetail(response);
   }
 
+  async getNeedMetricsSummary(): Promise<NeedMetricsSummaryResponse> {
+    return apiClient.get<NeedMetricsSummaryResponse>(API_ENDPOINTS.NEEDS_METRICS_SUMMARY);
+  }
+
+  async getNeedHistory(needId: number): Promise<NeedHistoryItemResponse[]> {
+    return apiClient.get<NeedHistoryItemResponse[]>(API_ENDPOINTS.NEEDS_HISTORY(needId));
+  }
+
+  async triageNeed(needId: number, body: NeedTriageRequest): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.NEEDS_TRIAGE(needId), body);
+  }
+
+  async startNeed(needId: number, body: NeedStatusActionRequest): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.NEEDS_START(needId), body);
+  }
+
+  async blockNeed(needId: number, body: NeedStatusActionRequest): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.NEEDS_BLOCK(needId), body);
+  }
+
+  async completeNeed(needId: number, body: NeedStatusActionRequest): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.NEEDS_COMPLETE(needId), body);
+  }
+
+  async cancelNeed(needId: number, body: NeedStatusActionRequest): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.NEEDS_CANCEL(needId), body);
+  }
+
   async createInternalTask(id: string): Promise<void> {
     const actor = authService.getActorIdentifier() ?? 'system';
     await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id), { actor });
@@ -219,3 +265,11 @@ class NeedsService {
 }
 
 export const needsService = new NeedsService();
+
+export const getNeedMetricsSummary = () => needsService.getNeedMetricsSummary();
+export const getNeedHistory = (needId: number) => needsService.getNeedHistory(needId);
+export const triageNeed = (needId: number, body: NeedTriageRequest) => needsService.triageNeed(needId, body);
+export const startNeed = (needId: number, body: NeedStatusActionRequest) => needsService.startNeed(needId, body);
+export const blockNeed = (needId: number, body: NeedStatusActionRequest) => needsService.blockNeed(needId, body);
+export const completeNeed = (needId: number, body: NeedStatusActionRequest) => needsService.completeNeed(needId, body);
+export const cancelNeed = (needId: number, body: NeedStatusActionRequest) => needsService.cancelNeed(needId, body);
