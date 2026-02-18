@@ -6,8 +6,11 @@ import {
   blockNeed,
   cancelNeed,
   completeNeed,
+  generateNeedsDemo,
   getNeedHistory,
   getNeedMetricsSummary,
+  getNeedsDebugCounts,
+  getNeedsMetricsByTeam,
   needsService,
   runSupportImport,
   startNeed,
@@ -15,10 +18,10 @@ import {
 } from '@/services/needs.service';
 import { NeedStatusActionRequest, NeedTriageRequest } from '@/types/needs-enterprise';
 
-export const useNeedsList = () =>
+export const useNeedsList = (teamId?: number | string | null) =>
   useQuery({
-    queryKey: ['needs'],
-    queryFn: () => needsService.listNeeds({ page: 1, size: 100 }),
+    queryKey: ['needs', { teamId: teamId ?? null }],
+    queryFn: () => needsService.listNeeds({ page: 1, size: 100, teamId: teamId ?? undefined }),
     retry: false,
   });
 
@@ -26,6 +29,23 @@ export const useNeedMetricsSummary = () =>
   useQuery({
     queryKey: ['needsMetricsSummary'],
     queryFn: getNeedMetricsSummary,
+    retry: false,
+  });
+
+
+export const useNeedsDebugCountsQuery = (enabled: boolean) =>
+  useQuery({
+    queryKey: ['needsDebugCounts'],
+    queryFn: getNeedsDebugCounts,
+    enabled,
+    retry: false,
+  });
+
+export const useNeedsMetricsByTeamQuery = (enabled: boolean) =>
+  useQuery({
+    queryKey: ['needsMetricsByTeam'],
+    queryFn: getNeedsMetricsByTeam,
+    enabled,
     retry: false,
   });
 
@@ -130,8 +150,10 @@ export const useRunSupportImportMutation = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['needs'] }),
         queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
+        queryClient.invalidateQueries({ queryKey: ['needsMetricsByTeam'] }),
+        queryClient.invalidateQueries({ queryKey: ['needsDebugCounts'] }),
       ]);
-      toast({ title: 'Dados atualizados com sucesso' });
+      toast({ title: 'Dados do suporte atualizados com sucesso.' });
     },
     onError: (error) => {
       const info = toApiErrorInfo(error, 'Falha ao atualizar dados do suporte.');
@@ -175,4 +197,30 @@ export const useNeedLegacyActions = () => {
     createTaskMutation,
     createTicketMutation,
   };
+};
+
+
+export const useGenerateNeedsDemoMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (count: number) => generateNeedsDemo(count),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['needs'] }),
+        queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
+        queryClient.invalidateQueries({ queryKey: ['needsMetricsByTeam'] }),
+        queryClient.invalidateQueries({ queryKey: ['needsDebugCounts'] }),
+      ]);
+      toast({ title: 'Dados de demo gerados com sucesso.' });
+    },
+    onError: (error) => {
+      const info = toApiErrorInfo(error, 'Falha ao gerar dados de demo.');
+      toast({
+        title: info.status === 403 ? 'Demo desabilitado' : 'Falha ao gerar dados de demo',
+        description: info.status === 403 ? 'O endpoint de demo está desabilitado no backend.' : info.message,
+        variant: 'destructive',
+      });
+    },
+  });
 };

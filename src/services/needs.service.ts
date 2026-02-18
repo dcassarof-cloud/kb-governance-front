@@ -12,6 +12,8 @@ import {
   NeedMetricsSummaryResponse,
   NeedStatusActionRequest,
   NeedTriageRequest,
+  NeedsDebugCountsResponse,
+  NeedsTeamMetricsItem,
   SupportImportRunResponse,
 } from '@/types/needs-enterprise';
 
@@ -27,6 +29,7 @@ export interface NeedsListResult {
 }
 
 export interface NeedsFilter {
+  teamId?: string | number;
   systemCode?: string;
   status?: string;
   start?: string;
@@ -169,10 +172,11 @@ const normalizeNeedDetail = (raw: unknown): NeedDetail => {
 
 class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
-    const { systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
+    const { teamId, systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
 
     const response = await apiClient.get<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
+        teamId,
         systemCode,
         status,
         start: formatDateInput(start ?? periodStart),
@@ -192,10 +196,11 @@ class NeedsService {
   }
 
   async listNeedsWithMeta(filter: NeedsFilter = {}): Promise<NeedsListResult> {
-    const { systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
+    const { teamId, systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
 
     const response = await apiClient.getWithMeta<unknown>(API_ENDPOINTS.NEEDS, {
       params: {
+        teamId,
         systemCode,
         status,
         start: formatDateInput(start ?? periodStart),
@@ -259,6 +264,18 @@ class NeedsService {
     return apiClient.post<void | SupportImportRunResponse>(API_ENDPOINTS.SUPPORT_IMPORT_RUN);
   }
 
+  async getNeedsDebugCounts(): Promise<NeedsDebugCountsResponse> {
+    return apiClient.get<NeedsDebugCountsResponse>(API_ENDPOINTS.NEEDS_DEBUG_COUNTS);
+  }
+
+  async getNeedsMetricsByTeam(): Promise<NeedsTeamMetricsItem[]> {
+    return apiClient.get<NeedsTeamMetricsItem[]>(API_ENDPOINTS.NEEDS_METRICS_BY_TEAM);
+  }
+
+  async generateNeedsDemo(count: number): Promise<void> {
+    await apiClient.post<void>(`${API_ENDPOINTS.NEEDS_DEMO_GENERATE}?count=${count}`);
+  }
+
   async createInternalTask(id: string): Promise<void> {
     const actor = authService.getActorIdentifier() ?? 'system';
     await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id), { actor });
@@ -281,3 +298,6 @@ export const completeNeed = (needId: number, body: NeedStatusActionRequest) => n
 export const cancelNeed = (needId: number, body: NeedStatusActionRequest) => needsService.cancelNeed(needId, body);
 
 export const runSupportImport = () => needsService.runSupportImport();
+export const getNeedsDebugCounts = () => needsService.getNeedsDebugCounts();
+export const getNeedsMetricsByTeam = () => needsService.getNeedsMetricsByTeam();
+export const generateNeedsDemo = (count: number) => needsService.generateNeedsDemo(count);
