@@ -12,6 +12,7 @@ import {
   NeedMetricsSummaryResponse,
   NeedStatusActionRequest,
   NeedTriageRequest,
+  SupportImportRunResponse,
 } from '@/types/needs-enterprise';
 
 export interface NeedsRequestMeta {
@@ -253,6 +254,11 @@ class NeedsService {
     await apiClient.post(API_ENDPOINTS.NEEDS_CANCEL(needId), body);
   }
 
+
+  async runSupportImport(): Promise<void | SupportImportRunResponse> {
+    return apiClient.post<void | SupportImportRunResponse>(API_ENDPOINTS.SUPPORT_IMPORT_RUN);
+  }
+
   async createInternalTask(id: string): Promise<void> {
     const actor = authService.getActorIdentifier() ?? 'system';
     await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id), { actor });
@@ -273,3 +279,5 @@ export const startNeed = (needId: number, body: NeedStatusActionRequest) => need
 export const blockNeed = (needId: number, body: NeedStatusActionRequest) => needsService.blockNeed(needId, body);
 export const completeNeed = (needId: number, body: NeedStatusActionRequest) => needsService.completeNeed(needId, body);
 export const cancelNeed = (needId: number, body: NeedStatusActionRequest) => needsService.cancelNeed(needId, body);
+
+export const runSupportImport = () => needsService.runSupportImport();

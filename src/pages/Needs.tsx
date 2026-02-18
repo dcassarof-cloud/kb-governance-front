@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCcw, RefreshCw } from 'lucide-react';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { NeedActionDialog } from '@/components/needs/NeedActionDialog';
@@ -14,8 +14,9 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useNeedMetricsSummary, useNeedMutations, useNeedsList } from '@/hooks/useNeedsEnterprise';
+import { useNeedMetricsSummary, useNeedMutations, useNeedsList, useRunSupportImportMutation } from '@/hooks/useNeedsEnterprise';
 import type { NeedItem } from '@/types';
+import { hasRole } from '@/services/auth.service';
 import type { NeedStatusActionRequest, NeedTriageRequest } from '@/types/needs-enterprise';
 
 type NeedActionType = 'start' | 'block' | 'complete' | 'cancel';
@@ -58,6 +59,8 @@ export default function NeedsPage() {
   const needsQuery = useNeedsList();
   const metricsQuery = useNeedMetricsSummary();
   const { triageMutation, startMutation, blockMutation, completeMutation, cancelMutation } = useNeedMutations();
+  const runSupportImportMutation = useRunSupportImportMutation();
+  const canRunSupportImport = hasRole(['ADMIN', 'MANAGER']);
 
   const [triageNeedId, setTriageNeedId] = useState<number | null>(null);
   const [historyNeedId, setHistoryNeedId] = useState<number | null>(null);
@@ -92,8 +95,20 @@ export default function NeedsPage() {
     <MainLayout>
       <PageHeader title="Necessidades" description="Workflow • SLA • Auditoria" />
 
-      <div className="mb-4 flex items-center justify-end">
-        <Button type="button" variant="outline" onClick={handleReload} disabled={needsQuery.isFetching || metricsQuery.isFetching}>
+      <div className="mb-4 flex items-center justify-end gap-2">
+        {canRunSupportImport ? (
+          <Button type="button" onClick={() => runSupportImportMutation.mutate()} disabled={runSupportImportMutation.isPending}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            {runSupportImportMutation.isPending ? 'Atualizando…' : 'Atualizar dados do suporte'}
+          </Button>
+        ) : null}
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleReload}
+          disabled={needsQuery.isFetching || metricsQuery.isFetching || runSupportImportMutation.isPending}
+        >
           <RefreshCw className="mr-2 h-4 w-4" />
           Recarregar
         </Button>
@@ -118,7 +133,11 @@ export default function NeedsPage() {
       ) : !tableRows.length ? (
         <EmptyState
           title="Nenhuma necessidade encontrada."
-          description="Ajuste os filtros do backend ou recarregue a listagem."
+          description={
+            canRunSupportImport
+              ? "Dica: clique em ‘Atualizar dados do suporte’ para importar e gerar necessidades."
+              : 'Peça para um administrador atualizar os dados do suporte.'
+          }
           action={{ label: 'Recarregar', onClick: handleReload }}
         />
       ) : (

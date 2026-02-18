@@ -9,6 +9,7 @@ import {
   getNeedHistory,
   getNeedMetricsSummary,
   needsService,
+  runSupportImport,
   startNeed,
   triageNeed,
 } from '@/services/needs.service';
@@ -116,6 +117,31 @@ export const useNeedMutations = () => {
     completeMutation,
     cancelMutation,
   };
+};
+
+
+
+export const useRunSupportImportMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => runSupportImport(),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['needs'] }),
+        queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
+      ]);
+      toast({ title: 'Dados atualizados com sucesso' });
+    },
+    onError: (error) => {
+      const info = toApiErrorInfo(error, 'Falha ao atualizar dados do suporte.');
+      toast({
+        title: 'Falha ao atualizar dados do suporte',
+        description: info.message,
+        variant: 'destructive',
+      });
+    },
+  });
 };
 
 export const useNeedLegacyActions = () => {
