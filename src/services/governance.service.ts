@@ -79,6 +79,11 @@ export interface ManualAssignmentResult {
   ticketUrl?: string | null;
   ticketCreated?: boolean | null;
 }
+
+
+export const hasResponsiblesSummaryEndpoint =
+  typeof API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUMMARY === 'string' &&
+  API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUMMARY.length > 0;
 /**
  * ✅ Filtros alinhados com o endpoint atual do backend:
  * GET /api/v1/governance/manuals?page=1&size=10&system=&status=&q=
@@ -254,6 +259,16 @@ const normalizeArticleId = (value: unknown): number | null => {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+};
+
+
+const getHeaderValue = (headers: Headers | Record<string, string | undefined>, name: string) => {
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name) ?? (headers as Headers).get(name.toLowerCase()) ?? undefined;
+  }
+
+  const normalizedHeaders = headers as Record<string, string | undefined>;
+  return normalizedHeaders[name] ?? normalizedHeaders[name.toLowerCase()] ?? undefined;
 };
 
 export const normalizeGovernanceIssue = (response: unknown): GovernanceIssueDto => {
@@ -646,17 +661,8 @@ class GovernanceService {
     const response = await apiClient.postWithMeta<unknown>(API_ENDPOINTS.GOVERNANCE_ISSUE_ASSIGN(id), payload);
     const normalized = normalizeGovernanceIssue(response.data);
 
-    const getHeader = (name: string) => {
-      if (typeof response.headers.get === 'function') {
-        return response.headers.get(name) ?? response.headers.get(name.toLowerCase()) ?? undefined;
-      }
-
-      const headers = response.headers as unknown as Record<string, string | undefined>;
-      return headers[name] ?? headers[name.toLowerCase()] ?? undefined;
-    };
-
-    const ticketUrl = getHeader('X-Ticket-Url') ?? null;
-    const partialFailure = getHeader('X-Partial-Failure');
+    const ticketUrl = getHeaderValue(response.headers, 'X-Ticket-Url') ?? null;
+    const partialFailure = getHeaderValue(response.headers, 'X-Partial-Failure');
 
     return {
       ...normalized,
@@ -679,7 +685,7 @@ class GovernanceService {
   }
 
   async createManualAssignment(payload: ManualAssignmentPayload): Promise<ManualAssignmentResult> {
-    const response = await apiClient.post<unknown>(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(payload.articleId), {
+    const response = await apiClient.postWithMeta<unknown>(API_ENDPOINTS.GOVERNANCE_MANUAL_ASSIGN(payload.articleId), {
       responsible: payload.agentId,
       reason: payload.reason,
       priority: payload.priority,
@@ -689,11 +695,21 @@ class GovernanceService {
       actor: authService.getActorIdentifier() ?? 'system',
     });
 
-    const data = response as Record<string, unknown> | null;
+    const data = response.data as Record<string, unknown> | null;
+    const ticketUrl =
+      getHeaderValue(response.headers, 'X-Ticket-Url') ??
+      (data?.ticketUrl as string) ??
+      (data?.movideskTicketUrl as string) ??
+      null;
+    const partialFailure = getHeaderValue(response.headers, 'X-Partial-Failure');
+
     return {
       id: data?.id ? String(data.id) : undefined,
-      ticketUrl: (data?.ticketUrl as string) ?? (data?.movideskTicketUrl as string) ?? null,
-      ticketCreated: (data?.ticketCreated as boolean) ?? null,
+      ticketUrl,
+      ticketCreated:
+        (data?.ticketCreated as boolean | null | undefined) ??
+        (payload.createTicket ? !Boolean(partialFailure) : null) ??
+        null,
     };
   }
 
@@ -745,11 +761,14 @@ class GovernanceService {
 
   async getSuggestedAssignee(query: string, _responsibleType?: string): Promise<GovernanceSuggestedAssignee> {
     const normalizedResponsibleType = 'AGENT';
+    // IMPORTANTE: não misturar ADMIN/APP_USER no fluxo de atribuição.
+    // O backend já suporta filtro por tipo e limite via query params.
     const response = await apiClient.get<unknown>(API_ENDPOINTS.GOVERNANCE_RESPONSIBLES_SUGGEST, {
       params: cleanQueryParams({
         q: query || undefined,
         responsibleType: normalizedResponsibleType,
         type: normalizedResponsibleType,
+        limit: 20,
       }),
     });
 
@@ -771,7 +790,11 @@ class GovernanceService {
     const data = response as Record<string, unknown> | null;
     const alternatives = normalizeResponsibleList(
       data?.alternatives ?? data?.options ?? data?.items ?? data?.content ?? data?.data ?? response
-    );
+    ).filter((item) => {
+      const type = item.responsibleType?.toUpperCase();
+      // Mantém apenas agentes, inclusive quando o backend devolve payload híbrido.
+      return !type || type === 'AGENT' || type === 'KB_AGENT';
+    });
 
     return { suggested: alternatives[0] ?? null, alternatives };
   }

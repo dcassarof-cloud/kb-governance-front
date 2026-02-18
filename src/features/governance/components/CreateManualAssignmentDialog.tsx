@@ -204,6 +204,16 @@ export function CreateManualAssignmentDialog({
 
         if (createTicket && result.ticketCreated === false) {
           toast({ title: governanceTexts.general.attentionTitle, description: 'Atribuição salva, ticket não criado.' });
+        } else if (resolvedTicketUrl) {
+          toast({
+            title: governanceTexts.general.update,
+            description: 'Atribuição criada.',
+            action: (
+              <ToastAction altText="Abrir ticket" onClick={() => window.open(resolvedTicketUrl, '_blank', 'noopener,noreferrer')}>
+                Abrir ticket
+              </ToastAction>
+            ),
+          });
         } else {
           toast({ title: governanceTexts.general.update, description: 'Atribuição criada.' });
         }
@@ -257,7 +267,7 @@ export function CreateManualAssignmentDialog({
             {agentsLoading ? (
               <div className="text-sm text-muted-foreground">Carregando agentes...</div>
             ) : agents.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Nenhum agente encontrado. Tente outro termo e recarregue.</div>
+              <div className="text-sm text-muted-foreground">Nenhum agente encontrado. Ajuste o termo para buscar kb_agent.</div>
             ) : (
               <Select value={agentId} onValueChange={setAgentId}>
                 <SelectTrigger>

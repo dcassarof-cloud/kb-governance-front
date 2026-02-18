@@ -34,3 +34,16 @@ export const useManualUpdatesReport = () =>
     mutationFn: (params: { systemCode?: string; start?: string; end?: string }) =>
       governanceService.downloadManualUpdatesReport(params),
   });
+
+
+/**
+ * Hook para resumo de responsáveis.
+ * Não força fallback de endpoint: quem consome decide a UX quando endpoint estiver ausente.
+ */
+export const useResponsiblesSummary = (enabled = true) =>
+  useQuery({
+    queryKey: ['responsibles-summary'],
+    queryFn: () => governanceService.getResponsiblesSummary(),
+    enabled,
+    retry: false,
+  });
