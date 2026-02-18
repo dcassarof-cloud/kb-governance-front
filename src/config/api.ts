@@ -66,6 +66,7 @@ export const API_ENDPOINTS = {
   NEEDS_CANCEL: (id: string | number) => `/needs/${id}/cancel`,
   NEEDS_CREATE_TASK: (id: string | number) => `/needs/${id}/tasks`,
   NEEDS_CREATE_MASTER_TICKET: (id: string | number) => `/needs/${id}/master-ticket`,
+  SUPPORT_IMPORT_RUN: '/support/import/run',
   SYSTEMS: '/systems',
   SYSTEM_BY_ID: (id: string | number) => `/systems/${id}`,
   SYNC_RUNS: '/sync/runs',
