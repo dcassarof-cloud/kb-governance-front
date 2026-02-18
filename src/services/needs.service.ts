@@ -299,8 +299,7 @@ class NeedsService {
   }
 
   async createInternalTask(id: string): Promise<void> {
-    const actor = authService.getActorIdentifier() ?? 'system';
-    await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id), { actor });
+    await apiClient.post(API_ENDPOINTS.NEEDS_CREATE_TASK(id));
   }
 
   async createMasterTicket(id: string): Promise<void> {
