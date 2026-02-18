@@ -139,3 +139,16 @@ class ApiClient {
 export const apiClientService = new ApiClient();
 export const apiClientInstance = apiClientService;
 export { apiClientService as apiClient };
+
+
+export async function runSupportImport() {
+  return apiClientService.postWithMeta<unknown>('/support/import/run');
+}
+
+export async function getNeedsDebugCounts() {
+  return apiClientService.getWithMeta<unknown>('/needs/debug-counts');
+}
+
+export async function getNeedsMetricsByTeam() {
+  return apiClientService.getWithMeta<unknown>('/needs/metrics/by-team');
+}
