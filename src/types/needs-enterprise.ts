@@ -52,3 +52,20 @@ export interface SupportImportRunResponse {
   importedCount?: number;
   [key: string]: unknown;
 }
+
+export interface NeedsDebugCountsResponse {
+  rulesActive: number;
+  clusters: number;
+  tickets: number;
+  needsTotal: number;
+  ticketsWithoutAssignee: number;
+}
+
+export interface NeedsTeamMetricsItem {
+  teamId: number | string;
+  teamName: string;
+  needsTotal: number;
+  openTotal: number;
+  overdueTotal: number;
+  criticalTotal: number;
+}
