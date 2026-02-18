@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertCircle, Plus, RefreshCw, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -8,84 +9,34 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ApiErrorBanner } from '@/components/shared/ApiErrorBanner';
 import { Button } from '@/components/ui/button';
 
-import { governanceService } from '@/services/governance.service';
+import { governanceService, hasResponsiblesSummaryEndpoint } from '@/services/governance.service';
 import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
-import { GovernanceIssueDto, GovernanceResponsible, GovernanceResponsiblesSummary } from '@/types';
-import { toast } from '@/hooks/use-toast';
+import { GovernanceIssueDto } from '@/types';
 import { governanceTexts } from '@/governanceTexts';
 import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
-
-const isIssueOpen = (issue: GovernanceIssueDto) => issue.status !== 'RESOLVED' && issue.status !== 'IGNORED';
-
-const isIssueOverdue = (issue: GovernanceIssueDto) => {
-  if (!isIssueOpen(issue)) return false;
-  const dueDateValue = issue.slaDueAt ?? issue.dueDate;
-  if (!dueDateValue) return false;
-  const dueDate = new Date(dueDateValue);
-  if (Number.isNaN(dueDate.getTime())) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  dueDate.setHours(0, 0, 0, 0);
-  return dueDate < today;
-};
+import { useResponsiblesSummary } from '@/features/governance/hooks/useGovernanceQueries';
 
 const resolveResponsibleKey = (issue: GovernanceIssueDto) =>
   issue.assignedAgentName || issue.responsibleName || issue.responsible || issue.assignedAgentId || issue.responsibleId || '';
 
-const normalizeWorkloadResponse = (raw: unknown): GovernanceResponsible[] => {
-  if (Array.isArray(raw)) return raw as GovernanceResponsible[];
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>;
-    const list = obj.data ?? obj.items ?? obj.content ?? [];
-    return Array.isArray(list) ? (list as GovernanceResponsible[]) : [];
-  }
-  return [];
-};
-
 export default function WorkloadPage() {
-  const [summary, setSummary] = useState<GovernanceResponsiblesSummary | null>(null);
-  const [issues, setIssues] = useState<GovernanceIssueDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [prefilledAgentId, setPrefilledAgentId] = useState<string>('');
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [summaryResult, issuesResult] = await Promise.allSettled([
-        governanceService.getResponsiblesSummary(),
-        governanceService.listIssues({ page: 1, size: 200, responsibleType: 'AGENT' }),
-      ]);
+  const summaryQuery = useResponsiblesSummary(hasResponsiblesSummaryEndpoint);
+  const issuesQuery = useQuery({
+    queryKey: ['workload-issues'],
+    queryFn: () => governanceService.listIssues({ page: 1, size: 200, responsibleType: 'AGENT' }),
+    enabled: hasResponsiblesSummaryEndpoint,
+    retry: false,
+  });
 
-      if (summaryResult.status === 'fulfilled') {
-        setSummary({
-          ...summaryResult.value,
-          responsibles: normalizeWorkloadResponse(summaryResult.value.responsibles),
-        });
-      }
-
-      if (issuesResult.status === 'fulfilled') {
-        setIssues(issuesResult.value?.data ?? []);
-      }
-
-      if (summaryResult.status === 'rejected' && issuesResult.status === 'rejected') {
-        throw summaryResult.reason ?? issuesResult.reason;
-      }
-    } catch (err) {
-      const info = toApiErrorInfo(err, governanceTexts.workload.loadError);
-      const message = formatApiErrorInfo(info);
-      setError(message);
-      toast({ title: governanceTexts.general.errorTitle, description: message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const summary = summaryQuery.data ?? null;
+  const issues = issuesQuery.data?.data ?? [];
+  const isLoading = summaryQuery.isLoading || issuesQuery.isLoading;
+  const errorMessage = summaryQuery.error || issuesQuery.error
+    ? formatApiErrorInfo(toApiErrorInfo(summaryQuery.error ?? issuesQuery.error, governanceTexts.workload.loadError))
+    : null;
 
   const systemsByResponsible = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -94,41 +45,19 @@ export default function WorkloadPage() {
       if (!key) return;
       const system = issue.systemName || issue.systemCode;
       if (!system) return;
-      if (!map.has(key)) {
-        map.set(key, new Set());
-      }
+      if (!map.has(key)) map.set(key, new Set());
       map.get(key)?.add(system);
     });
     return map;
   }, [issues]);
 
-  const responsibles = useMemo(() => {
-    const list = summary?.responsibles ?? [];
-    if (list.length > 0) return list;
+  const responsibles = summary?.responsibles ?? [];
 
-    const fallbackMap = new Map<string, GovernanceResponsible>();
-    issues.forEach((issue) => {
-      const key = resolveResponsibleKey(issue);
-      if (!key) return;
-      const current = fallbackMap.get(key) ?? { name: key };
-      if (isIssueOpen(issue)) {
-        current.openIssues = (current.openIssues ?? 0) + 1;
-      }
-      if (isIssueOverdue(issue)) {
-        current.overdueIssues = (current.overdueIssues ?? 0) + 1;
-      }
-      fallbackMap.set(key, current);
-    });
-    return Array.from(fallbackMap.values());
-  }, [issues, summary]);
-
-  const renderSystems = (responsible: GovernanceResponsible) => {
-    const key = responsible.id ?? responsible.name;
-    const systems = Array.from(systemsByResponsible.get(key) ?? []);
+  const renderSystems = (responsibleNameOrId: string) => {
+    const systems = Array.from(systemsByResponsible.get(responsibleNameOrId) ?? []);
     if (systems.length === 0) return governanceTexts.general.notAvailable;
     if (systems.length <= 3) return systems.join(', ');
-    const visible = systems.slice(0, 3).join(', ');
-    return `${visible} +${systems.length - 3}`;
+    return `${systems.slice(0, 3).join(', ')} +${systems.length - 3}`;
   };
 
   return (
@@ -139,51 +68,40 @@ export default function WorkloadPage() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">{governanceTexts.workload.title}</h3>
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                setPrefilledAgentId('');
-                setManualDialogOpen(true);
-              }}
-            >
+            <Button size="sm" onClick={() => { setPrefilledAgentId(''); setManualDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               ➕ Solicitar manual
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchData}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void summaryQuery.refetch();
+                void issuesQuery.refetch();
+              }}
+              disabled={!hasResponsiblesSummaryEndpoint}
+            >
               <RefreshCw className="h-4 w-4 mr-2" />
               {governanceTexts.general.update}
             </Button>
           </div>
         </div>
 
-
-        <div className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          Consolidado por time (em breve). Exibindo carga por agente.
-        </div>
-
-        {loading ? (
+        {!hasResponsiblesSummaryEndpoint ? (
+          <EmptyState
+            icon={AlertCircle}
+            title="Endpoint ausente"
+            description="Backend não expõe endpoint de resumo de responsáveis nesta versão"
+          />
+        ) : isLoading ? (
           <LoadingSkeleton variant="table" rows={5} />
-        ) : error ? (
+        ) : errorMessage ? (
           <>
-            <ApiErrorBanner
-              title="Falha ao carregar carga do time"
-              description={error}
-              onRetry={fetchData}
-            />
-            <EmptyState
-              icon={AlertCircle}
-              title={governanceTexts.workload.loadError}
-              description="Não foi possível carregar os dados de carga."
-              action={{ label: 'Recarregar', onClick: fetchData }}
-            />
+            <ApiErrorBanner title="Falha ao carregar carga do time" description={errorMessage} onRetry={() => { void summaryQuery.refetch(); void issuesQuery.refetch(); }} />
+            <EmptyState icon={AlertCircle} title={governanceTexts.workload.loadError} description="Não foi possível carregar os dados de carga." action={{ label: 'Recarregar', onClick: () => { void summaryQuery.refetch(); void issuesQuery.refetch(); } }} />
           </>
         ) : responsibles.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title="Nenhum responsável encontrado"
-            description="Nenhum responsável encontrado. Verifique se existem issues com responsável ou se a sincronização de agentes está ativa."
-            action={{ label: 'Recarregar', onClick: fetchData }}
-          />
+          <EmptyState icon={Users} title="Nenhum responsável encontrado" description="Nenhum responsável encontrado. Verifique se existem issues com responsável ou se a sincronização de agentes está ativa." action={{ label: 'Recarregar', onClick: () => { void summaryQuery.refetch(); void issuesQuery.refetch(); } }} />
         ) : (
           <div className="table-container overflow-x-auto">
             <table className="w-full">
@@ -200,6 +118,7 @@ export default function WorkloadPage() {
               <tbody>
                 {responsibles.map((responsible, index) => {
                   const key = responsible.id ?? `${responsible.name}-${index}`;
+                  const lookupKey = responsible.id ?? responsible.name;
                   const openIssues = responsible.openIssues ?? 0;
                   const pendingIssues = responsible.pendingIssues ?? responsible.openIssues ?? 0;
                   const overdue = responsible.overdueIssues ?? 0;
@@ -209,18 +128,14 @@ export default function WorkloadPage() {
                     <tr key={key} className="border-t border-border hover:bg-muted/30 transition-colors" onClick={() => setPrefilledAgentId(responsible.id ?? '')}>
                       <td className="p-4 font-medium">
                         <div>{responsible.name}</div>
-                        {responsible.email && (
-                          <div className="text-xs text-muted-foreground">{responsible.email}</div>
-                        )}
-                        {responsible.teamName && (
-                          <div className="text-xs text-muted-foreground">Time: {responsible.teamName}</div>
-                        )}
+                        {responsible.email && <div className="text-xs text-muted-foreground">{responsible.email}</div>}
+                        {responsible.teamName && <div className="text-xs text-muted-foreground">Time: {responsible.teamName}</div>}
                       </td>
                       <td className="p-4 text-muted-foreground">{openIssues}</td>
                       <td className="p-4 text-muted-foreground">{pendingIssues}</td>
                       <td className="p-4 text-muted-foreground">{overdue}</td>
                       <td className="p-4 text-muted-foreground">{teamName}</td>
-                      <td className="p-4 text-muted-foreground">{renderSystems(responsible)}</td>
+                      <td className="p-4 text-muted-foreground">{renderSystems(lookupKey)}</td>
                     </tr>
                   );
                 })}
@@ -234,7 +149,10 @@ export default function WorkloadPage() {
         open={manualDialogOpen}
         onOpenChange={setManualDialogOpen}
         prefilledAgentId={prefilledAgentId}
-        onCreated={fetchData}
+        onCreated={() => {
+          void summaryQuery.refetch();
+          void issuesQuery.refetch();
+        }}
       />
     </MainLayout>
   );

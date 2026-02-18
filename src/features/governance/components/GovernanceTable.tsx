@@ -170,8 +170,8 @@ export function GovernanceTable({
                   const issueId = issue?.id || `issue-${index}`;
                   const system = issue?.systemName || issue?.systemCode || governanceTexts.general.notAvailable;
                   const manualId = issue?.articleId != null ? String(issue.articleId).trim() : '';
-                  const manualTitle = issue?.articleTitle?.trim() || (manualId ? `Artigo #${manualId}` : governanceTexts.general.notAvailable);
-                  const manualDetails = issue?.message?.trim() || '';
+                  const manualTitle = issue?.articleTitle?.trim() || (manualId ? `Artigo #${manualId}` : '-');
+                  const manualDetails = issue?.message?.trim() || '-';
                   const status = issue?.status || 'OPEN';
                   const responsible = issue?.assignedAgentName || issue?.responsibleName || issue?.responsible || governanceTexts.general.notAvailable;
                   const slaStatus = getSlaStatus(issue);
@@ -205,9 +205,7 @@ export function GovernanceTable({
                           <div className="text-sm text-muted-foreground">{system}</div>
                           <div className="font-medium">{manualTitle}</div>
                           {manualId && <div className="text-xs text-muted-foreground">ID: {manualId}</div>}
-                          {manualDetails && (
-                            <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{manualDetails}</div>
-                          )}
+                          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{manualDetails}</div>
                         </div>
                       </td>
                       <td className="p-4">

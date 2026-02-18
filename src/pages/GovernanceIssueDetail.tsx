@@ -533,7 +533,8 @@ export default function GovernanceIssueDetailPage() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.manualLabel}</p>
-                    <p className="font-medium">{issue.articleTitle?.trim() || (issue.articleId != null ? `Artigo #${issue.articleId}` : governanceTexts.general.notAvailable)}</p>
+                    <p className="font-medium">{issue.articleTitle?.trim() || (issue.articleId != null ? `Artigo #${issue.articleId}` : '-')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{issue.message?.trim() || '-'}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.statusLabel}</p>
