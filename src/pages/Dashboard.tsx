@@ -20,10 +20,9 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { dashboardGovernanceService } from '@/services/dashboardGovernance.service';
 import { dashboardService } from '@/services/dashboard.service';
-import { needsService } from '@/services/needs.service';
 import { hasRole } from '@/services/auth.service';
 import { toApiErrorInfo, formatApiErrorInfo } from '@/lib/api-error-info';
-import { DashboardGovernanceDto, DashboardSummary, NeedItem } from '@/types';
+import { DashboardGovernanceDto, DashboardSummary } from '@/types';
 import { governanceTexts } from '@/governanceTexts';
 
 const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
@@ -34,18 +33,10 @@ export default function DashboardPage() {
 
   const [data, setData] = useState<DashboardGovernanceDto | null>(null);
   const [summaryData, setSummaryData] = useState<DashboardSummary | null>(null);
-  const [needsData, setNeedsData] = useState<NeedItem[]>([]);
-
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [needsLoading, setNeedsLoading] = useState(false);
-
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [needsError, setNeedsError] = useState<string | null>(null);
-
-  const [hasPartialFailure, setHasPartialFailure] = useState(false);
-
   const reportWidgetError = useCallback((widget: string, error: unknown, fallbackMessage: string) => {
     const info = toApiErrorInfo(error, fallbackMessage);
     const formatted = formatApiErrorInfo(info);
@@ -86,36 +77,10 @@ export default function DashboardPage() {
     }
   }, [reportWidgetError]);
 
-  const loadNeeds = useCallback(async () => {
-    setNeedsLoading(true);
-    setNeedsError(null);
-    try {
-      const result = await needsService.listNeedsWithMeta({ page: 1, size: 50 });
-      setNeedsData(result.payload?.data ?? []);
-      setHasPartialFailure(result.meta.partialFailure);
-
-      if (result.meta.partialFailure) {
-        console.warn('[Dashboard:needs-recurring] partial data returned', {
-          requestId: result.meta.requestId ?? 'n/a',
-          correlationId: result.meta.correlationId ?? 'n/a',
-        });
-      }
-    } catch (error) {
-      const message = reportWidgetError(
-        'needs-recurring',
-        error,
-        'Recorrência indisponível (Movidesk). Tente novamente.'
-      );
-      setNeedsData([]);
-      setNeedsError(message);
-    } finally {
-      setNeedsLoading(false);
-    }
-  }, [reportWidgetError]);
 
   const fetchData = useCallback(async () => {
-    await Promise.allSettled([loadGovernance(), loadSummary(), loadNeeds()]);
-  }, [loadGovernance, loadNeeds, loadSummary]);
+    await Promise.allSettled([loadGovernance(), loadSummary()]);
+  }, [loadGovernance, loadSummary]);
 
   useEffect(() => {
     if (!isManager) return;
@@ -125,16 +90,6 @@ export default function DashboardPage() {
   const summary = data?.summary;
   const bySystem = useMemo(() => summaryData?.bySystem ?? [], [summaryData]);
   const byStatus = useMemo(() => summaryData?.byStatus ?? [], [summaryData]);
-  const needsOpen = useMemo(() => needsData.filter((need) => need.status === 'OPEN').length, [needsData]);
-  const needsRecurring = useMemo(
-    () =>
-      needsData.filter((need) => {
-        const occurrences = need.occurrences ?? need.quantity ?? 0;
-        return occurrences > 1;
-      }).length,
-    [needsData],
-  );
-
   const systemChartData = useMemo(
     () =>
       bySystem.map((system) => ({
@@ -263,12 +218,6 @@ export default function DashboardPage() {
     <MainLayout>
       <PageHeader title={governanceTexts.dashboard.title} description={governanceTexts.dashboard.description} />
 
-      {hasPartialFailure && (
-        <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning-foreground flex items-center gap-2">
-          <Info className="h-4 w-4" />
-          <span>Dados parciais.</span>
-        </div>
-      )}
 
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
         {summaryCards.map((card) => {
@@ -303,37 +252,6 @@ export default function DashboardPage() {
           );
         })}
 
-        <div className="card-metric flex flex-col gap-4 text-left border-l-4 border-primary/40 bg-primary/5">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{governanceTexts.dashboard.cards.needsOpenRecurring}</p>
-              {needsLoading ? (
-                <LoadingSkeleton variant="text" className="h-9 mt-2 w-28" />
-              ) : (
-                <p className="text-3xl font-semibold text-foreground mt-2">
-                  {needsError ? '—' : `${formatNumber(needsOpen)} • ${formatNumber(needsRecurring)}`}
-                </p>
-              )}
-            </div>
-            <div className="h-10 w-10 rounded-full bg-background/60 flex items-center justify-center">
-              <ShieldAlert className="h-5 w-5" />
-            </div>
-          </div>
-
-          {needsError ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-              <p className="text-destructive font-medium mb-2">Recorrência indisponível (Movidesk). Tente novamente.</p>
-              <Button type="button" variant="outline" size="sm" onClick={loadNeeds}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Tentar novamente
-              </Button>
-            </div>
-          ) : (
-            <Button type="button" variant="ghost" className="justify-start px-0" onClick={() => navigate('/needs')}>
-              {governanceTexts.dashboard.cards.cta}
-            </Button>
-          )}
-        </div>
       </section>
 
       {dashboardError && (
@@ -432,7 +350,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {!dashboardLoading && !summaryLoading && !needsLoading && !summary && !summaryData && !needsData.length && (
+      {!dashboardLoading && !summaryLoading && !summary && !summaryData && (
         <div className="mt-6">
           <EmptyState
             title={governanceTexts.dashboard.empty.title}
@@ -441,7 +359,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {dashboardError && summaryError && needsError && (
+      {dashboardError && summaryError && (
         <div className="mt-6 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-destructive">
             <AlertCircle className="h-4 w-4" />

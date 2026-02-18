@@ -45,3 +45,10 @@ export interface NeedHistoryItemResponse {
   changedAt: string;
   comment?: string;
 }
+
+
+export interface SupportImportRunResponse {
+  message?: string;
+  importedCount?: number;
+  [key: string]: unknown;
+}
