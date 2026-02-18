@@ -59,13 +59,20 @@ export interface NeedsDebugCountsResponse {
   tickets: number;
   needsTotal: number;
   ticketsWithoutAssignee: number;
+  minOriginCreatedAt?: string | null;
+  maxOriginCreatedAt?: string | null;
 }
 
 export interface NeedsTeamMetricsItem {
   teamId: number | string;
   teamName: string;
-  needsTotal: number;
-  openTotal: number;
-  overdueTotal: number;
-  criticalTotal: number;
+  open?: number;
+  triaged?: number;
+  inProgress?: number;
+  blocked?: number;
+  overdue?: number;
+  criticalOpen?: number;
+  openTotal?: number;
+  overdueTotal?: number;
+  criticalTotal?: number;
 }

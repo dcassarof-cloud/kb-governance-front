@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, RefreshCcw, RefreshCw, ShieldAlert } from 'lucide-react';
+import { ChevronDown, Loader2, RefreshCcw, RefreshCw, ShieldAlert } from 'lucide-react';
 
 import { MainLayout } from '@/components/layout/MainLayout';
 import { NeedActionDialog } from '@/components/needs/NeedActionDialog';
@@ -12,6 +12,7 @@ import { NeedsMetricsCards } from '@/components/needs/NeedsMetricsCards';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -34,12 +35,11 @@ import {
   useRunSupportImportMutation,
 } from '@/hooks/useNeedsEnterprise';
 import { toast } from '@/hooks/use-toast';
-import type { NeedItem } from '@/types';
 import { hasRole } from '@/services/auth.service';
-import type { NeedStatusActionRequest, NeedTriageRequest } from '@/types/needs-enterprise';
+import type { NeedItem } from '@/types';
+import type { NeedStatusActionRequest, NeedTriageRequest, NeedsTeamMetricsItem } from '@/types/needs-enterprise';
 
 type NeedActionType = 'start' | 'block' | 'complete' | 'cancel';
-type NeedsView = 'general' | 'byTeam';
 
 interface ActionModalState {
   type: NeedActionType;
@@ -76,10 +76,19 @@ const resolveActions = (status?: string | null): Array<'triage' | NeedActionType
   return ['triage', 'history'];
 };
 
+const resolveTeamMetricValue = (team: NeedsTeamMetricsItem, field: 'open' | 'overdue' | 'criticalOpen') => {
+  if (field === 'open') return team.open ?? team.openTotal ?? 0;
+  if (field === 'overdue') return team.overdue ?? team.overdueTotal ?? 0;
+  return team.criticalOpen ?? team.criticalTotal ?? 0;
+};
+
 export default function NeedsPage() {
   const isManager = hasRole(['ADMIN', 'MANAGER']);
   const [selectedTeamId, setSelectedTeamId] = useState<string | number | null>(null);
-  const [currentView, setCurrentView] = useState<NeedsView>('general');
+  const [triageNeedId, setTriageNeedId] = useState<number | null>(null);
+  const [historyNeedId, setHistoryNeedId] = useState<number | null>(null);
+  const [detailNeedId, setDetailNeedId] = useState<number | null>(null);
+  const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
 
   const needsQuery = useNeedsList(selectedTeamId);
   const metricsQuery = useNeedMetricsSummary();
@@ -89,11 +98,6 @@ export default function NeedsPage() {
   const { triageMutation, startMutation, blockMutation, completeMutation, cancelMutation } = useNeedMutations();
   const runSupportImportMutation = useRunSupportImportMutation();
   const generateDemoMutation = useGenerateNeedsDemoMutation();
-
-  const [triageNeedId, setTriageNeedId] = useState<number | null>(null);
-  const [historyNeedId, setHistoryNeedId] = useState<number | null>(null);
-  const [detailNeedId, setDetailNeedId] = useState<number | null>(null);
-  const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
 
   const handleReload = async () => {
     await Promise.all([
@@ -105,10 +109,9 @@ export default function NeedsPage() {
 
   const handleViewNeedsByTeam = (teamId: string | number) => {
     setSelectedTeamId(teamId);
-    setCurrentView('general');
     toast({
       title: 'Filtro por equipe aplicado',
-      description: 'Se não houver retorno, o backend pode ainda estar com filtro por equipe em implementação.',
+      description: 'A aba Geral foi filtrada para a equipe selecionada.',
     });
   };
 
@@ -155,8 +158,16 @@ export default function NeedsPage() {
         </Button>
 
         {isManager ? (
-          <Button type="button" onClick={() => runSupportImportMutation.mutate()} disabled={runSupportImportMutation.isPending}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
+          <Button
+            type="button"
+            onClick={() => runSupportImportMutation.mutate()}
+            disabled={runSupportImportMutation.isPending}
+          >
+            {runSupportImportMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="mr-2 h-4 w-4" />
+            )}
             {runSupportImportMutation.isPending ? 'Atualizando…' : 'Atualizar dados do suporte'}
           </Button>
         ) : null}
@@ -178,37 +189,56 @@ export default function NeedsPage() {
         ) : null}
       </div>
 
-      <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as NeedsView)}>
+      <Tabs defaultValue="geral" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="general">Geral</TabsTrigger>
-          <TabsTrigger value="byTeam">Por equipe</TabsTrigger>
+          <TabsTrigger value="geral">Geral</TabsTrigger>
+          {isManager ? <TabsTrigger value="equipe">Por equipe</TabsTrigger> : null}
         </TabsList>
 
-        <TabsContent value="general" className="space-y-6">
+        <TabsContent value="geral" className="space-y-6">
           <NeedsMetricsCards data={metricsQuery.data} isLoading={metricsQuery.isLoading} />
 
           {isManager ? (
             <Collapsible className="rounded-lg border">
               <CollapsibleTrigger asChild>
                 <Button type="button" variant="ghost" className="w-full justify-start rounded-none">
-                  Detalhes de diagnóstico
+                  Ver diagnóstico
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 p-4 pt-0">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <Card><CardHeader><CardTitle className="text-sm">Regras ativas</CardTitle></CardHeader><CardContent>{debugQuery.data?.rulesActive ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">Clusters</CardTitle></CardHeader><CardContent>{debugQuery.data?.clusters ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">Tickets</CardTitle></CardHeader><CardContent>{debugQuery.data?.tickets ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">Needs total</CardTitle></CardHeader><CardContent>{debugQuery.data?.needsTotal ?? 0}</CardContent></Card>
-                  <Card><CardHeader><CardTitle className="text-sm">Sem responsável</CardTitle></CardHeader><CardContent>{debugQuery.data?.ticketsWithoutAssignee ?? 0}</CardContent></Card>
+                {debugQuery.isError ? (
+                  <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertTitle>Falha ao carregar diagnóstico</AlertTitle>
+                    <AlertDescription>Tente recarregar a página para buscar os dados novamente.</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Card><CardHeader><CardTitle className="text-sm">rulesActive</CardTitle></CardHeader><CardContent>{debugQuery.data?.rulesActive ?? 0}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">clusters</CardTitle></CardHeader><CardContent>{debugQuery.data?.clusters ?? 0}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">tickets</CardTitle></CardHeader><CardContent>{debugQuery.data?.tickets ?? 0}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">ticketsWithoutAssignee</CardTitle></CardHeader><CardContent>{debugQuery.data?.ticketsWithoutAssignee ?? 0}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">needsTotal</CardTitle></CardHeader><CardContent>{debugQuery.data?.needsTotal ?? 0}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">minOriginCreatedAt</CardTitle></CardHeader><CardContent>{formatDate(debugQuery.data?.minOriginCreatedAt ?? null)}</CardContent></Card>
+                  <Card><CardHeader><CardTitle className="text-sm">maxOriginCreatedAt</CardTitle></CardHeader><CardContent>{formatDate(debugQuery.data?.maxOriginCreatedAt ?? null)}</CardContent></Card>
                 </div>
+
+                {(debugQuery.data?.ticketsWithoutAssignee ?? 0) > 0 ? (
+                  <Badge variant="destructive">Tickets sem responsável detectados.</Badge>
+                ) : null}
 
                 {(debugQuery.data?.needsTotal ?? 0) === 0 ? (
                   <Alert>
                     <ShieldAlert className="h-4 w-4" />
-                    <AlertTitle>Motivo provável: regras não bateram / cooldown / sem responsável.</AlertTitle>
+                    <AlertTitle>Nenhuma necessidade foi gerada.</AlertTitle>
                     <AlertDescription>
-                      Ação: clique em <strong>Atualizar dados do suporte</strong>. Plano B: gerar demo (se habilitado).
+                      Possíveis motivos:
+                      <ul className="mt-2 list-inside list-disc">
+                        <li>Não há tickets dentro da janela da regra.</li>
+                        <li>Dados históricos antigos.</li>
+                        <li>Sem responsável vinculado.</li>
+                      </ul>
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -233,10 +263,8 @@ export default function NeedsPage() {
               title="Nenhuma necessidade encontrada."
               description={
                 isManager
-                  ? showRuleMismatchHint
-                    ? 'As regras não bateram. Veja o diagnóstico.'
-                    : 'Clique em ‘Atualizar dados do suporte’ para importar e recalcular recorrências.'
-                  : 'Peça para um ADMIN/MANAGER atualizar os dados do suporte.'
+                  ? 'Clique em “Atualizar dados do suporte” para recalcular recorrências. Consulte o diagnóstico abaixo para entender o motivo.'
+                  : 'Solicite a um administrador a atualização dos dados.'
               }
               action={{ label: 'Recarregar', onClick: handleReload }}
             />
@@ -285,49 +313,61 @@ export default function NeedsPage() {
               </Table>
             </div>
           )}
+
+          {isManager && showRuleMismatchHint ? (
+            <Alert>
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Os dados indicam regras ativas sem necessidades geradas.</AlertTitle>
+              <AlertDescription>Verifique o painel de diagnóstico para validar janela de dados e responsáveis.</AlertDescription>
+            </Alert>
+          ) : null}
         </TabsContent>
 
-        <TabsContent value="byTeam">
-          {teamMetricsQuery.isError ? (
-            <EmptyState
-              title="Falha ao carregar métricas por equipe."
-              description="Não foi possível obter os dados da API. Tente novamente."
-              action={{ label: 'Recarregar', onClick: handleReload }}
-            />
-          ) : teamMetricsQuery.isLoading ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Skeleton className="h-36 w-full" />
-              <Skeleton className="h-36 w-full" />
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {(teamMetricsQuery.data ?? []).map((team) => (
-                <Card key={String(team.teamId)}>
-                  <CardHeader>
-                    <CardTitle>{team.teamName}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p>Total de necessidades: <strong>{team.needsTotal}</strong></p>
-                    <p>Em aberto: <strong>{team.openTotal}</strong></p>
-                    <p>Vencidas: <strong>{team.overdueTotal}</strong></p>
-                    <p>Críticas: <strong>{team.criticalTotal}</strong></p>
-                    <Button type="button" variant="outline" onClick={() => void handleViewNeedsByTeam(team.teamId)}>
-                      Ver necessidades
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-              {(teamMetricsQuery.data ?? []).length === 0 ? (
-                <EmptyState
-                  title="Nenhuma equipe encontrada."
-                  description="As métricas por equipe ainda não retornaram resultados."
-                  action={{ label: 'Recarregar', onClick: handleReload }}
-                  className="col-span-full"
-                />
-              ) : null}
-            </div>
-          )}
-        </TabsContent>
+        {isManager ? (
+          <TabsContent value="equipe">
+            {teamMetricsQuery.isError ? (
+              <EmptyState
+                title="Falha ao carregar métricas por equipe."
+                description="Não foi possível obter os dados da API. Tente novamente."
+                action={{ label: 'Recarregar', onClick: handleReload }}
+              />
+            ) : teamMetricsQuery.isLoading ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Skeleton className="h-44 w-full" />
+                <Skeleton className="h-44 w-full" />
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {(teamMetricsQuery.data ?? []).map((team) => (
+                  <Card key={String(team.teamId)}>
+                    <CardHeader>
+                      <CardTitle>{team.teamName}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p>open: <strong>{resolveTeamMetricValue(team, 'open')}</strong></p>
+                      <p>triaged: <strong>{team.triaged ?? 0}</strong></p>
+                      <p>inProgress: <strong>{team.inProgress ?? 0}</strong></p>
+                      <p>blocked: <strong>{team.blocked ?? 0}</strong></p>
+                      <p>overdue: <strong>{resolveTeamMetricValue(team, 'overdue')}</strong></p>
+                      <p>criticalOpen: <strong>{resolveTeamMetricValue(team, 'criticalOpen')}</strong></p>
+                      <Button type="button" variant="outline" onClick={() => void handleViewNeedsByTeam(team.teamId)}>
+                        Ver necessidades
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                {(teamMetricsQuery.data ?? []).length === 0 ? (
+                  <EmptyState
+                    title="Nenhuma equipe encontrada."
+                    description="As métricas por equipe ainda não retornaram resultados."
+                    action={{ label: 'Recarregar', onClick: handleReload }}
+                    className="col-span-full"
+                  />
+                ) : null}
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <NeedDetailDialog
