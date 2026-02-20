@@ -317,7 +317,8 @@ export type IssueType =
   | 'REVIEW_REQUIRED'
   | 'NOT_AI_READY'
   | 'DUPLICATE_CONTENT'
-  | 'INCOMPLETE_CONTENT';
+  | 'INCOMPLETE_CONTENT'
+  | 'INCONSISTENT_CONTENT';
 export type IssueSeverity = 'INFO' | 'WARN' | 'ERROR';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';

@@ -17,14 +17,14 @@ export const governanceTexts = {
     refreshList: 'Atualizar lista',
     page: (current: number, total: number) => `Página ${current} de ${total}`,
     previous: 'Anterior',
-    next: 'Próxima',
+    next: 'Próximo',
   },
   accessibility: {
     close: 'Fechar',
     more: 'Mais',
     morePages: 'Mais páginas',
     previous: 'Anterior',
-    next: 'Próxima',
+    next: 'Próximo',
     previousSlide: 'Slide anterior',
     nextSlide: 'Próximo slide',
     breadcrumb: 'Trilha de navegação',
@@ -64,6 +64,7 @@ export const governanceTexts = {
     NOT_AI_READY: 'Não pronto para IA',
     DUPLICATE_CONTENT: 'Conteúdo duplicado',
     INCOMPLETE_CONTENT: 'Conteúdo incompleto',
+    INCONSISTENT_CONTENT: 'Conteúdo inconsistente',
   },
   dashboard: {
     title: 'Painel de governança',
@@ -197,7 +198,7 @@ export const governanceTexts = {
     filters: {
       type: 'Tipo de pendência',
       typePlaceholder: 'Todos os tipos',
-      severity: 'Impacto',
+      severity: 'Situação',
       severityPlaceholder: 'Todos os impactos',
       system: 'Sistema',
       systemPlaceholder: 'Todos os sistemas',

@@ -12,11 +12,14 @@ export default function GovernancePage() {
     isManager,
     issues,
     totalPages,
+    hasNextPage,
     resolvedStatusOptions,
     resolvedTypeOptions,
     resolvedSeverityOptions,
     systemOptions,
     summaryMetrics,
+    responsibleOptions,
+    responsiblesLoading,
     formatDate,
     getDueDateValue,
     getSlaStatus,
@@ -64,6 +67,8 @@ export default function GovernancePage() {
         filters={state.filters}
         isManager={isManager}
         systemOptions={systemOptions}
+        responsibleOptions={responsibleOptions}
+        responsiblesLoading={responsiblesLoading}
         resolvedStatusOptions={resolvedStatusOptions}
         resolvedTypeOptions={resolvedTypeOptions}
         resolvedSeverityOptions={resolvedSeverityOptions}
@@ -81,6 +86,7 @@ export default function GovernancePage() {
         issuesError={state.issuesError}
         totalPages={totalPages}
         page={state.page}
+        hasNextPage={hasNextPage}
         canAssign={canAssign}
         canResolve={canResolve}
         actionLoading={state.actionLoading}

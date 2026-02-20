@@ -17,7 +17,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
@@ -56,11 +55,9 @@ export function CreateManualAssignmentDialog({
   const queryClient = useQueryClient();
   const [articleId, setArticleId] = useState('');
   const [agentId, setAgentId] = useState('');
-  const [agentQuery, setAgentQuery] = useState('');
   const [reason, setReason] = useState('');
   const [priority, setPriority] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [description, setDescription] = useState('');
   const [createTicket, setCreateTicket] = useState(true);
 
   const [agents, setAgents] = useState<GovernanceAgentOption[]>([]);
@@ -85,11 +82,8 @@ export function CreateManualAssignmentDialog({
     const loadAgents = async () => {
       setAgentsLoading(true);
       try {
-        const result = await governanceService.getSuggestedAssignee(agentQuery.trim(), 'AGENT');
-        const options = (result.alternatives ?? [])
-          .filter((item) => item.id && item.name)
-          .map((item) => ({ id: item.id as string, name: item.name }));
-        setAgents(options);
+        const result = await governanceService.listAgents();
+        setAgents(result);
       } catch (err) {
         const info = toApiErrorInfo(err, 'Erro ao carregar agentes');
         toast({
@@ -103,7 +97,7 @@ export function CreateManualAssignmentDialog({
     };
 
     void loadAgents();
-  }, [open, agentQuery]);
+  }, [open]);
 
   const selectedAgentName = useMemo(
     () => agents.find((agent) => agent.id === agentId)?.name ?? null,
@@ -113,11 +107,9 @@ export function CreateManualAssignmentDialog({
   const resetFields = () => {
     setArticleId('');
     setAgentId('');
-    setAgentQuery('');
     setReason('');
     setPriority('');
     setDueDate('');
-    setDescription('');
     setCreateTicket(true);
     setTicketUrl(null);
   };
@@ -133,18 +125,12 @@ export function CreateManualAssignmentDialog({
   };
 
   const onSubmit = async () => {
-    if (!agentId.trim()) {
-      toast({ title: governanceTexts.general.attentionTitle, description: 'Selecione um agente responsável.' });
-      return;
-    }
-
-    if (!issueId && !reason) {
-      toast({ title: governanceTexts.general.attentionTitle, description: 'Selecione o motivo da solicitação.' });
-      return;
-    }
-
-    if (!issueId && !priority) {
-      toast({ title: governanceTexts.general.attentionTitle, description: 'Selecione a prioridade.' });
+    if (!agentId.trim() || !reason || !priority || !dueDate) {
+      toast({
+        title: governanceTexts.general.attentionTitle,
+        description: 'Preencha os campos obrigatórios: Agente, Motivo, Prioridade e Prazo.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -158,7 +144,7 @@ export function CreateManualAssignmentDialog({
           responsibleId: agentId,
           responsibleName: selectedAgentName ?? agentId,
           createTicket,
-          dueDate: dueDate || undefined,
+          dueDate,
         });
 
         const ticketLink = result.metadata?.ticketUrl ?? null;
@@ -180,22 +166,18 @@ export function CreateManualAssignmentDialog({
         } else {
           toast({ title: governanceTexts.general.update, description: governanceTexts.governance.assignDialog.success });
         }
-
-        await invalidateGovernanceQueries();
       } else {
-        const parsedArticleId = Number(articleId);
-        if (!Number.isInteger(parsedArticleId) || parsedArticleId <= 0) {
-          toast({ title: governanceTexts.general.attentionTitle, description: 'Informe um ID de artigo inteiro e maior que zero.' });
-          return;
+        const numericArticleId = Number(articleId);
+        if (!Number.isFinite(numericArticleId) || numericArticleId <= 0) {
+          throw new Error('Informe um ID de artigo válido para criar atribuição manual.');
         }
 
         const result = await governanceService.createManualAssignment({
-          articleId: parsedArticleId,
+          articleId: numericArticleId,
           agentId,
           reason,
           priority,
-          dueDate: dueDate || undefined,
-          description: description.trim() || undefined,
+          dueDate,
           createTicket,
         });
 
@@ -219,6 +201,7 @@ export function CreateManualAssignmentDialog({
         }
       }
 
+      await invalidateGovernanceQueries();
       if (onCreated) {
         await onCreated();
       }
@@ -258,16 +241,11 @@ export function CreateManualAssignmentDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Agente</Label>
-            <Input
-              value={agentQuery}
-              onChange={(event) => setAgentQuery(event.target.value)}
-              placeholder="Buscar agente"
-            />
+            <Label>Agente *</Label>
             {agentsLoading ? (
               <div className="text-sm text-muted-foreground">Carregando agentes...</div>
             ) : agents.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Nenhum agente encontrado. Ajuste o termo para buscar kb_agent.</div>
+              <div className="text-sm text-muted-foreground">Nenhum agente encontrado.</div>
             ) : (
               <Select value={agentId} onValueChange={setAgentId}>
                 <SelectTrigger>
@@ -286,7 +264,7 @@ export function CreateManualAssignmentDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Motivo</Label>
+              <Label>Motivo *</Label>
               <Select value={reason} onValueChange={setReason}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -300,7 +278,7 @@ export function CreateManualAssignmentDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Prioridade</Label>
+              <Label>Prioridade *</Label>
               <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -315,13 +293,8 @@ export function CreateManualAssignmentDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Prazo (opcional)</Label>
+            <Label>Prazo *</Label>
             <Input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Descrição (opcional)</Label>
-            <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} />
           </div>
 
           <div className="flex items-center gap-2">

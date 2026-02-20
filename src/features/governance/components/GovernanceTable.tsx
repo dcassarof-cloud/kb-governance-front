@@ -26,6 +26,7 @@ import type { GovernanceIssueDto, IssueSeverity, IssueStatus } from '@/types';
 import { ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
 import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
 import { toast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface GovernanceTableProps {
   issues: GovernanceIssueDto[];
@@ -33,6 +34,7 @@ interface GovernanceTableProps {
   issuesError: string | null;
   totalPages: number;
   page: number;
+  hasNextPage: boolean;
   canAssign: boolean;
   canResolve: boolean;
   actionLoading: { id: string; action: string } | null;
@@ -88,6 +90,7 @@ export function GovernanceTable({
   issuesError,
   totalPages,
   page,
+  hasNextPage,
   canAssign,
   canResolve,
   actionLoading,
@@ -219,11 +222,18 @@ export function GovernanceTable({
                           <div className="space-y-1">
                             <span className="text-sm font-medium text-foreground">{responsible}</span>
                             {(issue.assignedAgentId || (issue.responsibleType && issue.responsibleId)) && (
-                              <div className="text-xs text-muted-foreground">
-                                {issue.assignedAgentId
-                                  ? `ID do agente: ${issue.assignedAgentId}`
-                                  : `${(governanceTexts.governance.assignDialog.responsibleTypeOptions as Record<string, string>)[issue.responsibleType || ''] ?? issue.responsibleType}: ${issue.responsibleId}`}
-                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-xs text-muted-foreground cursor-help underline decoration-dotted">ID técnico</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {issue.assignedAgentId
+                                      ? `ID do agente: ${issue.assignedAgentId}`
+                                      : `${(governanceTexts.governance.assignDialog.responsibleTypeOptions as Record<string, string>)[issue.responsibleType || ''] ?? issue.responsibleType}: ${issue.responsibleId}`}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                           </div>
                         ) : (
@@ -305,14 +315,16 @@ export function GovernanceTable({
               {governanceTexts.general.previous}
             </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages}
-            >
-              {governanceTexts.general.next}
-            </Button>
+            {hasNextPage && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+                disabled={!hasNextPage}
+              >
+                {governanceTexts.general.next}
+              </Button>
+            )}
           </div>
         </div>
       )}
