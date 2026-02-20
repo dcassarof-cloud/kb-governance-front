@@ -22,9 +22,17 @@ export interface NeedsListFilters {
   q?: string | null;
 }
 
+export const NEEDS_QUERY_KEYS = {
+  list: ['needs.list'] as const,
+  metricsSummary: ['needs.metrics.summary'] as const,
+  metricsByTeam: ['needs.metrics.byTeam'] as const,
+  detail: (needId?: number | null) => ['needs.detail', needId ?? null] as const,
+  history: (needId?: number | null) => ['needs.history', needId ?? null] as const,
+};
+
 export const useNeedsList = (filters: NeedsListFilters) =>
   useQuery({
-    queryKey: ['needs', { teamId: filters.teamId ?? null, systemCode: filters.systemCode ?? null, q: filters.q ?? null }],
+    queryKey: [...NEEDS_QUERY_KEYS.list, { teamId: filters.teamId ?? null, systemCode: filters.systemCode ?? null, q: filters.q ?? null }],
     queryFn: () =>
       needsService.listNeedsWithMeta({
         page: 1,
@@ -37,21 +45,21 @@ export const useNeedsList = (filters: NeedsListFilters) =>
 
 export const useNeedMetricsSummary = () =>
   useQuery({
-    queryKey: ['needsMetricsSummary'],
+    queryKey: NEEDS_QUERY_KEYS.metricsSummary,
     queryFn: getNeedMetricsSummary,
     retry: false,
   });
 
 export const useNeedsMetricsByTeamQuery = () =>
   useQuery({
-    queryKey: ['needsMetricsByTeam'],
+    queryKey: NEEDS_QUERY_KEYS.metricsByTeam,
     queryFn: getNeedsMetricsByTeam,
     retry: false,
   });
 
 export const useNeedHistory = (needId?: number | null, enabled = true) =>
   useQuery({
-    queryKey: ['needHistory', needId],
+    queryKey: NEEDS_QUERY_KEYS.history(needId),
     queryFn: () => needsService.getNeedHistory(needId as number),
     enabled: enabled && !!needId,
     retry: false,
@@ -59,7 +67,7 @@ export const useNeedHistory = (needId?: number | null, enabled = true) =>
 
 export const useNeedDetail = (needId?: number | null, enabled = true) =>
   useQuery({
-    queryKey: ['needDetail', needId],
+    queryKey: NEEDS_QUERY_KEYS.detail(needId),
     queryFn: () => needsService.getNeed(String(needId)),
     enabled: enabled && !!needId,
     retry: false,
@@ -91,9 +99,9 @@ const resolveSupportImportErrorMessage = (error: unknown) => {
 
 const invalidateNeedQueries = async (queryClient: ReturnType<typeof useQueryClient>, needId: number) => {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['needs'] }),
-    queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
-    queryClient.invalidateQueries({ queryKey: ['needHistory', needId] }),
+    queryClient.invalidateQueries({ queryKey: NEEDS_QUERY_KEYS.list }),
+    queryClient.invalidateQueries({ queryKey: NEEDS_QUERY_KEYS.metricsSummary }),
+    queryClient.invalidateQueries({ queryKey: NEEDS_QUERY_KEYS.history(needId) }),
   ]);
 };
 
@@ -161,13 +169,12 @@ export const useRunSupportImportMutation = () => {
     mutationFn: () => runSupportImport(),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['needs'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsMetricsByTeam'] }),
+        queryClient.invalidateQueries({ queryKey: NEEDS_QUERY_KEYS.list }),
+        queryClient.invalidateQueries({ queryKey: NEEDS_QUERY_KEYS.metricsSummary }),
+        queryClient.invalidateQueries({ queryKey: NEEDS_QUERY_KEYS.metricsByTeam }),
       ]);
       toast({
-        title: 'Importação do suporte iniciada.',
-        description: 'Os dados serão atualizados conforme o processamento do backend.',
+        title: 'Atualização concluída',
       });
     },
     onError: (error) => {

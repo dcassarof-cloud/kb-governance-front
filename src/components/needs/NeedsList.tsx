@@ -65,7 +65,7 @@ export const NeedsList = ({ needs, total, isActionLoading = false, onTriage, onA
               const needId = parseNeedId(need);
               return (
                 <TableRow key={need.id}>
-                  <TableCell>{need.subject || need.summary || 'Sem título'}</TableCell>
+                  <TableCell className="max-w-[420px] truncate" title={need.title || need.subject || need.summary || 'Sem título'}>{need.title || need.subject || need.summary || 'Sem título'}</TableCell>
                   <TableCell>{need.teamName || '—'}</TableCell>
                   <TableCell>
                     <NeedStatusBadge status={need.status} />
