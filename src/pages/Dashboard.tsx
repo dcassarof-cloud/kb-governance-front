@@ -27,6 +27,12 @@ import { governanceTexts } from '@/governanceTexts';
 
 const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
 
+const sanitizeSystemLabel = (value: string): string => {
+  const trimmed = value.trim();
+  return trimmed.replace(/^Issues\s*-\s*/i, '');
+};
+
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const isManager = hasRole(['MANAGER', 'ADMIN']);
@@ -37,16 +43,9 @@ export default function DashboardPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const reportWidgetError = useCallback((widget: string, error: unknown, fallbackMessage: string) => {
+  const reportWidgetError = useCallback((_widget: string, error: unknown, fallbackMessage: string) => {
     const info = toApiErrorInfo(error, fallbackMessage);
-    const formatted = formatApiErrorInfo(info);
-    console.error(`[Dashboard:${widget}] request failed`, {
-      message: info.message,
-      correlationId: info.correlationId ?? 'n/a',
-      error,
-    });
-
-    return formatted;
+    return formatApiErrorInfo(info);
   }, []);
 
   const loadGovernance = useCallback(async () => {
@@ -93,7 +92,7 @@ export default function DashboardPage() {
   const systemChartData = useMemo(
     () =>
       bySystem.map((system) => ({
-        name: system.systemName || system.systemCode || governanceTexts.general.notAvailable,
+        name: sanitizeSystemLabel((system.systemName || system.systemCode || governanceTexts.general.notAvailable).trim()),
         value: system.total,
       })),
     [bySystem],
@@ -296,9 +295,9 @@ export default function DashboardPage() {
               }}
               className="h-[260px] w-full"
             >
-              <BarChart data={systemChartData} margin={{ left: 8, right: 8 }}>
+              <BarChart data={systemChartData} margin={{ left: 8, right: 8, bottom: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} height={56} tick={{ fontSize: 12 }} angle={-20} textAnchor="end" />
                 <YAxis tickLine={false} axisLine={false} width={32} />
                 <Tooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))' }} />
                 <Bar dataKey="value" fill="var(--color-value)" radius={[4, 4, 0, 0]} />

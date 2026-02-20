@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -10,11 +11,14 @@ import { governanceTexts } from '@/governanceTexts';
 import type { IssueSeverity, IssueStatus, IssueType } from '@/types';
 import type { GovernanceFilters } from '@/features/governance/state/governanceReducer';
 import { ISSUE_TYPE_LABELS } from '@/features/governance/hooks/useGovernance';
+import type { ResponsibleOption } from '@/services/governance.service';
 
 interface GovernanceFiltersProps {
   filters: GovernanceFilters;
   isManager: boolean;
   systemOptions: string[];
+  responsibleOptions: ResponsibleOption[];
+  responsiblesLoading: boolean;
   resolvedStatusOptions: Array<string | IssueStatus>;
   resolvedTypeOptions: Array<string | IssueType>;
   resolvedSeverityOptions: IssueSeverity[];
@@ -26,16 +30,12 @@ interface GovernanceFiltersProps {
   onRefresh: () => void;
 }
 
-/**
- * Bloco de filtros da fila de governança.
- *
- * Observação: os eventos disparam atualização de estado que posteriormente
- * sincroniza com URLSearchParams (fonte de verdade para filtros compartilháveis).
- */
 export function GovernanceFilters({
   filters,
   isManager,
   systemOptions,
+  responsibleOptions,
+  responsiblesLoading,
   resolvedStatusOptions,
   resolvedTypeOptions,
   resolvedSeverityOptions,
@@ -46,6 +46,19 @@ export function GovernanceFilters({
   onClearFilters,
   onRefresh,
 }: GovernanceFiltersProps) {
+  const [responsibleSearch, setResponsibleSearch] = useState('');
+
+  const filteredResponsibleOptions = useMemo(() => {
+    const q = responsibleSearch.trim().toLowerCase();
+    if (!q) {
+      return responsibleOptions;
+    }
+
+    return responsibleOptions.filter((option) =>
+      option.label.toLowerCase().includes(q) || option.value.toLowerCase().includes(q),
+    );
+  }, [responsibleOptions, responsibleSearch]);
+
   return (
     <div className="card-metric mb-6">
       <h3 className="font-semibold mb-4">{governanceTexts.governance.filtersTitle}</h3>
@@ -153,27 +166,26 @@ export function GovernanceFilters({
         <div className="space-y-2">
           <Label>{governanceTexts.governance.filters.responsible}</Label>
           <Input
-            placeholder={governanceTexts.governance.filters.responsiblePlaceholder}
-            value={filters.responsibleId || ''}
-            onChange={(event) => onFilterChange('responsibleId', event.target.value)}
+            placeholder="Buscar responsável por nome"
+            value={responsibleSearch}
+            onChange={(event) => setResponsibleSearch(event.target.value)}
             disabled={!isManager}
           />
-        </div>
-
-        <div className="space-y-2">
-          <Label>{governanceTexts.governance.assignDialog.responsibleTypeLabel}</Label>
           <Select
-            value={filters.responsibleType || 'ALL'}
-            onValueChange={(value) => onFilterChange('responsibleType', value === 'ALL' ? '' : value)}
-            disabled={!isManager}
+            value={filters.responsibleId || 'ALL'}
+            onValueChange={(value) => onFilterChange('responsibleId', value === 'ALL' ? '' : value)}
+            disabled={!isManager || responsiblesLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder={governanceTexts.governance.assignDialog.responsibleTypePlaceholder} />
+              <SelectValue placeholder={governanceTexts.governance.filters.responsiblePlaceholder} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">{governanceTexts.general.all}</SelectItem>
-              <SelectItem value="AGENT">{governanceTexts.governance.assignDialog.responsibleTypeOptions.AGENT}</SelectItem>
-              <SelectItem value="TEAM">{governanceTexts.governance.assignDialog.responsibleTypeOptions.TEAM}</SelectItem>
+              {filteredResponsibleOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
