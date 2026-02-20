@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
+import { API_ENDPOINTS } from '@/config/app-config';
 import { NeedsEmptyState } from '@/components/needs/NeedsEmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNeedDetail, useNeedHistory } from '@/hooks/useNeedsEnterprise';
+import { toApiErrorInfo } from '@/lib/api-error-info';
 
 interface NeedDetailsDrawerProps {
   open: boolean;
@@ -23,6 +25,48 @@ const formatDateTime = (value?: string | null) => {
 export const NeedDetailsDrawer = ({ open, onOpenChange, needId }: NeedDetailsDrawerProps) => {
   const detailQuery = useNeedDetail(needId, open);
   const historyQuery = useNeedHistory(needId, open);
+  const loggedErrorsRef = useRef({ detail: false, history: false });
+
+  const detailErrorInfo = detailQuery.isError ? toApiErrorInfo(detailQuery.error, 'Falha ao carregar detalhes.') : null;
+  const historyErrorInfo = historyQuery.isError ? toApiErrorInfo(historyQuery.error, 'Falha ao carregar histórico.') : null;
+
+  useEffect(() => {
+    loggedErrorsRef.current = { detail: false, history: false };
+  }, [needId, open]);
+
+  useEffect(() => {
+    if (!needId || !detailErrorInfo || loggedErrorsRef.current.detail) return;
+    console.error('[needs] detail_failed', {
+      id: needId,
+      url: API_ENDPOINTS.NEEDS_BY_ID(needId),
+      statusCode: detailErrorInfo.status,
+      correlationId: detailErrorInfo.correlationId,
+    });
+    loggedErrorsRef.current.detail = true;
+  }, [detailErrorInfo, needId]);
+
+  useEffect(() => {
+    if (!needId || !historyErrorInfo || loggedErrorsRef.current.history) return;
+    console.error('[needs] history_failed', {
+      id: needId,
+      url: API_ENDPOINTS.NEEDS_HISTORY(needId),
+      statusCode: historyErrorInfo.status,
+      correlationId: historyErrorInfo.correlationId,
+    });
+    loggedErrorsRef.current.history = true;
+  }, [historyErrorInfo, needId]);
+
+  const fallbackTitle = detailErrorInfo ? 'Falha ao carregar detalhes' : 'Falha ao carregar histórico';
+  const fallbackDescription = [
+    detailErrorInfo
+      ? `Detalhes • statusCode: ${detailErrorInfo.status ?? '—'} • correlationId: ${detailErrorInfo.correlationId ?? '—'}`
+      : null,
+    historyErrorInfo
+      ? `Histórico • statusCode: ${historyErrorInfo.status ?? '—'} • correlationId: ${historyErrorInfo.correlationId ?? '—'}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const hasDetailData = useMemo(() => {
     const detail = detailQuery.data;
@@ -53,8 +97,8 @@ export const NeedDetailsDrawer = ({ open, onOpenChange, needId }: NeedDetailsDra
           </div>
         ) : detailQuery.isError || historyQuery.isError ? (
           <NeedsEmptyState
-            title="Falha ao carregar detalhes"
-            description="Não foi possível obter os dados da necessidade e/ou histórico."
+            title={fallbackTitle}
+            description={fallbackDescription}
             onReload={() => {
               void detailQuery.refetch();
               void historyQuery.refetch();
