@@ -12,7 +12,6 @@ import {
   NeedMetricsSummaryResponse,
   NeedStatusActionRequest,
   NeedTriageRequest,
-  NeedsDebugCountsResponse,
   NeedsTeamMetricsItem,
   SupportImportRunResponse,
 } from '@/types/needs-enterprise';
@@ -41,6 +40,12 @@ export interface NeedsFilter {
   sort?: string;
 }
 
+export interface NeedsSystemMetricsItem {
+  systemCode: string;
+  systemName?: string | null;
+  open?: number;
+}
+
 const toNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
@@ -58,6 +63,11 @@ const formatDateInput = (value?: string) => {
   return value.split('T')[0];
 };
 
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item)).filter(Boolean);
+};
+
 const normalizeNeedExample = (raw: unknown): NeedTicketExample | null => {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
@@ -70,7 +80,12 @@ const normalizeNeedExample = (raw: unknown): NeedTicketExample | null => {
       (obj.summary as string) ??
       (obj.name as string) ??
       null,
+    subject: (obj.subject as string) ?? (obj.title as string) ?? null,
     systemCode: (obj.systemCode as string) ?? (obj.system as string) ?? (obj.systemId as string) ?? null,
+    status: (obj.status as string) ?? null,
+    finalStatus: (obj.finalStatus as string) ?? (obj.statusFinal as string) ?? null,
+    finishedBy: (obj.finishedBy as string) ?? (obj.lastResponsible as string) ?? null,
+    finishedByTeam: (obj.finishedByTeam as string) ?? (obj.lastResponsibleTeam as string) ?? null,
     url: (obj.url as string) ?? (obj.link as string) ?? (obj.ticketUrl as string) ?? null,
     createdAt: (obj.createdAt as string) ?? (obj.created_at as string) ?? (obj.openedAt as string) ?? null,
   };
@@ -86,6 +101,11 @@ const normalizeNeed = (raw: unknown): NeedItem => {
 
   return {
     id: obj.id ? String(obj.id) : (obj.needId as string) ?? (obj.code as string) ?? '',
+    teamId: (obj.teamId as string | number) ?? (obj.primaryTeamId as string | number) ?? null,
+    teamName: (obj.teamName as string) ?? (obj.primaryTeamName as string) ?? null,
+    category: (obj.category as string) ?? (obj.type as string) ?? null,
+    relatedSystems: toStringArray(obj.relatedSystems ?? obj.systems),
+    externalTicketId: (obj.externalTicketId as string) ?? (obj.movideskTicketId as string) ?? null,
     protocol: (obj.protocol as string) ?? (obj.ticketId as string) ?? (obj.movideskId as string) ?? null,
     subject: (obj.subject as string) ?? (obj.title as string) ?? null,
     summary: (obj.summary as string) ?? (obj.subject as string) ?? (obj.title as string) ?? null,
@@ -150,14 +170,6 @@ const normalizeNeed = (raw: unknown): NeedItem => {
   };
 };
 
-
-/**
- * Normaliza respostas do endpoint /needs para um envelope paginado consistente.
- *
- * Formatos aceitos atualmente (variam por ambiente/backend):
- * 1) Array simples: NeedResponse[]
- * 2) Paginado com `data`/`items`/`content` (via normalizePaginatedResponse)
- */
 function coerceToPaginated<T>(raw: unknown, page: number, size: number): PaginatedResponse<T> {
   if (Array.isArray(raw)) {
     return {
@@ -194,27 +206,8 @@ const normalizeNeedDetail = (raw: unknown): NeedDetail => {
 
 class NeedsService {
   async listNeeds(filter: NeedsFilter = {}): Promise<PaginatedResponse<NeedItem>> {
-    const { teamId, systemCode, status, start, end, periodStart, periodEnd, sort, page = 1, size = config.defaultPageSize } = filter;
-
-    const response = await apiClient.get<unknown>(API_ENDPOINTS.NEEDS, {
-      params: {
-        teamId,
-        systemCode,
-        status,
-        start: formatDateInput(start ?? periodStart),
-        end: formatDateInput(end ?? periodEnd),
-        sort,
-        page,
-        size,
-      },
-    });
-
-    const payload = coerceToPaginated<unknown>(response, page, size);
-
-    return {
-      ...payload,
-      data: payload.data.map((item) => normalizeNeed(item)),
-    };
+    const result = await this.listNeedsWithMeta(filter);
+    return result.payload;
   }
 
   async listNeedsWithMeta(filter: NeedsFilter = {}): Promise<NeedsListResult> {
@@ -257,6 +250,14 @@ class NeedsService {
     return apiClient.get<NeedMetricsSummaryResponse>(API_ENDPOINTS.NEEDS_METRICS_SUMMARY);
   }
 
+  async getNeedsMetricsByTeam(): Promise<NeedsTeamMetricsItem[]> {
+    return apiClient.get<NeedsTeamMetricsItem[]>(API_ENDPOINTS.NEEDS_METRICS_BY_TEAM);
+  }
+
+  async getNeedsMetricsBySystem(): Promise<NeedsSystemMetricsItem[]> {
+    return apiClient.get<NeedsSystemMetricsItem[]>(API_ENDPOINTS.NEEDS_METRICS_BY_SYSTEM);
+  }
+
   async getNeedHistory(needId: number): Promise<NeedHistoryItemResponse[]> {
     return apiClient.get<NeedHistoryItemResponse[]>(API_ENDPOINTS.NEEDS_HISTORY(needId));
   }
@@ -281,21 +282,8 @@ class NeedsService {
     await apiClient.post(API_ENDPOINTS.NEEDS_CANCEL(needId), body);
   }
 
-
   async runSupportImport(): Promise<void | SupportImportRunResponse> {
     return apiClient.post<void | SupportImportRunResponse>(API_ENDPOINTS.SUPPORT_IMPORT_RUN);
-  }
-
-  async getNeedsDebugCounts(): Promise<NeedsDebugCountsResponse> {
-    return apiClient.get<NeedsDebugCountsResponse>(API_ENDPOINTS.NEEDS_DEBUG_COUNTS);
-  }
-
-  async getNeedsMetricsByTeam(): Promise<NeedsTeamMetricsItem[]> {
-    return apiClient.get<NeedsTeamMetricsItem[]>(API_ENDPOINTS.NEEDS_METRICS_BY_TEAM);
-  }
-
-  async generateNeedsDemo(count: number): Promise<void> {
-    await apiClient.post<void>(`${API_ENDPOINTS.NEEDS_DEMO_GENERATE}?count=${count}`);
   }
 
   async createInternalTask(id: string): Promise<void> {
@@ -311,7 +299,6 @@ class NeedsService {
 export const needsService = new NeedsService();
 
 export const getNeedMetricsSummary = () => needsService.getNeedMetricsSummary();
-export const getNeedHistory = (needId: number) => needsService.getNeedHistory(needId);
 export const triageNeed = (needId: number, body: NeedTriageRequest) => needsService.triageNeed(needId, body);
 export const startNeed = (needId: number, body: NeedStatusActionRequest) => needsService.startNeed(needId, body);
 export const blockNeed = (needId: number, body: NeedStatusActionRequest) => needsService.blockNeed(needId, body);
@@ -319,6 +306,4 @@ export const completeNeed = (needId: number, body: NeedStatusActionRequest) => n
 export const cancelNeed = (needId: number, body: NeedStatusActionRequest) => needsService.cancelNeed(needId, body);
 
 export const runSupportImport = () => needsService.runSupportImport();
-export const getNeedsDebugCounts = () => needsService.getNeedsDebugCounts();
 export const getNeedsMetricsByTeam = () => needsService.getNeedsMetricsByTeam();
-export const generateNeedsDemo = (count: number) => needsService.generateNeedsDemo(count);

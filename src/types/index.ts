@@ -263,6 +263,11 @@ export interface SyncConfig {
 
 export interface NeedItem {
   id: string;
+  teamId?: string | number | null;
+  teamName?: string | null;
+  category?: string | null;
+  relatedSystems?: string[];
+  externalTicketId?: string | null;
   protocol?: string | null;
   subject?: string | null;
   summary?: string | null;
@@ -290,7 +295,12 @@ export interface NeedItem {
 export interface NeedTicketExample {
   id?: string | null;
   title?: string | null;
+  subject?: string | null;
   systemCode?: string | null;
+  status?: string | null;
+  finalStatus?: string | null;
+  finishedBy?: string | null;
+  finishedByTeam?: string | null;
   url?: string | null;
   createdAt?: string | null;
 }
