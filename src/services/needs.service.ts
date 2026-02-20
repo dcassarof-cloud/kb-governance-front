@@ -109,6 +109,7 @@ const normalizeNeed = (raw: unknown): NeedItem => {
     relatedSystems: relatedSystems.length ? relatedSystems : systemCode ? [systemCode] : [],
     externalTicketId: (obj.externalTicketId as string) ?? (obj.movideskTicketId as string) ?? null,
     protocol: (obj.protocol as string) ?? (obj.ticketId as string) ?? (obj.movideskId as string) ?? null,
+    title: (obj.title as string) ?? (obj.subject as string) ?? (obj.summary as string) ?? null,
     subject: (obj.subject as string) ?? (obj.title as string) ?? null,
     summary: (obj.summary as string) ?? (obj.subject as string) ?? (obj.title as string) ?? null,
     systemCode,

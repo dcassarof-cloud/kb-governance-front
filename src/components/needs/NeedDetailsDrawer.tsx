@@ -59,10 +59,10 @@ export const NeedDetailsDrawer = ({ open, onOpenChange, needId }: NeedDetailsDra
   const fallbackTitle = detailErrorInfo ? 'Falha ao carregar detalhes' : 'Falha ao carregar histórico';
   const fallbackDescription = [
     detailErrorInfo
-      ? `Detalhes • statusCode: ${detailErrorInfo.status ?? '—'} • correlationId: ${detailErrorInfo.correlationId ?? '—'}`
+      ? `Detalhes · statusCode: ${detailErrorInfo.status ?? 'indisponível'} · correlationId: ${detailErrorInfo.correlationId ?? 'indisponível'}`
       : null,
     historyErrorInfo
-      ? `Histórico • statusCode: ${historyErrorInfo.status ?? '—'} • correlationId: ${historyErrorInfo.correlationId ?? '—'}`
+      ? `Histórico · statusCode: ${historyErrorInfo.status ?? 'indisponível'} · correlationId: ${historyErrorInfo.correlationId ?? 'indisponível'}`
       : null,
   ]
     .filter(Boolean)
@@ -113,7 +113,7 @@ export const NeedDetailsDrawer = ({ open, onOpenChange, needId }: NeedDetailsDra
         ) : (
           <div className="space-y-4 text-sm">
             <div>
-              <p className="text-xl font-semibold">{detailQuery.data.subject || detailQuery.data.summary || 'Sem título'}</p>
+              <p className="text-xl font-semibold">{detailQuery.data.title || detailQuery.data.subject || detailQuery.data.summary || 'Sem título'}</p>
               <p className="text-muted-foreground">{detailQuery.data.category || 'Categoria não informada'}</p>
             </div>
 

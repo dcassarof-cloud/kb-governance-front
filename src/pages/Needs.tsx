@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Loader2, RefreshCcw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  NEEDS_QUERY_KEYS,
   useNeedMetricsSummary,
   useNeedMutations,
   useNeedsList,
@@ -22,7 +23,7 @@ import {
   useRunSupportImportMutation,
 } from '@/hooks/useNeedsEnterprise';
 import { formatApiErrorInfo, toApiErrorInfo } from '@/lib/api-error-info';
-import type { NeedItem } from '@/types';
+import { useQueryClient } from '@tanstack/react-query';
 import type { NeedStatusActionRequest, NeedTriageRequest } from '@/types/needs-enterprise';
 
 type NeedActionType = 'start' | 'block' | 'complete' | 'cancel';
@@ -34,9 +35,11 @@ interface ActionModalState {
 
 const getTeamFromUrl = (searchParams: URLSearchParams) => searchParams.get('teamId') ?? 'all';
 
-const teamMatches = (need: NeedItem, selectedTeamId: string) => {
-  if (selectedTeamId === 'all') return true;
-  return String(need.teamId ?? '') === selectedTeamId;
+const toTeamIdParam = (selectedTeamId: string): number | undefined => {
+  if (selectedTeamId === 'all') return undefined;
+  const parsed = Number(selectedTeamId);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
 };
 
 export default function NeedsPage() {
@@ -47,28 +50,27 @@ export default function NeedsPage() {
   const [detailNeedId, setDetailNeedId] = useState<number | null>(null);
   const [actionModal, setActionModal] = useState<ActionModalState | null>(null);
 
-  const needsQuery = useNeedsList({ teamId: selectedTeamId === 'all' ? null : selectedTeamId });
+  const needsQuery = useNeedsList({ teamId: toTeamIdParam(selectedTeamId) });
   const metricsQuery = useNeedMetricsSummary();
   const teamMetricsQuery = useNeedsMetricsByTeamQuery();
+  const queryClient = useQueryClient();
 
   const { triageMutation, startMutation, blockMutation, completeMutation, cancelMutation } = useNeedMutations();
   const runSupportImportMutation = useRunSupportImportMutation();
 
   const needsData = needsQuery.data?.payload.data ?? [];
-  const teamFilterAvailable = needsData.length === 0 || needsData.some((need) => need.teamId || need.teamName);
-
-  const filteredNeeds = useMemo(() => {
-    if (selectedTeamId === 'all') return needsData;
-
-    if (teamFilterAvailable) {
-      return needsData.filter((need) => teamMatches(need, selectedTeamId));
-    }
-
-    return needsData;
-  }, [needsData, selectedTeamId, teamFilterAvailable]);
 
   const handleReload = async () => {
     await Promise.all([needsQuery.refetch(), metricsQuery.refetch(), teamMetricsQuery.refetch()]);
+  };
+
+  const handleSupportRefresh = async () => {
+    await runSupportImportMutation.mutateAsync();
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: NEEDS_QUERY_KEYS.list }),
+      queryClient.refetchQueries({ queryKey: NEEDS_QUERY_KEYS.metricsSummary }),
+      queryClient.refetchQueries({ queryKey: NEEDS_QUERY_KEYS.metricsByTeam }),
+    ]);
   };
 
   const handleTriage = async (needId: number, body: NeedTriageRequest) => {
@@ -108,7 +110,7 @@ export default function NeedsPage() {
         title="Necessidades"
         description="Acompanhe necessidades recorrentes e operacionais de forma estruturada."
         actions={
-          <Button type="button" variant="outline" onClick={() => runSupportImportMutation.mutate()} disabled={runSupportImportMutation.isPending}>
+          <Button type="button" variant="outline" onClick={() => void handleSupportRefresh()} disabled={runSupportImportMutation.isPending}>
             {runSupportImportMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
             {runSupportImportMutation.isPending ? 'Atualizando…' : 'Atualizar dados do suporte'}
           </Button>
@@ -127,7 +129,6 @@ export default function NeedsPage() {
             else next.set('teamId', teamId);
             setSearchParams(next, { replace: true });
           }}
-          teamFilterAvailable={teamFilterAvailable}
         />
 
         {needsMeta?.partialFailure ? (
@@ -148,7 +149,7 @@ export default function NeedsPage() {
           </div>
         ) : needsQuery.isError ? (
           <NeedsEmptyState title="Falha ao carregar necessidades" description={needsErrorDescription} onReload={handleReload} />
-        ) : filteredNeeds.length === 0 ? (
+        ) : needsData.length === 0 ? (
           <NeedsEmptyState
             title="Nenhuma necessidade encontrada"
             description="Ajuste os filtros e recarregue para tentar novamente."
@@ -156,8 +157,8 @@ export default function NeedsPage() {
           />
         ) : (
           <NeedsList
-            needs={filteredNeeds}
-            total={filteredNeeds.length}
+            needs={needsData}
+            total={needsData.length}
             isActionLoading={isAnyActionLoading}
             onTriage={setTriageNeedId}
             onAction={(type, needId) => setActionModal({ type, needId })}

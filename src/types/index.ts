@@ -263,6 +263,7 @@ export interface SyncConfig {
 
 export interface NeedItem {
   id: string;
+  title?: string | null;
   teamId?: string | number | null;
   teamName?: string | null;
   category?: string | null;
