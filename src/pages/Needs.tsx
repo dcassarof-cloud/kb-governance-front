@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Loader2, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, Loader2, RefreshCcw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -11,6 +11,7 @@ import { NeedsFilters } from '@/components/needs/NeedsFilters';
 import { NeedsList } from '@/components/needs/NeedsList';
 import { NeedsMetricsCards } from '@/components/needs/NeedsMetricsCards';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -63,7 +64,6 @@ export default function NeedsPage() {
       return needsData.filter((need) => teamMatches(need, selectedTeamId));
     }
 
-    console.error('[needs] Filtro por equipe indisponível: payload sem teamId/teamName', needsData);
     return needsData;
   }, [needsData, selectedTeamId, teamFilterAvailable]);
 
@@ -84,6 +84,15 @@ export default function NeedsPage() {
   };
 
   const needsErrorInfo = needsQuery.isError ? toApiErrorInfo(needsQuery.error, 'Falha ao carregar necessidades.') : null;
+  const needsMeta = needsQuery.data?.meta;
+
+  const needsErrorDescription = needsErrorInfo
+    ? formatApiErrorInfo({
+        ...needsErrorInfo,
+        requestId: needsErrorInfo.requestId ?? needsMeta?.requestId,
+        correlationId: needsErrorInfo.correlationId ?? needsMeta?.correlationId,
+      })
+    : 'Não foi possível carregar necessidades.';
 
   const isAnyActionLoading =
     triageMutation.isPending ||
@@ -121,6 +130,16 @@ export default function NeedsPage() {
           teamFilterAvailable={teamFilterAvailable}
         />
 
+        {needsMeta?.partialFailure ? (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Movidesk indisponível</AlertTitle>
+            <AlertDescription>
+              Exibindo dados parciais temporariamente. Recarregue em alguns minutos para atualizar a lista completa.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         {needsQuery.isLoading ? (
           <div className="space-y-2">
             <Skeleton className="h-12 w-full" />
@@ -128,11 +147,7 @@ export default function NeedsPage() {
             <Skeleton className="h-12 w-full" />
           </div>
         ) : needsQuery.isError ? (
-          <NeedsEmptyState
-            title="Falha ao carregar necessidades"
-            description={formatApiErrorInfo(needsErrorInfo ?? { message: 'Não foi possível carregar necessidades.' })}
-            onReload={handleReload}
-          />
+          <NeedsEmptyState title="Falha ao carregar necessidades" description={needsErrorDescription} onReload={handleReload} />
         ) : filteredNeeds.length === 0 ? (
           <NeedsEmptyState
             title="Nenhuma necessidade encontrada"
@@ -140,7 +155,15 @@ export default function NeedsPage() {
             onReload={handleReload}
           />
         ) : (
-          <NeedsList needs={filteredNeeds} total={filteredNeeds.length} onOpenDetail={setDetailNeedId} onOpenHistory={setDetailNeedId} />
+          <NeedsList
+            needs={filteredNeeds}
+            total={filteredNeeds.length}
+            isActionLoading={isAnyActionLoading}
+            onTriage={setTriageNeedId}
+            onAction={(type, needId) => setActionModal({ type, needId })}
+            onOpenDetail={setDetailNeedId}
+            onOpenHistory={setDetailNeedId}
+          />
         )}
       </div>
 

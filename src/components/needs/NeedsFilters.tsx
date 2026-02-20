@@ -34,7 +34,7 @@ export const NeedsFilters = ({ teamMetrics, selectedTeamId, onTeamChange, teamFi
         <Alert>
           <AlertTitle>Filtro por equipe indisponível</AlertTitle>
           <AlertDescription>
-            O backend não retornou teamId/teamName nas necessidades. O filtro não pode ser aplicado com segurança.
+            Filtro por equipe indisponível nos itens; exibindo todos.
           </AlertDescription>
         </Alert>
       ) : null}

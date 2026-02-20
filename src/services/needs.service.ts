@@ -98,18 +98,20 @@ const normalizeNeed = (raw: unknown): NeedItem => {
 
   const obj = raw as Record<string, unknown>;
   const windowObj = (obj.window as Record<string, unknown>) ?? null;
+  const systemCode = (obj.systemCode as string) ?? (obj.system as string) ?? (obj.systemId as string) ?? null;
+  const relatedSystems = toStringArray(obj.relatedSystems ?? obj.systems);
 
   return {
     id: obj.id ? String(obj.id) : (obj.needId as string) ?? (obj.code as string) ?? '',
     teamId: (obj.teamId as string | number) ?? (obj.primaryTeamId as string | number) ?? null,
     teamName: (obj.teamName as string) ?? (obj.primaryTeamName as string) ?? null,
     category: (obj.category as string) ?? (obj.type as string) ?? null,
-    relatedSystems: toStringArray(obj.relatedSystems ?? obj.systems),
+    relatedSystems: relatedSystems.length ? relatedSystems : systemCode ? [systemCode] : [],
     externalTicketId: (obj.externalTicketId as string) ?? (obj.movideskTicketId as string) ?? null,
     protocol: (obj.protocol as string) ?? (obj.ticketId as string) ?? (obj.movideskId as string) ?? null,
     subject: (obj.subject as string) ?? (obj.title as string) ?? null,
     summary: (obj.summary as string) ?? (obj.subject as string) ?? (obj.title as string) ?? null,
-    systemCode: (obj.systemCode as string) ?? (obj.system as string) ?? (obj.systemId as string) ?? null,
+    systemCode,
     systemName: (obj.systemName as string) ?? (obj.systemLabel as string) ?? null,
     status: (obj.status as string) ?? (obj.state as string) ?? null,
     severity: toNeedSeverity(obj.severity ?? obj.priority),
