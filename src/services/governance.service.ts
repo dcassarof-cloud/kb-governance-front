@@ -708,7 +708,7 @@ class GovernanceService {
       ticketUrl,
       ticketCreated:
         (data?.ticketCreated as boolean | null | undefined) ??
-        (payload.createTicket ? !Boolean(partialFailure) : null) ??
+        (payload.createTicket ? !partialFailure : null) ??
         null,
     };
   }

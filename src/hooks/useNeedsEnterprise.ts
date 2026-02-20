@@ -7,10 +7,7 @@ import {
   blockNeed,
   cancelNeed,
   completeNeed,
-  generateNeedsDemo,
-  getNeedHistory,
   getNeedMetricsSummary,
-  getNeedsDebugCounts,
   getNeedsMetricsByTeam,
   needsService,
   runSupportImport,
@@ -19,10 +16,22 @@ import {
 } from '@/services/needs.service';
 import { NeedStatusActionRequest, NeedTriageRequest } from '@/types/needs-enterprise';
 
-export const useNeedsList = (teamId?: number | string | null) =>
+export interface NeedsListFilters {
+  teamId?: number | string | null;
+  systemCode?: string | null;
+  q?: string | null;
+}
+
+export const useNeedsList = (filters: NeedsListFilters) =>
   useQuery({
-    queryKey: ['needs', { teamId: teamId ?? null }],
-    queryFn: () => needsService.listNeeds({ page: 1, size: 100, teamId: teamId ?? undefined }),
+    queryKey: ['needs', { teamId: filters.teamId ?? null, systemCode: filters.systemCode ?? null, q: filters.q ?? null }],
+    queryFn: () =>
+      needsService.listNeedsWithMeta({
+        page: 1,
+        size: 100,
+        teamId: filters.teamId ?? undefined,
+        systemCode: filters.systemCode ?? undefined,
+      }),
     retry: false,
   });
 
@@ -33,27 +42,17 @@ export const useNeedMetricsSummary = () =>
     retry: false,
   });
 
-
-export const useNeedsDebugCountsQuery = (enabled: boolean) =>
-  useQuery({
-    queryKey: ['needsDebugCounts'],
-    queryFn: getNeedsDebugCounts,
-    enabled,
-    retry: false,
-  });
-
-export const useNeedsMetricsByTeamQuery = (enabled: boolean) =>
+export const useNeedsMetricsByTeamQuery = () =>
   useQuery({
     queryKey: ['needsMetricsByTeam'],
     queryFn: getNeedsMetricsByTeam,
-    enabled,
     retry: false,
   });
 
 export const useNeedHistory = (needId?: number | null, enabled = true) =>
   useQuery({
     queryKey: ['needHistory', needId],
-    queryFn: () => getNeedHistory(needId as number),
+    queryFn: () => needsService.getNeedHistory(needId as number),
     enabled: enabled && !!needId,
     retry: false,
   });
@@ -74,7 +73,6 @@ const showMutationError = (error: unknown) => {
     variant: 'destructive',
   });
 };
-
 
 const resolveSupportImportErrorMessage = (error: unknown) => {
   const apiError = toApiError(error);
@@ -156,8 +154,6 @@ export const useNeedMutations = () => {
   };
 };
 
-
-
 export const useRunSupportImportMutation = () => {
   const queryClient = useQueryClient();
 
@@ -168,7 +164,6 @@ export const useRunSupportImportMutation = () => {
         queryClient.invalidateQueries({ queryKey: ['needs'] }),
         queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
         queryClient.invalidateQueries({ queryKey: ['needsMetricsByTeam'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsDebugCounts'] }),
       ]);
       toast({
         title: 'Importação do suporte iniciada.',
@@ -181,65 +176,6 @@ export const useRunSupportImportMutation = () => {
       toast({
         title: 'Falha ao atualizar dados do suporte',
         description: formatApiErrorInfo({ ...info, message: friendlyMessage }),
-        variant: 'destructive',
-      });
-    },
-  });
-};
-
-export const useNeedLegacyActions = () => {
-  const queryClient = useQueryClient();
-
-  const createTaskMutation = useMutation({
-    mutationFn: (needId: number) => needsService.createInternalTask(String(needId)),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['needs'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
-      ]);
-      toast({ title: 'Task criada com sucesso.' });
-    },
-    onError: showMutationError,
-  });
-
-  const createTicketMutation = useMutation({
-    mutationFn: (needId: number) => needsService.createMasterTicket(String(needId)),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['needs'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
-      ]);
-      toast({ title: 'Master ticket criado com sucesso.' });
-    },
-    onError: showMutationError,
-  });
-
-  return {
-    createTaskMutation,
-    createTicketMutation,
-  };
-};
-
-
-export const useGenerateNeedsDemoMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (count: number) => generateNeedsDemo(count),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['needs'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsMetricsSummary'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsMetricsByTeam'] }),
-        queryClient.invalidateQueries({ queryKey: ['needsDebugCounts'] }),
-      ]);
-      toast({ title: 'Dados de demo gerados com sucesso.' });
-    },
-    onError: (error) => {
-      const info = toApiErrorInfo(error, 'Falha ao gerar dados de demo.');
-      toast({
-        title: info.status === 403 ? 'Demo desabilitado' : 'Falha ao gerar dados de demo',
-        description: info.status === 403 ? 'O endpoint de demo está desabilitado no backend.' : info.message,
         variant: 'destructive',
       });
     },

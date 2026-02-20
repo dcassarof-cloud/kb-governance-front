@@ -34,6 +34,7 @@ const ALLOWED_ISSUE_TYPES: IssueType[] = [
   'NOT_AI_READY',
   'DUPLICATE_CONTENT',
   'INCOMPLETE_CONTENT',
+  'INCONSISTENT_CONTENT',
 ];
 
 const isAllowedIssueType = (value: string | null | undefined): value is IssueType =>
@@ -41,6 +42,7 @@ const isAllowedIssueType = (value: string | null | undefined): value is IssueTyp
 
 const isAllowedIssueSeverity = (value: string | null | undefined): value is IssueSeverity =>
   !!value && ISSUE_SEVERITY_OPTIONS.includes(value as IssueSeverity);
+
 
 export const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
 export const ISSUE_TYPE_LABELS: Record<IssueType, string> = governanceTexts.issueTypes;
@@ -80,7 +82,6 @@ function buildSearchParams(filters: GovernanceFilters, page: number): URLSearchP
   if (filters.status) params.set('status', filters.status);
   if (filters.type) params.set('type', filters.type);
   if (filters.severity) params.set('severity', filters.severity);
-  if (filters.responsibleType) params.set('responsibleType', filters.responsibleType);
   if (filters.responsibleId) params.set('responsibleId', filters.responsibleId);
   if (filters.q) params.set('q', filters.q);
   if (filters.overdue) params.set('overdue', 'true');
@@ -99,6 +100,10 @@ export function useGovernance() {
   const isManager = hasRole(['ADMIN', 'MANAGER']);
   const actorIdentifier = authService.getActorIdentifier() ?? '';
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
   const [state, dispatch] = useReducer(
     governanceReducer,
     createInitialFilters(isManager, actorIdentifier),
@@ -152,8 +157,7 @@ export function useGovernance() {
           systemCode: debouncedFilters.systemCode,
           status: debouncedFilters.status,
           type: isAllowedIssueType(debouncedFilters.type) ? debouncedFilters.type : undefined,
-          severity: debouncedFilters.severity,
-          responsibleType: debouncedFilters.responsibleType,
+          severity: isAllowedIssueSeverity(debouncedFilters.severity) ? debouncedFilters.severity : undefined,
           responsibleId: effectiveResponsibleId,
           q: debouncedFilters.q,
           overdue: debouncedFilters.overdue,
@@ -169,8 +173,7 @@ export function useGovernance() {
     systemCode: debouncedFilters.systemCode,
     status: debouncedFilters.status,
     type: isAllowedIssueType(debouncedFilters.type) ? debouncedFilters.type : undefined,
-    severity: debouncedFilters.severity,
-    responsibleType: debouncedFilters.responsibleType,
+    severity: isAllowedIssueSeverity(debouncedFilters.severity) ? debouncedFilters.severity : undefined,
     responsibleId: effectiveResponsibleId,
     q: debouncedFilters.q,
     overdue: debouncedFilters.overdue,
@@ -352,13 +355,14 @@ export function useGovernance() {
   };
 
   const handleFilterChange = (key: keyof GovernanceFilters, value: string) => {
-    if (!isManager && (key === 'responsibleId' || key === 'responsibleType')) {
+    if (!isManager && key === 'responsibleId') {
       return;
     }
     const nextFilters = { ...filters, [key]: value };
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'PATCH_FILTERS', payload: { [key]: value } });
     syncFiltersToUrl(nextFilters, 1);
+    scrollToTop();
   };
 
   const handleToggleChange = (key: 'overdue' | 'unassigned', value: boolean) => {
@@ -366,6 +370,7 @@ export function useGovernance() {
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'PATCH_FILTERS', payload: { [key]: value } });
     syncFiltersToUrl(nextFilters, 1);
+    scrollToTop();
   };
 
   const handleCriticalToggle = (value: boolean) => {
@@ -373,6 +378,7 @@ export function useGovernance() {
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'PATCH_FILTERS', payload: { severity: value ? 'ERROR' : undefined } });
     syncFiltersToUrl(nextFilters, 1);
+    scrollToTop();
   };
 
   const clearFilters = () => {
@@ -380,6 +386,7 @@ export function useGovernance() {
     dispatch({ type: 'SET_PAGE', payload: 1 });
     dispatch({ type: 'SET_FILTERS', payload: nextFilters });
     syncFiltersToUrl(nextFilters, 1);
+    scrollToTop();
   };
 
 
@@ -559,7 +566,6 @@ export function useGovernance() {
   useEffect(() => {
     const sp = new URLSearchParams(searchParamsString);
     const responsibleId = sp.get('responsibleId') ?? sp.get('responsible') ?? '';
-    const responsibleType = sp.get('responsibleType') ?? '';
     const assignTo = sp.get('assignTo') ?? '';
     const assignIssueId = sp.get('assignIssueId') ?? '';
     const systemCode = sp.get('systemCode') ?? sp.get('system') ?? '';
@@ -578,9 +584,8 @@ export function useGovernance() {
       type: 'PATCH_FILTERS',
       payload: {
         responsibleId: isManager ? responsibleId : actorIdentifier,
-        responsibleType: isManager ? responsibleType : undefined,
         systemCode,
-        status: status ? (status as IssueStatus) : undefined,
+        status: status && ISSUE_STATUS_OPTIONS.includes(status as IssueStatus) ? (status as IssueStatus) : undefined,
         type: safeType,
         severity: safeSeverity,
         q,
@@ -746,6 +751,7 @@ export function useGovernance() {
   }, [overview]);
 
   const totalPages = issuesData?.totalPages ?? 0;
+  const hasNextPage = Boolean(issuesData && (issuesData.page ?? page) < (issuesData.totalPages ?? 0));
 
   return {
     state,
@@ -753,6 +759,7 @@ export function useGovernance() {
     actorIdentifier,
     issues,
     totalPages,
+    hasNextPage,
     resolvedStatusOptions,
     resolvedTypeOptions,
     resolvedSeverityOptions,
@@ -786,12 +793,16 @@ export function useGovernance() {
     setPage: (value: number) => {
       dispatch({ type: 'SET_PAGE', payload: value });
       syncFiltersToUrl(filters, value);
+      scrollToTop();
     },
     openAssign: (issue: GovernanceIssueDto) => dispatch({ type: 'OPEN_ASSIGN', payload: issue }),
     closeAssign: () => dispatch({ type: 'CLOSE_ASSIGN' }),
     setAssignField: (payload: Partial<typeof state.assign>) =>
       dispatch({ type: 'SET_ASSIGN_FIELD', payload }),
-    openStatus: (issue: GovernanceIssueDto) => dispatch({ type: 'OPEN_STATUS', payload: issue }),
+    openStatus: (issue: GovernanceIssueDto) => {
+      dispatch({ type: 'OPEN_STATUS', payload: issue });
+      dispatch({ type: 'SET_STATUS_FIELD', payload: { value: 'OPEN', ignoredReason: '' } });
+    },
     closeStatus: () => dispatch({ type: 'CLOSE_STATUS' }),
     setStatusField: (payload: Partial<typeof state.status>) =>
       dispatch({ type: 'SET_STATUS_FIELD', payload }),

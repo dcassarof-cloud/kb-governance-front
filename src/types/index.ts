@@ -263,6 +263,11 @@ export interface SyncConfig {
 
 export interface NeedItem {
   id: string;
+  teamId?: string | number | null;
+  teamName?: string | null;
+  category?: string | null;
+  relatedSystems?: string[];
+  externalTicketId?: string | null;
   protocol?: string | null;
   subject?: string | null;
   summary?: string | null;
@@ -290,7 +295,12 @@ export interface NeedItem {
 export interface NeedTicketExample {
   id?: string | null;
   title?: string | null;
+  subject?: string | null;
   systemCode?: string | null;
+  status?: string | null;
+  finalStatus?: string | null;
+  finishedBy?: string | null;
+  finishedByTeam?: string | null;
   url?: string | null;
   createdAt?: string | null;
 }
@@ -307,7 +317,8 @@ export type IssueType =
   | 'REVIEW_REQUIRED'
   | 'NOT_AI_READY'
   | 'DUPLICATE_CONTENT'
-  | 'INCOMPLETE_CONTENT';
+  | 'INCOMPLETE_CONTENT'
+  | 'INCONSISTENT_CONTENT';
 export type IssueSeverity = 'INFO' | 'WARN' | 'ERROR';
 export type IssueStatus = 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'IGNORED';
 export type SyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';

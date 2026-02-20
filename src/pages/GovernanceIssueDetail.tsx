@@ -30,7 +30,7 @@ import { governanceTexts } from '@/governanceTexts';
 import { CreateManualAssignmentDialog } from '@/features/governance/components/CreateManualAssignmentDialog';
 
 const ISSUE_TYPE_LABELS: Record<string, string> = governanceTexts.issueTypes;
-const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'IGNORED'];
+const ISSUE_STATUS_OPTIONS: IssueStatus[] = ['OPEN', 'IGNORED'];
 
 /**
  * Transforma campos técnicos do histórico em frases humanas legíveis
@@ -435,6 +435,23 @@ export default function GovernanceIssueDetailPage() {
   const metadataDescription = issue?.description || issue?.details || null;
   const metadataRecommendation = issue?.recommendation || null;
   const metadataMessage = issue?.message?.trim() || null;
+
+  const metadataBlocks = useMemo(() => {
+    const candidates = [
+      { title: governanceTexts.issueDetail.whatIsItTitle, value: metadataDescription },
+      { title: governanceTexts.issueDetail.howToResolveTitle, value: metadataRecommendation },
+      { title: 'Mensagem', value: metadataMessage },
+    ];
+
+    const seen = new Set<string>();
+    return candidates.filter((item) => {
+      const normalized = item.value?.trim().toLowerCase();
+      if (!normalized) return false;
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+  }, [metadataDescription, metadataRecommendation, metadataMessage]);
   const isAssignedToUser = useMemo(() => {
     if (!issue || !actorIdentifier) return false;
     const actor = actorIdentifier.toLowerCase();
@@ -450,7 +467,7 @@ export default function GovernanceIssueDetailPage() {
         description={governanceTexts.issueDetail.description}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate('/governance')}>
+            <Button variant="outline" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               {governanceTexts.issueDetail.backToList}
             </Button>
@@ -471,7 +488,7 @@ export default function GovernanceIssueDetailPage() {
                   <Button
                     variant="secondary"
                     onClick={() => {
-                      setStatusValue(issue.status || 'OPEN');
+                      setStatusValue('OPEN');
                       setStatusIgnoredReason('');
                       setStatusDialogOpen(true);
                     }}
@@ -497,7 +514,7 @@ export default function GovernanceIssueDetailPage() {
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
             <h3 className="font-semibold text-lg mb-2">{governanceTexts.issueDetail.loadError}</h3>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={() => navigate('/governance')}>
+            <Button onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               {governanceTexts.general.back}
             </Button>
@@ -530,6 +547,9 @@ export default function GovernanceIssueDetailPage() {
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.systemLabel}</p>
                     <p className="font-medium">{issue.systemName || issue.systemCode || governanceTexts.general.notAvailable}</p>
+                    {((issue.systemCode || '').trim().toLowerCase() === 'geral' || (issue.systemName || '').trim().toLowerCase() === 'geral') && (
+                      <p className="mt-1 text-xs text-warning">Esta pendência está sem sistema vinculado. Atualize para manter a governança correta.</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-muted-foreground">{governanceTexts.issueDetail.manualLabel}</p>
@@ -592,26 +612,14 @@ export default function GovernanceIssueDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {(metadataDescription || metadataRecommendation || metadataMessage) && (
+            {metadataBlocks.length > 0 && (
               <div className="card-metric space-y-4">
-                {metadataDescription && (
-                  <div>
-                    <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.whatIsItTitle}</h4>
-                    <p className="text-sm text-muted-foreground mt-1">{metadataDescription}</p>
+                {metadataBlocks.map((block) => (
+                  <div key={block.title}>
+                    <h4 className="text-sm font-semibold">{block.title}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{block.value}</p>
                   </div>
-                )}
-                {metadataRecommendation && (
-                  <div>
-                    <h4 className="text-sm font-semibold">{governanceTexts.issueDetail.howToResolveTitle}</h4>
-                    <p className="text-sm text-muted-foreground mt-1">{metadataRecommendation}</p>
-                  </div>
-                )}
-                {metadataMessage && (
-                  <div>
-                    <h4 className="text-sm font-semibold">Mensagem</h4>
-                    <p className="text-sm text-muted-foreground mt-1">{metadataMessage}</p>
-                  </div>
-                )}
+                ))}
               </div>
             )}
 
