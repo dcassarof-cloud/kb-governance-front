@@ -69,7 +69,7 @@ export const API_ENDPOINTS = {
   SUPPORT_IMPORT_RUN: '/support/import/run',
   NEEDS_DEBUG_COUNTS: '/needs/debug-counts',
   NEEDS_METRICS_BY_TEAM: '/needs/metrics/by-team',
-  NEEDS_DEMO_GENERATE: '/needs/demo/generate',
+  NEEDS_METRICS_BY_SYSTEM: '/needs/metrics/by-system',
   SYSTEMS: '/systems',
   SYSTEM_BY_ID: (id: string | number) => `/systems/${id}`,
   SYNC_RUNS: '/sync/runs',
